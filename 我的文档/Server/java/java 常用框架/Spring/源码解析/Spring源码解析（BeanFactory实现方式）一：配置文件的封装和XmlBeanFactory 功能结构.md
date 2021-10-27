@@ -375,7 +375,7 @@ public interface BeanMetadataElement {
 	}
 ```
 
-ignoreDependencyInterface 的主要功能是忽略给定接口的自动装配功能，这个具体后面再说。
+&emsp;&emsp;有时候接口中会有 setXxx 方法，它不需要被自动注入，ignoreDependencyInterface  的主要功能是存储需要忽略的接口，在自动装配的时候会用到。
 
 ### 3.6 DefaultlistableBeanFactory 
 
