@@ -493,6 +493,17 @@ public void registerBeanDefinitions(Document doc, XmlReaderContext readerContext
 
 #### 2.2.1 封装 readerContext
 
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/XmlReaderContext.png)
+
+&emsp;&emsp;ReaderContext 类主要用于 Bean 定义读取过程的上下文环境的传递，封装了所有相关配置以及监听器等信息，对在读取 xml 信息的过程中的各个阶段的回调事件提供了支持，XmlReaderContext 继承并对 ReaderContext 进行了拓展实现，专门用于和 XmlBeanDefinitionReader 配合使用，并提供对 namespace 解析器 NamespaceHandlerResolver 的封装。
+
+|          ReaderContext 封装的部分属性          |           说明           |
+| :--------------------------: | :----------------------: |
+|       XmlBeanDefinitionReader       |    XML 读取器   |
+| NamespaceHandlerResolver | namespace 解析器 |
+| Resource | 资源信息 |
+| ReaderEventListener | 读取监听器 |
+
 ```java
 public XmlReaderContext createReaderContext(Resource resource) {
    return new XmlReaderContext(resource, this.problemReporter, this.eventListener,
@@ -500,7 +511,7 @@ public XmlReaderContext createReaderContext(Resource resource) {
 }
 ```
 
-&emsp;&emsp;这里主要封装了后面要用到的解析 xml 的上下文环境。比如 namespace 解析器的创建，注册监听器等，这里的 namespace 解析器使用的是的默认实现 DefaultNamespaceHandlerResolver，它的作用是根据映射文件中包含的映射，将命名空间 URI 解析为实现类，默认情况下，此实现在  `META-INF/spring.handlers` 查找映射文件。
+&emsp;&emsp;这里的 namespace 解析器使用的是的默认实现 DefaultNamespaceHandlerResolver，它的作用是根据映射文件中包含的映射，将命名空间 URI 解析为实现类，默认情况下，此实现在  `META-INF/spring.handlers` 查找映射文件。
 
 #### 2.2.2 doRegisterBeanDefinitions
 

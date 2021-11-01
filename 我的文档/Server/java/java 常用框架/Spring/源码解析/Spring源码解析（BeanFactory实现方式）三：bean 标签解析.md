@@ -2,9 +2,14 @@
 
 
 
-&emsp;&emsp;`BeanDefinitionDocumentReader` 接口用于解析包含 Spring bean 定义信息的 XML 文档，并根据要解析的文档实例化。接上文，来看默认实现 `DefaultBeanDefinitionDocumentReader` 的`doRegisterBeanDefinitions` 方法。
+&emsp;&emsp;`BeanDefinitionDocumentReader` 接口用于解析包含 Spring bean 定义信息的 XML 文档，并根据要解析的文档实例化，它根据 Spring 的默认 XML bean 定义格式读取 bean 定义信息，读取所需 XML 文档的结构、元素和属性名称在此类中进行了硬编码，此类将解析 XML 文件中的所有 bean 定义元素，其中保存了传递过来封装好了的上下文对象和真正用于解析元素的委托类。接上文，来看默认实现 `DefaultBeanDefinitionDocumentReader` 的`doRegisterBeanDefinitions` 方法。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011721895.png)
+
+| BeanDefinitionDocumentReader 封装的部分属性 |           说明           |
+| :-----------------------------------------: | :----------------------: |
+|              XmlReaderContext               |   封装好了的上下文对象   |
+|        BeanDefinitionParserDelegate         | 真正用于解析元素的委托类 |
 
 ## 1. 解析开始
 
@@ -12,7 +17,7 @@
 
 ```java
 protected void doRegisterBeanDefinitions(Element root) {
-    //1.处理 Definit 属性创建专门处理的解析器
+    //1.创建处理属性的专门处理的解析器
    BeanDefinitionParserDelegate parent = this.delegate;
    this.delegate = createDelegate(getReaderContext(), root, parent);
 	//2.处理 profile 属性
@@ -42,7 +47,7 @@ protected void doRegisterBeanDefinitions(Element root) {
 }
 ```
 
-&emsp;&emsp;进入方法首先利用封装的 readerContext 创建了一个用于解析 XML bean definitions 的委托类 `BeanDefinitionParserDelegate`。
+&emsp;&emsp;进入方法首先利用封装的 readerContext 创建了一个用于解析 XML bean definitions 的委托类 BeanDefinitionParserDelegate。
 
 ### 1.1 beans 标签和 default 值设置
 
@@ -72,7 +77,7 @@ public void initDefaults(Element root, @Nullable BeanDefinitionParserDelegate pa
 }
 ```
 
-&emsp;&emsp;这里主要就是解析设置 Spring beans 标签中以 default 开头的属性，比如设置是否使用懒加载启动容器、默认的自动装配方式、初始化方法等，Spring 将这些属性抽象成了一个 `DocumentDefaultsDefinition` 对象，里面放的就是这些值和 get，set 方法。
+&emsp;&emsp;这里主要就是解析设置 Spring `<beans>` 标签中以 default 开头的属性，比如设置是否使用懒加载启动容器、默认的自动装配方式、初始化方法等，Spring 将这些属性抽象成了一个 `DocumentDefaultsDefinition` 简单 JavaBean 对象，里面放的就是这些值和 get，set 方法。
 
 **BeanDefinitionParserDelegate.populateDefaults**
 
@@ -129,7 +134,7 @@ protected void populateDefaults(DocumentDefaultsDefinition defaults, @Nullable D
 }
 ```
 
-&emsp;&emsp;`<beans>`元素下所指定的属性都可以在每个`<bean>`子元素中单独指定，只要将属性名去掉default 即可，这样就可以对特定 bean 起作用。在解析设置完 beans 标签中以 default 开头的属性后，触发 EmptyReaderEventListener 的 defaultsRegistered 事件，表示 default 属性已经设置完毕。
+&emsp;&emsp;`<beans>`元素下所指定的属性都可以在每个`<bean>`子元素中单独指定，只要将属性名去掉default 即可，这样就可以对特定 bean 起作用。在解析设置完 beans 标签中以 default 开头的属性后，触发 EmptyReaderEventListener 的 defaultsRegistered 事件，表示 default 属性已经设置完毕，这里就用到了在 readerContext 中封装的监听器。
 
 ### 1.2.  处理 profile 属性
 
@@ -242,7 +247,6 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
 &emsp;&emsp;可以看到，bean 的解析工作又交给了 `parseBeanDefinitionElement` 方法，而它返回的 bdHolder 中已经包含了配置文件中各种配置信息，例如 bean 的 class、name、id、alias 等属性。
 
 ### 2.1  name 和  id 属性的处理
-
 
 **BeanDefinitionParserDelegate.parseBeanDefinitionElement** 
 
@@ -394,7 +398,7 @@ public AbstractBeanDefinition parseBeanDefinitionElement(
 
 &emsp;&emsp;Spring 通过 `GenericBeanDefinition` 将配置文件中的 `<bean>` 配置信息转换为容器的内部表示，并将这些 BeanDefinition 注册到 `BeanDefinitonRegistry` 中，Spring 容器的 `BeanDefinitionRegistrγ` 就像是  Spring 配置信息的内存数据库，主要是以 map 的形式保存，后续操作直接从 `BeanDefinitionRegistrγ` 中读取配置信息。
 
-![](https://note.youdao.com/yws/res/5359/WEBRESOURCE65866eff961642dce56cbf16059f4a6f)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/BeanDefinition.png)
 
 &emsp;&emsp;由此可知，要解析属性，首先要创建用于承载属性的实例，也就是创建 GenericBeanDefinition 类型的实例，而上面第3部的createBeanDefinition(className, parent) 的作用就是实现此功能。
 
@@ -964,7 +968,7 @@ public void parseConstructorArgElement(Element ele, BeanDefinition bd) {
 }
 ```
 
-&emsp;&emsp;对于是否使用 index 属性，Spring 的处理流程是不同的，关键是属性信息的保存位置不同，Spring 将构造函数的参数封装为一个 `ConstructorArgumentValues` 对象，真正的参数又被封装在 `ConstructorArgumentValues.ValueHolder` 中，有 index 的参数放在 `Map<Integer, ValueHolder> indexedArgumentValues = new LinkedHashMap<>()` 没有的存放在 `List<ValueHolder> genericArgumentValues = new ArrayList<>()` 中，最后将封装好的 `ConstructorArgumentValues` 记录在 BeanDefinition 中。然后看具体解析获取元素的值。
+&emsp;&emsp;对于是否使用 index 属性，Spring 的处理流程是不同的，关键是属性信息的保存位置不同，Spring 将构造函数的参数封装为一个 `ConstructorArgumentValues` 对象，真正的参数又被封装在 `ConstructorArgumentValues.ValueHolder` 中，有 index 的参数放在 `Map<Integer, ValueHolder> indexedArgumentValues = new LinkedHashMap<>()` 没有的存放在 `List<ValueHolder> genericArgumentValues = new ArrayList<>()` 中，最后将封装好的 `ConstructorArgumentValues` 记录在 BeanDefinition 中，然后看具体解析获取元素的值。
 
 
 ##### 2.2.6.1 解析 constructor-arg 的值

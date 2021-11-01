@@ -35,7 +35,7 @@ protected void processBeanDefinition(Element ele, BeanDefinitionParserDelegate d
 
 4. 触发注册完成监听事件。
 
-&emsp;&emsp;配置文件已经解析完了，对于得到的 beanDinition 已经可以满足后续的使用了，接下来就是注册工作，在之前第二篇文中说过，解析的 beanDefinition 都会被注册到 BeanDefinitionRegistry 类型的实例中，使用 beanName 作为key，BeanDefinitionRegistry 是持有 BeanDefinition 的注册表的接口，它是 Spring 中 BeanFactory 容器中唯一封装 BeanDefinition 的注册表的接口 ，它定义了关于 BeanDefinition 的注册、移除、查询等一系列的操作。而对于 beanDinition 的注册分成了两部分：通过 beanName 注册 BeanDefinition 以及别名的注册。
+&emsp;&emsp;配置文件已经解析完了，对于得到的 beanDinition 已经可以满足后续的使用了，接下来就是注册工作，在之前第二篇文中说过，解析的 beanDefinition 都会被注册到 BeanDefinitionRegistry 类型的实例中，使用 beanName 作为 key，BeanDefinitionRegistry 是持有 BeanDefinition 的注册表的接口，它是 Spring 中 BeanFactory 容器中唯一封装 BeanDefinition 的注册表的接口 ，它定义了关于 BeanDefinition 的注册、移除、查询等一系列的操作。而对于 beanDinition 的注册分成了两部分：通过 beanName 注册 BeanDefinition 以及别名的注册。
 
 **BeanDefinitionReaderUtils.registerBeanDefinition**
 
