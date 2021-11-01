@@ -1,10 +1,6 @@
 # Spring源码解析（BeanFactory实现方式）二：Document 的获取
 
-
-
 &emsp;&emsp;上篇主要介绍了在加载配置文件之前的准备工作和 XmlBeanFactory 的一部分内容，接着上次继续往下看。
-
-
 
 ## 1. 准备工作
 
@@ -140,8 +136,6 @@ Schema 的新特性
 
 &emsp;&emsp;Shema 是基于 xml 语法的；Schema 可以用能处理 xml 文档的工具处理；Schema 大大扩充了数据类型，可以自定义数据类型；Schema 支持元素的继承; Schema 支持属性组。
 
-
-
 #### 2.1.2 XSD
 
 &emsp;&emsp;XSD（XML Schemas Definition）：其作用与 DTD 一样，也是用于验证 xml 文档的有效性，只不过它提供了比 DTD 更强大的功能和更细粒度的数据类型，另外 Schema 还可以自定义数据类型。此外，Schema 也是一个 xml 文件，而 DTD 则不是。XML Schema 描述了 XML 文档的结构，可以用一个指定的 XML Schema 来验证某个文档。
@@ -197,7 +191,7 @@ protected int getValidationModeForResource(Resource resource) {
 	}
 ```
 
-&emsp;&emsp;方法实现很简单，如果设定了使用的验证模式则使用设定的验证模式，否则使用自动检测的方式。可以通过 XmlBeanDefinitionReader 中的 setValidationMode 方法来设置。自动检测工作又委托给了专门处理类 XmlValidationModeDetector 的 detectValidationMode 方法：
+&emsp;&emsp;方法实现很简单，如果设定了使用的验证模式则使用设定的验证模式，否则使用自动检测的方式。可以通过 XmlBeanDefinitionReader 中的 setValidationMode 方法来设置。自动检测工作又委托给了专门用于检测 XML 流是否使用基于 DTD 或 XSD 的验证的类 XmlValidationModeDetector。
 
 **XmlValidationModeDetector.detectValidationMode**
 
@@ -240,7 +234,7 @@ public int detectValidationMode(InputStream inputStream) throws IOException {
 
 #### 2.1.5 EntityResolver
 
-&emsp;&emsp;回到 doLoadDocument，在调用 loadDocument 方法时设置了一个参数，EntityResolver，它是做什么的？在官方文档的描述是：如果 SAX 应用程序需要为外部实体实现定制处理，则必须实现该接口，并使用 `setEntityResolver` 方法向 SAX 驱动程序注册一个实例。也就是说，对于解析一个 XML ，SAX 首先读取该 XML 文档上的声明，根据声明去寻找相应的 DTD 定义，以便对文档进行验证。
+&emsp;&emsp;回到 doLoadDocument，在调用 loadDocument 方法时设置了一个参数，EntityResolver，它在官方文档的描述是：如果 SAX 应用程序需要为外部实体实现定制处理，则必须实现该接口，并使用 `setEntityResolver` 方法向 SAX 驱动程序注册一个实例。也就是说，对于解析一个 XML ，SAX 首先读取该 XML 文档上的声明，根据声明去寻找相应的 DTD 定义，以便对文档进行验证。
 
 &emsp;&emsp;EntityResolver 的作用是项目本身可以提供一个如何寻找 DTD 声明文件的方法，即由程序来实现寻找 DTD 声明文件的过程，比如将 DTD 文件放到项目某处，在实现时直接将此文档读取并返回给 SAX 即可，这样就避免了通过网络来寻找相应的声明。
 
@@ -283,9 +277,9 @@ protected EntityResolver getEntityResolver() {
 	}
 ```
 
-&emsp;&emsp;从上面获取 EntityResolver 的方法可以得出，这里是使用 DelegatingEntityResolver 类来作为 EntityResolver 的默认实现类，而 ResourceEntityResolver 则继承了 DelegatingEntityResolver 类。
+&emsp;&emsp;这里使用 ResourceEntityResolver 类来作为 EntityResolver 的实现类，而 ResourceEntityResolver 则继承了 DelegatingEntityResolver 类。
 
-![](https://note.youdao.com/yws/res/5461/WEBRESOURCEb1538e9c4a439d6b6f9a1de142fd54c1)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011651006.png)
 
 【方法实现】
 
@@ -371,7 +365,7 @@ public InputSource resolveEntity(@Nullable String publicId, @Nullable String sys
 	}
 ```
 
-&emsp;&emsp;逻辑非常简单，对不同的验证模式， Spring 使用了不同的解析器解析，当获取到到的 systemId 以 .dtd 结尾时使用 dtdResolver 解析，以 .xsd 结尾时使用 schemaResolver 解析。而 DelegatingEntityResolver 在构造的时候分别初始化了使用的具体解析器类型。
+&emsp;&emsp;父类中的处理逻辑非常简单，对不同的验证模式， Spring 使用了不同的解析器解析，当获取到到的 systemId 以 .dtd 结尾时使用 dtdResolver 解析，以 .xsd 结尾时使用 schemaResolver 解析。而 DelegatingEntityResolver 在构造的时候分别初始化了使用的具体解析器类型。
 
 **DelegatingEntityResolver.DelegatingEntityResolver**
 
@@ -387,7 +381,7 @@ public DelegatingEntityResolver(@Nullable ClassLoader classLoader) {
 
 #### 2.1.6 PluggableSchemaResolver 
 
-&emsp;&emsp;以这里使用的 XSD 解析器 PluggableSchemaResolver 来简单看原理，在 PluggableSchemaResolver 类中定义了默认的 schema 文件的映射文件路径。
+&emsp;&emsp;以这里使用的 XSD 解析器 PluggableSchemaResolver 来简单看看原理，在 PluggableSchemaResolver 类中定义了默认的 schema 文件的映射文件路径。
 
 ```java
 public static final String DEFAULT_SCHEMA_MAPPINGS_LOCATION = "META-INF/spring.schemas";
@@ -454,8 +448,6 @@ public InputSource resolveEntity(@Nullable String publicId, @Nullable String sys
 ```
 
 &emsp;&emsp;这里很简单，没有什么特殊的操作，就是把 DocumentBuilderFactory 和 DocumentBuilder 的创建和初始化过程封装了一下，至于通过 SAX 解析 XML 文档并获取 Document 没有什么特殊的地方。
-
-
 
 ### 2.2. 解析并注册BeanDefinition
 

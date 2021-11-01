@@ -9,11 +9,7 @@
 
 &emsp;&emsp;在Java 中，将不同来源的资源抽象成 URL ，通过注册不同的 handler ( URLStreamHandler )  来处理不同来源的资源的读取逻辑，一般 handler 类型使用不同的前缀（协议， Protoc ol ）来识别，如“file ：” “ “http ：“ ” jar ：“ 等，然而 URL 没有默认定义相对 Classpath 或ServletContext 等资源的 handler ，虽然可以注册自己的 URLStreamHander 解析特定的 URL 前缀（协议 ）， 比如 “Classpath:”，然而这需要了解URL的实现机制，而 URL 也也没有提供基本的方法，如检查当前资源是否存在、检查当前资源是否可读等方法，因此 Spring 内部使用到的资源实现了自己的抽象结构 Resource 接口封装底层资源。
 
-
-
-![](https://note.youdao.com/yws/res/4945/WEBRESOURCE02b496fa61fd0243eb6f44da530e422b)
-
-
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011544066.png)
 
 【常用方法】
 
@@ -31,15 +27,9 @@
 | getFilename()                       | 获取文件名                                                   |
 | getDescription()                    | 返回此资源的描述，用于在使用资源时输出错误信息               |
 
-
-
 &emsp;&emsp;对不同来源的资源文件都有相应的 Resource 实现：文件资源（FileSystemResource）、Classpath资源（ClassPathResource）、URL资源（UrlResource ）等。
 
-
-
 ### 1.2 InputStreamSource 
-
-
 
 &emsp;&emsp;InputStreamSource 接口中只有一个方法，getlnputStream() ，它封装了任何能够返回InputStream的类。
 
@@ -47,13 +37,7 @@
 | ---------------- | ------------------------ |
 | getInputStream() | 每次调用都会创建一个新流 |
 
-
-
-
-
 ### 1.3 ClassPathResource
-
-
 
 &emsp;&emsp;ClassPathResource 是 Resource 接口的实现类之一，它使用使用给定的ClassLoader或给定的 Class 来加载资源。在方法构造时将内部参数初始化，包括资源路径path，类加载器 classLoader 和用于加载资源的类 clazz，根据构造方法的不同选择不同的初始化方式。
 ​	
@@ -99,11 +83,7 @@ public InputStream getInputStream() throws IOException {
 
 &emsp;&emsp;在日常的开发工作中，资源文件的加载也是比较常用的，就可以使用 Spring 提供的类来加载文件，得到 inputStream 后，就可以按照以前的开发方式继续开发。
 
-
-
 ## 2. XmlBeanFactory 功能结构解析
-
-
 
 在进行 xml 文件的解析之前，先需要一个容器来存储和管理解析到的内容，它就是 BeanFactory 。
 
@@ -124,20 +104,16 @@ public InputStream getInputStream() throws IOException {
 | Class<?> getType()                | 返回给定名称的 bean 的类型                         |
 | String[] getAliases(String name)  | 返回给定 bean 名称的别名                           |
 
-
-
 ### 2.2 BeanDefinition
 
 &emsp;&emsp;BeanDefintion 定义了 Bean 在 IoC 容器内的存储的基本数据结构，BeanDefinition 描述了一个 bean 的实例，包括属性值，构造方法参数值和继承自它的类的更多信息，在 Spring 容器启动的过程中，会将 Bean 解析成 Spring 内部的 BeanDefinition 结构存储。BeanDefintion 接口继承了AttributeAccessor 接口和 BeanMetadataElement 接口。
 
-
-
-![](https://note.youdao.com/yws/res/5036/WEBRESOURCE10d5c99112cb529f40fe47a9b25b260e)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011612195.png)
 
 
 #### 2.2.1 AttributeAccessor 
 
-&emsp;&emsp;AttributeAccessor接口定义了属性（key-value）修改或者获取。AttributeAccessor 为 BeanDefinition的父接口，使 BeanDefinition 具有处理属性的功能
+&emsp;&emsp;AttributeAccessor 接口定义了属性（key-value）修改或者获取。AttributeAccessor 为 BeanDefinition的父接口，使 BeanDefinition 具有处理属性的功能
 
 ```java
 public interface AttributeAccessor {
@@ -173,11 +149,9 @@ public interface AttributeAccessor {
 }
 ```
 
-
-
 #### 2.2.2 BeanMetadataElement
 
-&emsp;&emsp;BeanMetadataElement 接口提供了一个 getResource() 方法,用来传输一个可配置的源对象，BeanDefinition 继承了BeanMetadataElement，说明BeanDefinition同样可以持有Bean元数据元素。
+&emsp;&emsp;BeanMetadataElement 接口提供了一个 getResource() 方法,用来传输一个可配置的源对象，BeanDefinition 继承了BeanMetadataElement，说明BeanDefinition同样可以持有 Bean 元数据元素。
 
 ```java
 public interface BeanMetadataElement {
@@ -193,7 +167,7 @@ public interface BeanMetadataElement {
 }
 ```
 
-【BeanDefinition常用属性】
+【BeanDefinition 常用属性】
 
 | 属性名称            | 描述                           |
 | ------------------- | ------------------------------ |
@@ -246,24 +220,20 @@ public interface BeanMetadataElement {
 
 可以看出 BeanDefinition 提供了对 bean 属性的定制化方法，也为后续的操作提供了灵活的定制化基础。
 
-
-
 ### 2.3 XmlBeanFactory
 
-&emsp;&emsp;在查看具体的xml解析工作之前，需要先了解一下当前BeanFactory容器的结构和功能。
+&emsp;&emsp;在查看具体的 xml 解析工作之前，需要先了解一下当前 BeanFactory 容器的结构和功能。
 
 
-![](https://note.youdao.com/yws/res/5012/WEBRESOURCEef5c2eff7bf0426f29678920b1202973)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011613679.png)
 
 &emsp;&emsp;通过上面简单的类图可以发现，当前的 XmlBeanFactory 不仅仅实现了 BeanFactory 接口，也实现了 SingletonBeanRegistry 和 BeanDefinitionRegistry 接口。也就是说当前的 XmlBeanFactory 既是 BeanFactory 容器也是当前容器的 SingletonBeanRegistry 和 BeanDefinitionRegistry。
-
-
 
 #### 2.3.1 BeanDefinitionRegistry
 
 &emsp;&emsp;BeanDefinitionRegistry 是持有 BeanDefinition 的注册表的接口，它是 Spring 中 BeanFactory 容器中唯一封装 BeanDefinition 的注册表的接口 ，它定义了关于 BeanDefinition 的注册、移除、查询等一系列的操作。BeanDefinitionRegistry 继承了 AliasRegistry 接口，AliasRegistry 接口封装了用于管理 bean 的别名的方法，包括注册、移除、判断等方法，BeanDefinitionRegistry 通过继承 AliasRegistry 接口也具有了管理别名的功能。
 
-![](https://note.youdao.com/yws/res/5044/WEBRESOURCE6e2a13440e5686aa4e611b437b3ac24c)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011616151.png)
 
 【常用方法介绍】
 
@@ -280,8 +250,6 @@ public interface BeanMetadataElement {
 | void removeAlias(String alias);                              | 从此注册表中删除指定的别名                                   |
 | boolean isAlias(String name);                                | 确定给定的名称是否定义为别名（而不是实际注册的组件的名称）   |
 | String[] getAliases(String name);                            | 返回给定名称的别名（如果已定义）                             |
-
-
 
 #### 2.3.2 SingletonBeanRegistry
 
@@ -301,15 +269,9 @@ public interface BeanMetadataElement {
 
 ## 3. XmlBeanFactory 核心类介绍
 
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011621516.png)
 
-
-![](https://note.youdao.com/yws/res/5066/WEBRESOURCE5f96245472950d36b459c00cec6796fd)
-
-
-
-&emsp;&emsp;通过上面的介绍，现在对 BeanFactory 的结构和功能有了简单的了解，在正式开始源码分析之前，需要结合上面的类图先了解一下在 XmlBeanFactory 体系中核心的几个类。
-
-
+&emsp;&emsp;通过上面的介绍，现在对 BeanFactory 的结构和功能也有了简单的了解，在正式开始源码分析之前，需要结合上面的类图再了解一下在 XmlBeanFactory 体系中核心的几个类。
 
 ### 3.1 SimpleAliasRegistry
 
@@ -331,19 +293,13 @@ public interface BeanMetadataElement {
 	private final Map<String, Object> earlySingletonObjects = new ConcurrentHashMap<>(16);
 ```
 
-
-
 ### 3.3 FactoryBeanRegistrySupport
 
 &emsp;&emsp;FactoryBeanRegistrySupport 继承了 DefaultSingletonBeanRegistry 类 ，在 DefaultSingletonBeanRegistry 的基础上增加了对 FactoryBean 的特殊处理功能。
 
-
-
 ### 3.4 AbstractBeanFactory
 
-&emsp;&emsp;AbstractBeanFactory 综合了 FactoryBeanRegistrySupport 和 ConfigurableBeanFactory (BeanFactory的配置接口)的功能。
-
-
+&emsp;&emsp;AbstractBeanFactory 综合了 FactoryBeanRegistrySupport 和 ConfigurableBeanFactory (BeanFactory的配置接口) 的功能。
 
 ### 3.5 AbstractAutowireCapableBeanFactory
 
@@ -387,14 +343,11 @@ public interface BeanMetadataElement {
 	private boolean allowBeanDefinitionOverriding = true;
 ```
 
-
-
 ## 4. XmlBeanDefinitionReader 
 
-&emsp;&emsp;上面简单介绍了 XmlBeanFactory 体系的核心类，同时这也是 XmlBeanFactory 的初始化构造的前置过程，下面跟着代码回到 XmlBeanFactory 类的构造方法中。
-&emsp;&emsp;上面说过在 XmlBeanFactory 中使用了自定义的 XML 读取器 XmlBeanDefinitionReader ，XmlBeanDefinitionReader 继承自 AbstractBeanDefinitionReader ，AbstractBeanDefinitionReader 实现了 BeanDefinitionReader 和 EnvironmentCapable 接口。
+&emsp;&emsp;上面简单介绍了 XmlBeanFactory 体系的核心类，下面回到 XmlBeanFactory 类的构造方法中。前面说过在 XmlBeanFactory 中使用了自定义的 XML 读取器 XmlBeanDefinitionReader ，XmlBeanDefinitionReader 继承自 AbstractBeanDefinitionReader ，AbstractBeanDefinitionReader 实现了 BeanDefinitionReader 和 EnvironmentCapable 接口。
 
-![](https://note.youdao.com/yws/res/5340/WEBRESOURCE010add69251228582ccbaeb09afba0a7)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011627544.png)
 
 ### 4.1 BeanDefinitionReader 
 
@@ -402,7 +355,7 @@ public interface BeanMetadataElement {
 
 ### 4.2 EnvironmentCapable 
 
-&emsp;&emsp;EnvironmentCapable 中只定义了一个 getEnvironment() 方法，封装了获取系统属性和环境变量的入口，在平时的开发中，获取系统属性和环境变量，实现也是很简单的。
+&emsp;&emsp;EnvironmentCapable 中只定义了一个 getEnvironment() 方法，封装了获取系统属性和环境变量的入口，可以在平时的开发中，用来获取系统属性和环境变量，它实现也是很简单的。
 
 ```java
 protected void customizePropertySources(MutablePropertySources propertySources) {
@@ -436,7 +389,7 @@ public Map<String, Object> getSystemEnvironment() {
 	}
 ```
 
-&emsp;&emsp;回到 XmlBeanFactory 中来，在这里可以看到，在实例化 XmlBeanDefinitionReader 的时候，将当前容器 XmlBeanFactory 作为参数传入，为什么呢，前面已经知道，当前的 XmlBeanFactory 就是当前容器的 BeanDefinitionRegistry ,而 BeanDefinitionRegistry 接口一次只能注册一个 BeanDefinition，而且只能自己构造 BeanDefinition 类来注册。BeanDefinitionReader 解决了这些问题，它可以把 Resources 转化为多个 BeanDefinition 并注册到 BeanDefinitionRegistry。
+&emsp;&emsp;继续回到 XmlBeanFactory 中来，在这里可以看到，在实例化 XmlBeanDefinitionReader 的时候，将当前容器 XmlBeanFactory 作为参数传入，为什么呢，前面已经知道，当前的 XmlBeanFactory 就是当前容器的 BeanDefinitionRegistry ,而 BeanDefinitionRegistry 接口一次只能注册一个 BeanDefinition，而且只能自己构造 BeanDefinition 类来注册。BeanDefinitionReader 解决了这些问题，它可以把 Resources 转化为多个 BeanDefinition 并注册到 BeanDefinitionRegistry 中。
 
 ```java
 public XmlBeanFactory(Resource resource, BeanFactory parentBeanFactory) throws BeansException {
@@ -445,4 +398,4 @@ public XmlBeanFactory(Resource resource, BeanFactory parentBeanFactory) throws B
 	}
 ```
 
-这样一来，this.reader.loadBeanDefinitions(resource) 就变成了继续阅读的重点，本文主要大致介绍了 Spring 中一些基础的类的作用和概念，继续阅读源码也会遇到这些，这里先有个印象，后面看到能想起来就行。
+&emsp;&emsp;这样一来，this.reader.loadBeanDefinitions(resource) 就变成了继续阅读的重点，本文主要大致介绍了 Spring 中一些基础的类的作用和概念，继续阅读源码也会遇到这些，这里先有个印象，后面看到能想起来就行。

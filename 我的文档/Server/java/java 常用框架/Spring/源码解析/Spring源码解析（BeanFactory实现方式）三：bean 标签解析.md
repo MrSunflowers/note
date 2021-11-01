@@ -2,9 +2,9 @@
 
 
 
-&emsp;&emsp;`BeanDefinitionDocumentReader` 接口用于解析包含 BeanDefinition 信息的 XML 文档，并根据要解析的文档实例化。接着上一篇文章，来看 `DefaultBeanDefinitionDocumentReader` 的`doRegisterBeanDefinitions` 方法。
+&emsp;&emsp;`BeanDefinitionDocumentReader` 接口用于解析包含 Spring bean 定义信息的 XML 文档，并根据要解析的文档实例化。接上文，来看默认实现 `DefaultBeanDefinitionDocumentReader` 的`doRegisterBeanDefinitions` 方法。
 
-
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111011721895.png)
 
 ## 1. 解析开始
 
