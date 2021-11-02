@@ -389,7 +389,7 @@ public Map<String, Object> getSystemEnvironment() {
 	}
 ```
 
-&emsp;&emsp;继续回到 XmlBeanFactory 中来，在这里可以看到，在实例化 XmlBeanDefinitionReader 的时候，将当前容器 XmlBeanFactory 作为参数传入，为什么呢，前面已经知道，当前的 XmlBeanFactory 就是当前容器的 BeanDefinitionRegistry ,而 BeanDefinitionRegistry 接口一次只能注册一个 BeanDefinition，而且只能自己构造 BeanDefinition 类来注册。BeanDefinitionReader 解决了这些问题，它可以把 Resources 转化为多个 BeanDefinition 并注册到 BeanDefinitionRegistry 中。
+&emsp;&emsp;继续回到 XmlBeanFactory 中来，在这里可以看到，在实例化 XmlBeanDefinitionReader 的时候，将当前容器 XmlBeanFactory 作为参数传入，前面已经知道，当前的 XmlBeanFactory 就是当前容器的 BeanDefinitionRegistry ,而 BeanDefinitionRegistry 接口一次只能注册一个 BeanDefinition，而且只能自己构造 BeanDefinition 类来注册。BeanDefinitionReader 解决了这些问题，它可以把 Resources 转化为多个 BeanDefinition 并注册到 BeanDefinitionRegistry 中。
 
 ```java
 public XmlBeanFactory(Resource resource, BeanFactory parentBeanFactory) throws BeansException {

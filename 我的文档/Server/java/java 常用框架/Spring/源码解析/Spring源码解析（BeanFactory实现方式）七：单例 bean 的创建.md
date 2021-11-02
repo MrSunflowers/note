@@ -298,6 +298,8 @@ protected BeanWrapper obtainFromSupplier(Supplier<?> instanceSupplier, String be
 	}
 ```
 
+&emsp;&emsp;BeanWrapper 是对 bean 实例的一个包装类，其中缓存了 bean 的一些详细信息，包括 bean 中的属性和属性对应的 getter、setter 方法等，BeanWrapperImpl 是 BeanWrapper 的默认实现，可以访问 bean 的属性、设置 bean 的属性值等。BeanWrapperImpl 类还提供了许多默认属性编辑器，支持多种不同类型之间的类型转换，还可以将数组、集合类型的属性转换成指定特殊类型的数组或集合。
+
 ### 2.2 使用 factory-method 实例化 bean
 
 &emsp;&emsp;如果在配置文件中配置了 factory-method ，尝试使用配置的 factory-method 生成 bean。
@@ -1066,7 +1068,7 @@ public Object instantiate(@Nullable Constructor<?> ctor, Object... args) {
 
 ```
 
-&emsp;&emsp;对于动态代理的处理在后面单独介绍，这里先往下看，回到 AbstractAutowireCapableBeanFactory.doCreateBean 方法中，第一步实例化 bean，将 BeanDefinition 转换为 BeanWrapper 已经完成。BeanWrapper 是对 bean 实例的一个包装类，其中缓存了 bean 的一些详细信息，包括 bean 中的属性和属性对应的 getter、setter 方法等，BeanWrapperImpl 是 BeanWrapper 的默认实现，可以访问 bean 的属性、设置 bean 的属性值等。BeanWrapperImpl 类还提供了许多默认属性编辑器，支持多种不同类型的类型转换，可以将数组、集合类型的属性转换成指定特殊类型的数组或集合。
+&emsp;&emsp;对于动态代理的处理在后面单独介绍，这里先往下看，回到 AbstractAutowireCapableBeanFactory.doCreateBean 方法中，第一步实例化 bean，将 BeanDefinition 转换为 BeanWrapper 已经完成。
 
 ## 4 bean 后置处理器
 

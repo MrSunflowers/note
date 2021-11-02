@@ -867,6 +867,8 @@ public void parseReplacedMethodSubElements(Element beanEle, MethodOverrides over
 
 &emsp;&emsp;可以看到无论是 lookup-method 还是 replaced-method 都构造了一个 MethodOverride，并最终记录在了 AbstractBeanDefinition 中的 methodOverrides 属性中。
 
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111020933269.png)
+
 #### 2.2.6 解析 constructor-arg 构造参数
 
 ```xml

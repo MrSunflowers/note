@@ -419,7 +419,7 @@ public class UserB {
 </bean>
 ```
 
-&emsp;&emsp;Spring 对上面情况的处理较为复杂，在接下来的源码阅读中，方方面面都有对循环引用的处理。往下看 Bean 加载的第二步，从缓存中获取 bean 。
+&emsp;&emsp;Spring 对上面情况的处理比较复杂，在接下来的源码阅读中，方方面面都有对循环引用的处理。往下看 Bean 加载的第二步，从缓存中获取 bean 。
 
 **DefaultSingletonBeanRegistry.getSingleton : 缓存中获取bean**
 
@@ -650,11 +650,40 @@ private Object doGetObjectFromFactoryBean(FactoryBean<?> factory, String beanNam
 }
 ```
 
-### 3.1 bean 后处理器
+### 3.1 bean 的额外处理
 
-&emsp;&emsp;可以注意到，上面获取到 object 后并没有直接返回，而后面又进入了 `postProcessObjectFromFactoryBean` 方法。
+&emsp;&emsp;可以注意到，上面获取到 object 后并没有直接返回，而后面又进入了 postProcessObjectFromFactoryBean 方法。这是 Spring 提供的旨在支持可插拔式的拓展实现，这里是应用所有的已注册的 BeanPostProcessor 让它们有机会对从 FactoryBeans 获得的对象进行额外的增强处理，比如自动代理。
 
-&emsp;&emsp;在 Spring 获取 bean 的过程中会尽量保证所有的 bean 初始化后都会调用注册的增强器，它的作用是实现对 bean 的自定义拓展。
+&emsp;&emsp;本身这里默认实现只是按原样返回给定的对象。
+
+```java
+protected Object postProcessObjectFromFactoryBean(Object object, String beanName) throws BeansException {
+	return object;
+}
+```
+
+&emsp;&emsp;也可以对其进行拓展，比如子类可以通过覆盖它来实现子类自己的增强处理，比如 AbstractAutowireCapableBeanFactory 中的覆盖实现：
+
+```java
+protected Object postProcessObjectFromFactoryBean(Object object, String beanName) {
+	return applyBeanPostProcessorsAfterInitialization(object, beanName);
+}
+
+public Object applyBeanPostProcessorsAfterInitialization(Object existingBean, String beanName)
+		throws BeansException {
+
+	Object result = existingBean;
+	for (BeanPostProcessor processor : getBeanPostProcessors()) {
+		//应用所有的已注册的 BeanPostProcessor 对对象进行额外的增强处理
+		Object current = processor.postProcessAfterInitialization(result, beanName);
+		if (current == null) {
+			return result;
+		}
+		result = current;
+	}
+	return result;
+}
+```
 
 ## 4. 合并属性和依赖处理
 
@@ -1147,7 +1176,7 @@ protected void prepareMethodOverride(MethodOverride mo) throws BeanDefinitionVal
 
 ### 6.3. 实例化的前、后置处理器
 
-&emsp;&emsp;在真正调用 `doCreate` 方法创建 bean 的实例前使用了这样一个方法 `resolveBeforeInstantiation` 对 `BeanDefinigiton` 中的属性做些前置处理，紧接着是一个短路操作，经过 `resolveBeforeInstantiation` 方法处理后的结果如果不为空，那么会直接略过后续的bean 的创建而直接返回结果。而 AOP 功能就是基于这里的判断来实现。
+&emsp;&emsp;在真正调用 `doCreate` 方法创建 bean 的实例前使用了这样一个方法 `resolveBeforeInstantiation` 对 `BeanDefinigiton` 中的属性做些前置处理，紧接着是一个短路操作，经过 `resolveBeforeInstantiation` 方法处理后的结果如果不为空，那么会直接略过后续的 bean 的创建而直接返回结果。
 
 **AbstractAutowireCapableBeanFactory.resolveBeforeInstantiation**
 
@@ -1175,7 +1204,7 @@ protected Object resolveBeforeInstantiation(String beanName, RootBeanDefinition 
 
 #### 6.3.1 实例化之前的处理
 
-&emsp;&emsp;bean 的实例化前调用，给子类一个修改 BeanDefinition 的机会，也就是说当程序经过这个方法后，bean 可能已经不是我们认为的 bean 了，而是或许成为了一个经过处理的代理 bean，可能是通过 cglib 生成的，也可能是通过其他技术生成的。在后面会详细来看，这里只需知道在 bean 的实例化前会调用一个前置处理器。
+&emsp;&emsp;bean 的实例化前调用，给子类一个修改 BeanDefinition 的机会，也就是说当程序经过这个方法后，bean 可能已经不是之前的 bean 了，而是或许成为了一个经过处理的代理 bean，可能是通过 cglib 生成的，也可能是通过其他技术生成的。
 
 **AbstractAutowireCapableBeanFactory.applyBeanPostProcessorsBeforeInstantiation**
 
@@ -1193,7 +1222,7 @@ protected Object applyBeanPostProcessorsBeforeInstantiation(Class<?> beanClass, 
 
 #### 6.3.2 实例化之后的处理
 
-&emsp;&emsp;在从缓存中获取单例 bean 的时候说过，Spring 在 bean 的初始化后会尽可能的将注册的后置处理器应用到该 bean 中，因为如果返回的 bean 不为空，那么就不会再次创建 bean。
+&emsp;&emsp;这里可以对已经创建的 bean 实例进行再加工操作，具体流程上面已经说过，不在赘述。
 
 **AbstractAutowireCapableBeanFactory.applyBeanPostProcessorsAfterInitialization**
 

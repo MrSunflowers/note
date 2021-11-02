@@ -217,6 +217,6 @@ protected String[] unsatisfiedNonSimpleProperties(AbstractBeanDefinition mbd, Be
 &emsp;&emsp;注意看，这里寻找需要注入的属性的时候在 isExcludedFromDependencyCheck 方法中排除掉了不需要自动注入的类型和接口，这在前面第一篇文章中讲的 AbstractAutowireCapableBeanFactory 的初始化的时候添加的忽略接口正好对应。
 
 
-### 2.2 autowireByName
+### 2.2 autowireByType
 
 [](https://www.jianshu.com/p/2670dda90828)
