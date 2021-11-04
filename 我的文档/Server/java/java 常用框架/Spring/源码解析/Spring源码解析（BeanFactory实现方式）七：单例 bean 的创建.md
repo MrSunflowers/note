@@ -1093,7 +1093,7 @@ protected void applyMergedBeanDefinitionPostProcessors(RootBeanDefinition mbd, C
 
 &emsp;&emsp;对于**由 @Autowired 标注的构造函数**来说，任何给定的 bean 类中**只能有一个**构造函数可以将 “required” 属性设置声明为 true，此时 bean 中不能再出现第二个被 @Autowired 标注的构造函数，无论它的 “required” 属性是 true 还是 false。当有多个 @Autowired(required = false) 声明的构造函数时，它们将被视为自动装配的候选者，如果没有候选者可以使用，那么将使用主/默认构造函数（如果存在），如果一个类只声明一个构造函数，它将始终被使用，带注解的构造函数不必是公共的。@Autowired 注解标注在构造函数上的情况的解析逻辑在上文的构造方法智能选择器处有详细说明。
 
-&emsp;&emsp;默认的 AutowiredAnnotationBeanPostProcessor 将由 `context:annotation-config` 和 `context:component-scan` XML 标签注册。如果您打算指定自定义 AutowiredAnnotationBeanPostProcessor，请删除或关闭那里的默认注释配置。
+&emsp;&emsp;默认的 AutowiredAnnotationBeanPostProcessor 将由 `context:annotation-config` 和 `context:component-scan` XML 标签注册。如果打算指定自定义 AutowiredAnnotationBeanPostProcessor，请删除或关闭那里的默认注释配置。
 
 &emsp;&emsp;**注意**：注解注入会在 XML 注入之前进行；因此，对于在注解中和在 xml 中都配置了注入的情况，后一种配置将覆盖前者。
 
