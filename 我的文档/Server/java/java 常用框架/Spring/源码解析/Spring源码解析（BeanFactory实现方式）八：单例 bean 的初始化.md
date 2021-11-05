@@ -219,4 +219,3 @@ protected String[] unsatisfiedNonSimpleProperties(AbstractBeanDefinition mbd, Be
 
 ### 2.2 autowireByType
 
-[](https://www.jianshu.com/p/2670dda90828)
