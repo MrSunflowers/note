@@ -46,7 +46,7 @@ protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable
 
 		// Eagerly cache singletons to be able to resolve circular references
 		// even when triggered by lifecycle interfaces like BeanFactoryAware.
-		// 3. 检测循环依赖并尝试解决
+		// 3. 循环依赖 -- 记录早期的 bean
 		boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
 				isSingletonCurrentlyInCreation(beanName));
 		if (earlySingletonExposure) {
@@ -119,7 +119,7 @@ protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable
 【概要思路】
 1. 实例化 bean，将 BeanDefinition 转换为 BeanWrapper。
 2. 后处理器 applyMergedBeanDefinitionPostProcessors 的应用。bean 合并后的处理， A utowired 注解正是通过此方法实现诸如类型的预解析。
-3. 检测循环依赖并尝试解决。
+3. 循环依赖 -- 记录早期的 bean
 4. 填充 bean 的属性。
 5. 初始化 bean。
 6. 循环依赖的检测与处理。

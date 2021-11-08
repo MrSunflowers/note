@@ -407,7 +407,7 @@ protected String parseStringValue(
 				if (visitedPlaceholders == null) {
 					visitedPlaceholders = new HashSet<>(4);
 				}
-				//避免循环依赖
+				//避免循环占位符引用
 				if (!visitedPlaceholders.add(originalPlaceholder)) {
 					throw new IllegalArgumentException(
 							"Circular placeholder reference '" + originalPlaceholder + "' in property definitions");

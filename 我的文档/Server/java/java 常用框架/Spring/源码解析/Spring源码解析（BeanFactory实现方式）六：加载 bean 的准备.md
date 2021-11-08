@@ -55,9 +55,9 @@ protected <T> T doGetBean(
 			// Fail if we're already creating this bean instance:
 			// We're assumably within a circular reference.
 			// 4. 创建实例前的准备
-			// 只有在单例情况下，Spring 才会尝试解决循环依赖问题
+			// 如果指定的 bean 是 prototype 作用域的并且正在创建中则返回 true
 			if (isPrototypeCurrentlyInCreation(beanName)) {
-				// 多例情况下的循环依赖情况
+				// 循环依赖 -- 多例检测
 				throw new BeanCurrentlyInCreationException(beanName);
 			}
 
@@ -810,7 +810,7 @@ protected RootBeanDefinition getMergedBeanDefinition(
 String[] dependsOn = mbd.getDependsOn();
 if (dependsOn != null) {
 	for (String dep: dependsOn) {
-		//循环依赖的检测和处理
+		//依赖闭环的检测和处理
 		if (isDependent(beanName, dep)) {
 			throw new BeanCreationException(mbd.getResourceDescription(), beanName,
 				"Circular depends-on relationship between '" + beanName + "' and '" + dep + "'");
@@ -829,7 +829,7 @@ if (dependsOn != null) {
 ... ...
 ````
 
-**DefaultSingletonBeanRegistry.isDependent ：循环依赖的检测**
+**DefaultSingletonBeanRegistry.isDependent ：依赖闭环的检测**
 
 ````java
 protected boolean isDependent(String beanName, String dependentBeanName) {
@@ -885,7 +885,7 @@ public void registerDependentBean(String beanName, String dependentBeanName) {
 	}
 ````
 
-&emsp;&emsp;看一下循环依赖的处理逻辑，注意两个方法的调用参数顺序。
+&emsp;&emsp;看一下依赖闭环的处理逻辑，注意两个方法的调用参数顺序。
 
 A依赖B：
 
@@ -912,7 +912,7 @@ C依赖A：
 4. alreadySeen 添加 C
 5. 调用 isDependent，参数为 beanName=B，dependentBeanName=A，alreadySeen={C}
 6. 检测 dependentBeanMap 能否获取到 B，可以获取到，dependentBeans 不为空，已存在 A
-7. dependentBeans 包含 A，已检测到存在循环依赖。
+7. dependentBeans 包含 A，已检测到存在依赖闭环。
 
 ## 5. 单例 bean 的创建
 
