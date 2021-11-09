@@ -122,7 +122,7 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 	boolean needsDepCheck = (mbd.getDependencyCheck() != AbstractBeanDefinition.DEPENDENCY_CHECK_NONE);
 
 	PropertyDescriptor[] filteredPds = null;
-	// 3. 对上面获取的参数做进一步处理，比如增加注解属性参数
+	// 3. 注解注入处理
 	if (hasInstAwareBpps) {
 		if (pvs == null) {
 			pvs = mbd.getPropertyValues();
@@ -138,7 +138,6 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 					return;
 				}
 			}
-			// 现在参数中已经包含注解标注的属性参数了
 			pvs = pvsToUse;
 		}
 	}
@@ -147,12 +146,12 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 		if (filteredPds == null) {
 			filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
 		}
-		//4.依赖检查，对应depends-on属性，3.0已经弃用此属性
+		//依赖检查，对应 depends-on 属性，用来表示一个bean A的实例化依赖另一个bean B的实例化
 		checkDependencies(beanName, mbd, filteredPds, pvs);
 	}
 
 	if (pvs != null) {
-		//5.将属性参数应用到bean中
+		//5.将属性参数应用到 bean 中
 		applyPropertyValues(beanName, mbd, bw, pvs);
 	}
 }
@@ -161,11 +160,10 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 &emsp;&emsp;在函数 populateBean 中一共做了这几步处理：
 
 1. 提供一个在属性填充之前的 bean 增强器回调函数 InstantiationAwareBeanPostProcessor.postProcessAfterInstantiation 来实现在属性填充之前有机会修改 bean 的属性，并可以根据返回值决定是否需要由 Spring 继续处理。
-2. 扫描获取自动装配属性，根据不同的注入类型(ByName/ByType)，来获取需要自动装配的属性，并统一存入 PropertyValues 中。这里的自动装配的属性是指在当前 bean 中的有 setter 方法的，且 xml 中的 property 中**没有**配置的属性，因为在 xml 中的 property 中配置的属性早在 xml 解析的时候就已经解析成为 PropertyValues 并存储在 BeanDefinition 中了。
-
-
-3. 提供一个增强器回调函数 InstantiationAwareBeanPostProcessor.postProcessPropertyValues 来实现对获取到的属性填充前的处理，例如 RequiredAnnotationBeanPostProcessor 中对属性的验证。
-4. 将所有 PropertyValues 中的属性填充至 BeanWrapper 中。
+2. 扫描获取自动装配属性，根据不同的注入类型(ByName/ByType)，来获取需要自动装配的属性，并统一存入 PropertyValues 中。这里的自动装配的属性是指在当前 bean 中的、有 setter 方法的，且 xml 中的 property 中**没有**配置的属性，因为在 xml 中的 property 中配置的属性早在 xml 解析的时候就已经解析成为 PropertyValues 并存储在 BeanDefinition 中了。
+3. 处理在上篇文中由增强器扫描记录的注解注入的属性，依然由其对应的增强器自己注入。
+4. 进行依赖检查。
+5. 将所有 PropertyValues 中的属性填充至 bean 中。
 
 ### 2.1 autowireByName
 
@@ -295,7 +293,7 @@ protected void autowireByType(
 3. 根据类型查找依赖的 bean；
 4. 注册集合类型参数依赖的 bean。
 
-&emsp;&emsp;其中最复杂的就是寻找类型匹配的 bean，同时，Spring 提供了对集合类型的参数自动装配的支持，如：
+&emsp;&emsp;其中最复杂的就是寻找类型匹配的 bean，同时，Spring 还提供了对集合类型的参数自动装配的支持，如：
 
 ```java
 private List<Test> tests;
@@ -341,8 +339,196 @@ public Object resolveDependency(DependencyDescriptor descriptor, @Nullable Strin
 
 &emsp;&emsp;其中核心逻辑是 doResolveDependency。
 
-**DefaultListableBeanFactory.resolveDependency**
+**DefaultListableBeanFactory.doResolveDependency**
 
 ```java
+public Object doResolveDependency(DependencyDescriptor descriptor, @Nullable String beanName,
+		@Nullable Set<String> autowiredBeanNames, @Nullable TypeConverter typeConverter) throws BeansException {
 
+	InjectionPoint previousInjectionPoint = ConstructorResolver.setCurrentInjectionPoint(descriptor);
+	try {
+		// 1. 快速查找，默认实现返回 null ，可由子类实现来提供一个快捷匹配 bean 的方法
+		Object shortcut = descriptor.resolveShortcut(this);
+		if (shortcut != null) {
+			return shortcut;
+		}
+		// 当没有快捷匹配时，进入正常匹配流程
+		// 如果参数是被容器包裹的对象，则获取被包裹的真实参数类型，
+		// 比如获取可能被 Optional 包装的参数类型
+		// 没有被包裹则直接获取参数类型
+		Class<?> type = descriptor.getDependencyType();
+		// 2. @value 注解处理
+		// 2.1 获取方法或方法参数上可能存在的 @Value 注解的 value 值
+		Object value = getAutowireCandidateResolver().getSuggestedValue(descriptor);
+		if (value != null) {
+			// 2.2 解析 value 的值
+			if (value instanceof String) {
+				// 解析 value 中的占位符 例如 ${user.name}
+				String strVal = resolveEmbeddedValue((String) value);
+				BeanDefinition bd = (beanName != null && containsBean(beanName) ?
+						getMergedBeanDefinition(beanName) : null);
+				// 解析 value 中的 Spel 表达式 #{}
+				value = evaluateBeanDefinitionString(strVal, bd);
+			}
+			// 2.3 拿到解析后的 value 值后，转换成需要的类型后返回
+			TypeConverter converter = (typeConverter != null ? typeConverter : getTypeConverter());
+			try {
+				return converter.convertIfNecessary(value, type, descriptor.getTypeDescriptor());
+			}
+			catch (UnsupportedOperationException ex) {
+				// A custom TypeConverter which does not support TypeDescriptor resolution...
+				return (descriptor.getField() != null ?
+						converter.convertIfNecessary(value, type, descriptor.getField()) :
+						converter.convertIfNecessary(value, type, descriptor.getMethodParameter()));
+			}
+		}
+		// 下面是没有 @Value 注解的情况
+		// 3. 集合、数组等类型的处理
+		Object multipleBeans = resolveMultipleBeans(descriptor, beanName, autowiredBeanNames, typeConverter);
+		if (multipleBeans != null) {
+			return multipleBeans;
+		}
+
+		// 4. 查找与所需类型匹配的 bean 实例 (可能有多个匹配)
+		// matchingBeans：key = beanName，value = 对应的 bean 实例
+		Map<String, Object> matchingBeans = findAutowireCandidates(beanName, type, descriptor);
+		if (matchingBeans.isEmpty()) {
+			// 如果没找到，是必须注入则报错，否则返回 null
+			if (isRequired(descriptor)) {
+				raiseNoMatchingBeanFound(type, descriptor.getResolvableType(), descriptor);
+			}
+			return null;
+		}
+		// 候选 bean 名称
+		String autowiredBeanName;
+		// 候选 bean 实例
+		Object instanceCandidate;
+
+		// 如果匹配到多个
+		if (matchingBeans.size() > 1) {
+			// 确定给定 bean 集合中的自动装配的唯一候选者名称
+			autowiredBeanName = determineAutowireCandidate(matchingBeans, descriptor);
+			if (autowiredBeanName == null) {
+				if (isRequired(descriptor) || !indicatesMultipleBeans(type)) {
+					return descriptor.resolveNotUnique(descriptor.getResolvableType(), matchingBeans);
+				}
+				else {
+					// In case of an optional Collection/Map, silently ignore a non-unique case:
+					// possibly it was meant to be an empty collection of multiple regular beans
+					// (before 4.3 in particular when we didn't even look for collection beans).
+					return null;
+				}
+			}
+			instanceCandidate = matchingBeans.get(autowiredBeanName);
+		}
+		else {
+			// We have exactly one match.
+			// 刚好只有一个匹配
+			Map.Entry<String, Object> entry = matchingBeans.entrySet().iterator().next();
+			autowiredBeanName = entry.getKey();
+			instanceCandidate = entry.getValue();
+		}
+
+		if (autowiredBeanNames != null) {
+			autowiredBeanNames.add(autowiredBeanName);
+		}
+		if (instanceCandidate instanceof Class) {
+			instanceCandidate = descriptor.resolveCandidate(autowiredBeanName, type, this);
+		}
+		Object result = instanceCandidate;
+		if (result instanceof NullBean) {
+			if (isRequired(descriptor)) {
+				raiseNoMatchingBeanFound(type, descriptor.getResolvableType(), descriptor);
+			}
+			result = null;
+		}
+		if (!ClassUtils.isAssignableValue(type, result)) {
+			throw new BeanNotOfRequiredTypeException(autowiredBeanName, type, instanceCandidate.getClass());
+		}
+		return result;
+	}
+	finally {
+		ConstructorResolver.setCurrentInjectionPoint(previousInjectionPoint);
+	}
+}
 ```
+
+1. 通过提供一个自定义 DependencyDescriptor 来提供一个快捷匹配 bean 的方法，默认实现返回 null；
+2. @value 注解处理，包括 value 值的解析转换工作；
+3. 集合、数组等类型的自动装配匹配处理；
+4. 查找与所需类型匹配的 bean 实例；
+5. 确定唯一的候选 bean 并返回。
+
+## 3 注解注入处理
+
+&emsp;&emsp;注解的注入处理是通过其对应的增强器完成的，这里以处理 @Autowired 注解的 AutowiredAnnotationBeanPostProcessor 来看实现过程。
+
+**AutowiredAnnotationBeanPostProcessor.postProcessProperties**
+
+```java
+public PropertyValues postProcessProperties(PropertyValues pvs, Object bean, String beanName) {
+	// 判断是否需要重新扫描注解
+	InjectionMetadata metadata = findAutowiringMetadata(beanName, bean.getClass(), pvs);
+	try {
+		metadata.inject(bean, beanName, pvs);
+	}
+	catch (BeanCreationException ex) {
+		throw ex;
+	}
+	catch (Throwable ex) {
+		throw new BeanCreationException(beanName, "Injection of autowired dependencies failed", ex);
+	}
+	return pvs;
+}
+```
+
+**InjectionMetadata.inject**
+
+```java
+public void inject(Object target, @Nullable String beanName, @Nullable PropertyValues pvs) throws Throwable {
+	Collection<InjectedElement> checkedElements = this.checkedElements;
+	Collection<InjectedElement> elementsToIterate =
+			(checkedElements != null ? checkedElements : this.injectedElements);
+	// 遍历要注入的属性并执行注入
+	if (!elementsToIterate.isEmpty()) {
+		for (InjectedElement element : elementsToIterate) {
+			element.inject(target, beanName, pvs);
+		}
+	}
+}
+```
+
+**AutowiredAnnotationBeanPostProcessor.inject**
+
+```java
+protected void inject(Object bean, @Nullable String beanName, @Nullable PropertyValues pvs) throws Throwable {
+	Field field = (Field) this.member;
+	Object value;
+	// 有缓存则获取缓存方法参数或字段值去解析
+	if (this.cached) {
+		try {
+			value = resolvedCachedArgument(beanName, this.cachedFieldValue);
+		}
+		catch (NoSuchBeanDefinitionException ex) {
+			// Unexpected removal of target bean for cached argument -> re-resolve
+			// 意外删除了缓存参数的目标 bean -> 重新解析
+			value = resolveFieldValue(field, bean, beanName);
+		}
+	}
+	else {
+		value = resolveFieldValue(field, bean, beanName);
+	}
+	if (value != null) {
+		// 判断字段是否可写
+		ReflectionUtils.makeAccessible(field);
+		// 为字段写入值
+		field.set(bean, value);
+	}
+}
+```
+
+&emsp;&emsp;上面是对 @Autowired 标注的字段的解析注入过程，可以看出逻辑并不复杂，而对于 @Autowired 标注的方法来说，无非就是将解析的字段换成了方法参数，其余并没有什么不同，对于其他几个注解的自动注入也是大同小异，这里不再赘述。
+
+
+
+&emsp;&emsp;到这里，已经完成了对所有自动装配属性的获取，但是获取的属性是以 PropertyValues 的形式存在的，还没有应用到实例化的 bean 中，接下来就是将这些属性应用到 bean 实例中。
