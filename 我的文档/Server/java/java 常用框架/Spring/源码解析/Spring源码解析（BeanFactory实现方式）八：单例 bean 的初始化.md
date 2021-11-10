@@ -93,24 +93,26 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 	}
 
 	// 下面正式开始属性填充
-	// 这里获取的是已经解析过的属性，就是前面 xml 解析的 property 属性参数
+	// 这里获取的是已经解析过的属性，也就是前面从 xml 中解析到的 property 属性参数
 	PropertyValues pvs = (mbd.hasPropertyValues() ? mbd.getPropertyValues() : null);
 
 	int resolvedAutowireMode = mbd.getResolvedAutowireMode();
-	// 2 扫描获取自动装配属性
-	// 这里的自动装配是指在当前 bean 中的有 setter 方法的
-	// 且 xml 中的 property 属性中没有配置的属性，因为上面的 pvs 中已经包含了 xml 中的 property 属性
-	// 按属性类型或是按属性名称获取
+	// 2 获取需要自动装配的属性
+	// 这里的需要自动装配的属性是指
+	// 在当前 bean 有 setter 方法的，
+	// 且 xml 中的 property 属性中没有配置的，
+	// 且 该属性不是"简单值类型"的属性，
+	// 因为上面的 pvs 中已经包含了从 xml 中解析到的 property 属性，这里就不必再次解析了
 	if (resolvedAutowireMode == AUTOWIRE_BY_NAME || resolvedAutowireMode == AUTOWIRE_BY_TYPE) {
 		// 构造一个新的 MutablePropertyValues 来存放前面获取的属性和即将扫描到的需要自动装配的属性
 		MutablePropertyValues newPvs = new MutablePropertyValues(pvs);
 		// Add property values based on autowire by name if applicable.
-		// 按属性名称的属性获取
+		// 按属性名称获取
 		if (resolvedAutowireMode == AUTOWIRE_BY_NAME) {
 			autowireByName(beanName, mbd, bw, newPvs);
 		}
 		// Add property values based on autowire by type if applicable.
-		// 按属性类型的属性获取
+		// 按属性类型获取
 		if (resolvedAutowireMode == AUTOWIRE_BY_TYPE) {
 			autowireByType(beanName, mbd, bw, newPvs);
 		}
@@ -122,17 +124,22 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 	boolean needsDepCheck = (mbd.getDependencyCheck() != AbstractBeanDefinition.DEPENDENCY_CHECK_NONE);
 
 	PropertyDescriptor[] filteredPds = null;
-	// 3. 注解注入处理
+	// 3. 注解注入和 @Required 验证
 	if (hasInstAwareBpps) {
 		if (pvs == null) {
 			pvs = mbd.getPropertyValues();
 		}
 		for (InstantiationAwareBeanPostProcessor bp : getBeanPostProcessorCache().instantiationAware) {
+			// 注解注入
 			PropertyValues pvsToUse = bp.postProcessProperties(pvs, bw.getWrappedInstance(), beanName);
 			if (pvsToUse == null) {
+				// 当 bp 为 RequiredAnnotationBeanPostProcessor 时会进来
 				if (filteredPds == null) {
+					// 获取 bean 中所有有 setter 方法的属性描述，除了被排除或忽略的
 					filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
 				}
+				// 调用 RequiredAnnotationBeanPostProcessor.postProcessPropertyValues 进行参数验证
+				// 验证贴有 @Required 的属性是否已经全部解析
 				pvsToUse = bp.postProcessPropertyValues(pvs, filteredPds, bw.getWrappedInstance(), beanName);
 				if (pvsToUse == null) {
 					return;
@@ -141,17 +148,18 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 			pvs = pvsToUse;
 		}
 	}
-	// 4. 依赖检查
+	// 4. 属性检查
 	if (needsDepCheck) {
 		if (filteredPds == null) {
+			// 获取 bean 中所有有 setter 方法的属性描述，除了被排除或忽略的
 			filteredPds = filterPropertyDescriptorsForDependencyCheck(bw, mbd.allowCaching);
 		}
-		//依赖检查，对应 depends-on 属性，用来表示一个bean A的实例化依赖另一个bean B的实例化
+		// 检查是否还有属性未配置或自动装配(注解注入的属性不算)
 		checkDependencies(beanName, mbd, filteredPds, pvs);
 	}
 
 	if (pvs != null) {
-		//5.将属性参数应用到 bean 中
+		//5.将属性参数应用到bean中
 		applyPropertyValues(beanName, mbd, bw, pvs);
 	}
 }
@@ -159,10 +167,10 @@ protected void populateBean(String beanName, RootBeanDefinition mbd, @Nullable B
 
 &emsp;&emsp;在函数 populateBean 中一共做了这几步处理：
 
-1. 提供一个在属性填充之前的 bean 增强器回调函数 InstantiationAwareBeanPostProcessor.postProcessAfterInstantiation 来实现在属性填充之前有机会修改 bean 的属性，并可以根据返回值决定是否需要由 Spring 继续处理。
-2. 扫描获取自动装配属性，根据不同的注入类型(ByName/ByType)，来获取需要自动装配的属性，并统一存入 PropertyValues 中。这里的自动装配的属性是指在当前 bean 中的、有 setter 方法的，且 xml 中的 property 中**没有**配置的属性，因为在 xml 中的 property 中配置的属性早在 xml 解析的时候就已经解析成为 PropertyValues 并存储在 BeanDefinition 中了。
-3. 处理在上篇文中由增强器扫描记录的注解注入的属性，依然由其对应的增强器自己注入。
-4. 进行依赖检查。
+1. 提供一个在属性填充之前的 bean 增强器回调函数来提供一个在属性填充之前修改 bean 的属性的机会，并可以根据返回值决定是否需要由 Spring 继续处理。
+2. 扫描获取自动装配属性，根据不同的装配类型(ByName/ByType)，来获取需要自动装配的属性，并统一**存入 PropertyValues 中（注意只是存入，并没有真正装配）**。这里的扫描的自动装配的属性是指在当前 bean 中有 setter 方法的，且 xml 中的 property 中**没有**配置的属性，因为在 xml 中的 property 中配置的属性早在 xml 解析的时候就已经解析成为 PropertyValues 并存储在 BeanDefinition 中了。
+3. 处理**注解注入**和 @Required 注解验证
+4. 进行属性检查。
 5. 将所有 PropertyValues 中的属性填充至 bean 中。
 
 ### 2.1 autowireByName
@@ -459,7 +467,9 @@ public Object doResolveDependency(DependencyDescriptor descriptor, @Nullable Str
 4. 查找与所需类型匹配的 bean 实例；
 5. 确定唯一的候选 bean 并返回。
 
-## 3 注解注入处理
+### 2.3 注解注入和 @Required 验证
+
+#### 2.3.1 注解注入
 
 &emsp;&emsp;注解的注入处理是通过其对应的增强器完成的，这里以处理 @Autowired 注解的 AutowiredAnnotationBeanPostProcessor 来看实现过程。
 
@@ -498,7 +508,7 @@ public void inject(Object target, @Nullable String beanName, @Nullable PropertyV
 }
 ```
 
-**AutowiredAnnotationBeanPostProcessor.inject**
+**AutowiredAnnotationBeanPostProcessor.AutowiredFieldElement.inject**
 
 ```java
 protected void inject(Object bean, @Nullable String beanName, @Nullable PropertyValues pvs) throws Throwable {
@@ -527,8 +537,272 @@ protected void inject(Object bean, @Nullable String beanName, @Nullable Property
 }
 ```
 
+**AutowiredAnnotationBeanPostProcessor.AutowiredFieldElement.resolveFieldValue**
+
+```java
+private Object resolveFieldValue(Field field, Object bean, @Nullable String beanName) {
+	// 封装 @Autowired 的参数
+	DependencyDescriptor desc = new DependencyDescriptor(field, this.required);
+	desc.setContainingClass(bean.getClass());
+	// 一样用来记录集合中所有依赖的 bean
+	Set<String> autowiredBeanNames = new LinkedHashSet<>(1);
+	Assert.state(beanFactory != null, "No BeanFactory available");
+	TypeConverter typeConverter = beanFactory.getTypeConverter();
+	Object value;
+	try {
+		// 根据类型查找依赖的 bean
+		value = beanFactory.resolveDependency(desc, beanName, autowiredBeanNames, typeConverter);
+	}
+	catch (BeansException ex) {
+		throw new UnsatisfiedDependencyException(null, beanName, new InjectionPoint(field), ex);
+	}
+	// 加入缓存
+	synchronized (this) {
+		if (!this.cached) {
+			Object cachedFieldValue = null;
+			if (value != null || this.required) {
+				cachedFieldValue = desc;
+				registerDependentBeans(beanName, autowiredBeanNames);
+				if (autowiredBeanNames.size() == 1) {
+					String autowiredBeanName = autowiredBeanNames.iterator().next();
+					if (beanFactory.containsBean(autowiredBeanName) &&
+							beanFactory.isTypeMatch(autowiredBeanName, field.getType())) {
+						cachedFieldValue = new ShortcutDependencyDescriptor(
+								desc, autowiredBeanName, field.getType());
+					}
+				}
+			}
+			this.cachedFieldValue = cachedFieldValue;
+			this.cached = true;
+		}
+	}
+	return value;
+}
+```
+
 &emsp;&emsp;上面是对 @Autowired 标注的字段的解析注入过程，可以看出逻辑并不复杂，而对于 @Autowired 标注的方法来说，无非就是将解析的字段换成了方法参数，其余并没有什么不同，对于其他几个注解的自动注入也是大同小异，这里不再赘述。
 
+#### 2.3.2 @Required 验证
 
+&emsp;&emsp;对于 @Require 注解的验证更简单，直接判断即可。
 
-&emsp;&emsp;到这里，已经完成了对所有自动装配属性的获取，但是获取的属性是以 PropertyValues 的形式存在的，还没有应用到实例化的 bean 中，接下来就是将这些属性应用到 bean 实例中。
+```java
+public PropertyValues postProcessPropertyValues(
+		PropertyValues pvs, PropertyDescriptor[] pds, Object bean, String beanName) {
+
+	if (!this.validatedBeanNames.contains(beanName)) {
+		if (!shouldSkip(this.beanFactory, beanName)) {
+			// 记录未通过验证的属性
+			List<String> invalidProperties = new ArrayList<>();
+			for (PropertyDescriptor pd : pds) {
+				//该属性的setter方法上是否贴有 @Required 且 pvs 中不存在
+				if (isRequiredProperty(pd) && !pvs.contains(pd.getName())) {
+					invalidProperties.add(pd.getName());
+				}
+			}
+			if (!invalidProperties.isEmpty()) {
+				throw new BeanInitializationException(buildExceptionMessage(invalidProperties, beanName));
+			}
+		}
+		//存储验证完毕的 beanName
+		this.validatedBeanNames.add(beanName);
+	}
+	return pvs;
+}
+```
+
+### 2.4 属性检查
+
+```java
+protected void checkDependencies(
+			String beanName, AbstractBeanDefinition mbd, PropertyDescriptor[] pds, @Nullable PropertyValues pvs)
+			throws UnsatisfiedDependencyException {
+
+		// 依赖检查的模式
+		int dependencyCheck = mbd.getDependencyCheck();
+
+		for (PropertyDescriptor pd : pds) {
+			// 检查属性中有 setter 方法的、pvs 中不存在的属性
+			if (pd.getWriteMethod() != null && (pvs == null || !pvs.contains(pd.getName()))) {
+				// 是否是"简单"属性
+				boolean isSimple = BeanUtils.isSimpleProperty(pd.getPropertyType());
+						// 检查所有属性
+				boolean unsatisfied = (dependencyCheck == AbstractBeanDefinition.DEPENDENCY_CHECK_ALL) ||
+						// 检查"简单"属性
+						(isSimple && dependencyCheck == AbstractBeanDefinition.DEPENDENCY_CHECK_SIMPLE) ||
+						// 检查“非简单”对象属性
+						(!isSimple && dependencyCheck == AbstractBeanDefinition.DEPENDENCY_CHECK_OBJECTS);
+				if (unsatisfied) {
+					throw new UnsatisfiedDependencyException(mbd.getResourceDescription(), beanName, pd.getName(),
+							"Set this property value or disable dependency checking for this bean.");
+				}
+			}
+		}
+	}
+```
+
+&emsp;&emsp;对于属性的检查，其实就是检查 bean 中是否存在拥有 setter 方法的、在 xml 中没有配置，在自动装配时也没有扫描到的属性，分为三种模式：
+
+1. 检查所有属性
+2. 仅检查"简单"属性
+3. 仅检查“非简单”对象属性
+
+### 2.5.将属性参数应用到bean中
+
+&emsp;&emsp;到这里，已经完成了对所有自动装配属性的获取和注解属性的自动注入，其中获取的自动装配属性是以 PropertyValues 的形式存在的，还没有应用到实例化的 bean 中，接下来就是将这些属性应用到 bean 实例中(将要应用的属性包括 xml 中配置的 Property 属性和通过 autowireByName 或 autowireByType 扫描到的属性)。
+
+**AbstractAutowireCapableBeanFactory.applyPropertyValues**
+
+```java
+protected void applyPropertyValues(String beanName, BeanDefinition mbd, BeanWrapper bw, PropertyValues pvs) {
+	if (pvs.isEmpty()) {
+		return;
+	}
+	// 设置系统安全上下文环境(如果有)
+	if (System.getSecurityManager() != null && bw instanceof BeanWrapperImpl) {
+		((BeanWrapperImpl) bw).setSecurityContext(getAccessControlContext());
+	}
+
+	MutablePropertyValues mpvs = null;
+	List<PropertyValue> original;
+
+	if (pvs instanceof MutablePropertyValues) {
+		mpvs = (MutablePropertyValues) pvs;
+		// 1. 如果当前的参数集合 pvs 已经是被转换过了
+		if (mpvs.isConverted()) {
+			// Shortcut: use the pre-converted values as-is.
+			try {
+				// 如果 mpvs 中已经包含了转换后的值，那么直接设置进 bean 中即可
+				bw.setPropertyValues(mpvs);
+				return;
+			}
+			catch (BeansException ex) {
+				throw new BeanCreationException(
+						mbd.getResourceDescription(), beanName, "Error setting property values", ex);
+			}
+		}
+		original = mpvs.getPropertyValueList();
+	}
+	else {
+		original = Arrays.asList(pvs.getPropertyValues());
+	}
+	// 2. 仍需要做类型转换
+	TypeConverter converter = getCustomTypeConverter();
+	if (converter == null) {
+		converter = bw;
+	}
+	BeanDefinitionValueResolver valueResolver = new BeanDefinitionValueResolver(this, beanName, mbd, converter);
+
+	// Create a deep copy, resolving any references for values.
+	// 创建一个list，用于存放解析转换后的值
+	List<PropertyValue> deepCopy = new ArrayList<>(original.size());
+	boolean resolveNecessary = false;
+	// 遍历 PropertyValue List 并逐个判断参数是否已经解析转换过了
+	for (PropertyValue pv : original) {
+		if (pv.isConverted()) {
+			// 2.1 已经解析过了，直接存储
+			deepCopy.add(pv);
+		}
+		else {
+			// 2.2 没有解析过
+			String propertyName = pv.getName();
+			Object originalValue = pv.getValue();
+			// 2.2.1 如果属性被标记为自动装配
+			if (originalValue == AutowiredPropertyMarker.INSTANCE) {
+				// 获取其对应的 setter 方法
+				Method writeMethod = bw.getPropertyDescriptor(propertyName).getWriteMethod();
+				if (writeMethod == null) {
+					throw new IllegalArgumentException("Autowire marker for property without write method: " + pv);
+				}
+				// 将标记类替换为 DependencyDescriptor 准备解析
+				originalValue = new DependencyDescriptor(new MethodParameter(writeMethod, 0), true);
+			}
+			// 2.2.2 解析属性
+			Object resolvedValue = valueResolver.resolveValueIfNecessary(pv, originalValue);
+			Object convertedValue = resolvedValue;
+			// 属性解析完成，判断 bean中的属性是否可写
+			boolean convertible = bw.isWritableProperty(propertyName) &&
+					!PropertyAccessorUtils.isNestedOrIndexedProperty(propertyName);
+
+			if (convertible) {
+				// 2.2.3 将类型转换为 setter 所需要的参数类型
+				convertedValue = convertForProperty(resolvedValue, propertyName, bw, converter);
+			}
+			// Possibly store converted value in merged bean definition,
+			// in order to avoid re-conversion for every created bean instance.
+			// 2.2.4 将转换后的值存储 PropertyValue 中，以避免重新转换。
+			if (resolvedValue == originalValue) {
+				// 如果转换前后的值相同
+				if (convertible) {
+					pv.setConvertedValue(convertedValue);
+				}
+				deepCopy.add(pv);
+			}
+			else if (convertible && originalValue instanceof TypedStringValue &&
+					!((TypedStringValue) originalValue).isDynamic() &&
+					!(convertedValue instanceof Collection || ObjectUtils.isArray(convertedValue))) {
+				pv.setConvertedValue(convertedValue);
+				deepCopy.add(pv);
+			}
+			else {
+				resolveNecessary = true;
+				deepCopy.add(new PropertyValue(pv, convertedValue));
+			}
+		}
+	}
+	if (mpvs != null && !resolveNecessary) {
+		// 设置 MutablePropertyValues 中的所有值都已经解析过了
+		mpvs.setConverted();
+	}
+	// 3. 将解析完成的值设置到 bean 实例中
+	// Set our (possibly massaged) deep copy.
+	try {
+		// 将解析完成的值设置到 bean 实例中
+		bw.setPropertyValues(new MutablePropertyValues(deepCopy));
+	}
+	catch (BeansException ex) {
+		throw new BeanCreationException(
+				mbd.getResourceDescription(), beanName, "Error setting property values", ex);
+	}
+}
+```
+
+&emsp;&emsp;到这里，自动装配的过程就完成了，可以看到注解注入确实会在 XML 注入之前进行，因此，对于在注解中和在 xml 中都配置了注入的情况，后一种配置将覆盖前者。
+
+## 3 初始化 bean
+
+```java
+protected Object initializeBean(String beanName, Object bean, @Nullable RootBeanDefinition mbd) {
+		// 1. 激活 Aware 方法
+		if (System.getSecurityManager() != null) {
+			AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+				invokeAwareMethods(beanName, bean);
+				return null;
+			}, getAccessControlContext());
+		}
+		else {
+			invokeAwareMethods(beanName, bean);
+		}
+		// 2. 执行初始化前的回调方法
+		Object wrappedBean = bean;
+		if (mbd == null || !mbd.isSynthetic()) {
+			wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
+		}
+
+		// 3. 执行自定义 init 方法
+		try {
+			invokeInitMethods(beanName, wrappedBean, mbd);
+		}
+		catch (Throwable ex) {
+			throw new BeanCreationException(
+					(mbd != null ? mbd.getResourceDescription() : null),
+					beanName, "Invocation of init method failed", ex);
+		}
+		// 4. 执行初始化后的回调方法
+		if (mbd == null || !mbd.isSynthetic()) {
+			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
+		}
+
+		return wrappedBean;
+	}
+```

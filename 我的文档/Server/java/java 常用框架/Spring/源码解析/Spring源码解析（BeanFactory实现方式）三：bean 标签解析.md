@@ -999,13 +999,13 @@ public Object parsePropertyValue(Element ele, BeanDefinition bd, @Nullable Strin
          }
       }
    }
-	//获取 constructor-arg 上的 ref 属性
+	//获取 ref 属性
    boolean hasRefAttribute = ele.hasAttribute(REF_ATTRIBUTE);
-    //获取 constructor-arg 上的 value 属性
+    //获取 value 属性
    boolean hasValueAttribute = ele.hasAttribute(VALUE_ATTRIBUTE);
    if ((hasRefAttribute && hasValueAttribute) ||
          ((hasRefAttribute || hasValueAttribute) && subElement != null)) {
-       //在 constructor-arg 上不会存在
+       //在同一个标签上不会存在
        //	1.同时既有 ref 属性又有 value 属性
        //	2.存在 ref 属性或者 value 属性且又拥有子元素
       error(elementName +

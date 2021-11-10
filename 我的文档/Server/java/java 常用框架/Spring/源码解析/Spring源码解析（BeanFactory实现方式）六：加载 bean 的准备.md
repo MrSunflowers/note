@@ -650,7 +650,7 @@ private Object doGetObjectFromFactoryBean(FactoryBean<?> factory, String beanNam
 }
 ```
 
-### 3.1 bean 的额外处理
+### 3.1 bean 的 BeanPostProcessor 额外处理
 
 &emsp;&emsp;可以注意到，上面获取到 object 后并没有直接返回，而后面又进入了 postProcessObjectFromFactoryBean 方法。这是 Spring 提供的旨在支持可插拔式的拓展实现，这里是应用所有的已注册的 BeanPostProcessor 让它们有机会对从 FactoryBeans 获得的对象进行额外的增强处理，比如自动代理。
 

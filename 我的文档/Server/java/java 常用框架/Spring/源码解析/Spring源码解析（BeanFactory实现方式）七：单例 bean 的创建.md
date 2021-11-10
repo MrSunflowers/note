@@ -1222,11 +1222,11 @@ private InjectionMetadata buildAutowiringMetadata(final Class<?> clazz) {
 ```
 
 
-&emsp;&emsp;可以看到 AutowiredAnnotationBeanPostProcessor 会扫描 Bean 的类中是否使用了 @Autowired 、 @Value 以及 @Inject 注解，扫描到的属性会封装成起来，缓存到一个集合中，后续根据缓存信息进行属性填充；需要注意的是，这里只进行了扫描转换工作, 并没有进行属性注入工作。
+&emsp;&emsp;可以看到 AutowiredAnnotationBeanPostProcessor 会扫描 Bean 的类中是否使用了 @Autowired 、 @Value 以及 @Inject 注解，扫描到的属性会封装成一个 InjectionMetadata，并缓存 injectionMetadataCache 中 key 为当前的 beanName，后续根据缓存信息进行属性填充；需要注意的是，这里只进行了扫描记录工作, 并没有进行属性注入工作。
 
 ### CommonAnnotationBeanPostProcessor
 
-&emsp;&emsp;CommonAnnotationBeanPostProcessor 通过继承 InitDestroyAnnotationBeanPostProcessor 对 @PostConstruct 和 @PreDestroy 注解，以及依据 bean name 依赖注入的 @Resource 注解，也对 @WebServiceRef 注解提供支持，具有创建JAX-WS服务端点的能力。最后，处理器还支持EJB3(@EJB)。
+&emsp;&emsp;CommonAnnotationBeanPostProcessor 通过继承 InitDestroyAnnotationBeanPostProcessor 对 @PostConstruct 和 @PreDestroy 注解，以及依据 bean name 依赖注入的 @Resource 注解，也对 @WebServiceRef 注解提供支持，具有创建 JAX-WS 服务端点的能力。最后，处理器还支持 EJB3 ( @EJB )。
 
 &emsp;&emsp;首先 CommonAnnotationBeanPostProcessor 的构造方法将处理的注解 @PostConstruct 和 @PreDestroy 传递给父类
 
@@ -1268,7 +1268,7 @@ static {
 }
 ```
 
-&emsp;&emsp;后面的扫描处理和前面的基本一致，不在赘述，这里主要扫描处理 @EJB、@Resource 和 @WebServiceRef 注解。
+&emsp;&emsp;后面的扫描和前面的差别不大，不在赘述，这里主要扫描处理 @EJB、@Resource 和 @WebServiceRef 注解。
 
 ### PersistenceAnnotationBeanPostProcessor
 
