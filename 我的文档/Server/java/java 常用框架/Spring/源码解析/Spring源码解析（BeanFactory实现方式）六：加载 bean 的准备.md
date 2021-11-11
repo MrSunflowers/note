@@ -27,174 +27,176 @@ public Object getBean(String name) throws BeansException {
 
 ````java
 protected <T> T doGetBean(
-			String name, @Nullable Class<T> requiredType, @Nullable Object[] args, boolean typeCheckOnly)
-			throws BeansException {
-		// 1.获取实际的 bean 的名字
-		String beanName = transformedBeanName(name);
-		Object beanInstance;
+		String name, @Nullable Class<T> requiredType, @Nullable Object[] args, boolean typeCheckOnly)
+		throws BeansException {
+	// 1.获取实际的 bean 的名字
+	String beanName = transformedBeanName(name);
+	Object beanInstance;
 
-		// Eagerly check singleton cache for manually registered singletons.
-		// 2.对于单例 bean 来说，首先尝试从缓存中获取 bean
-		Object sharedInstance = getSingleton(beanName);
-		if (sharedInstance != null && args == null) {
-			if (logger.isTraceEnabled()) {
-				if (isSingletonCurrentlyInCreation(beanName)) {
-					logger.trace("Returning eagerly cached instance of singleton bean '" + beanName +
-							"' that is not fully initialized yet - a consequence of a circular reference");
-				}
-				else {
-					logger.trace("Returning cached instance of singleton bean '" + beanName + "'");
-				}
+	// Eagerly check singleton cache for manually registered singletons.
+	// 2.对于单例 bean 来说，首先尝试从缓存中获取 bean
+	// 也是
+	// 循环依赖 -- 获取早期的单例 bean 引用
+	Object sharedInstance = getSingleton(beanName);
+	if (sharedInstance != null && args == null) {
+		if (logger.isTraceEnabled()) {
+			if (isSingletonCurrentlyInCreation(beanName)) {
+				logger.trace("Returning eagerly cached instance of singleton bean '" + beanName +
+						"' that is not fully initialized yet - a consequence of a circular reference");
 			}
-			// 3 检测实例是否为FactoryBean，比如在 FactoryBean 的情况不是
-			// 直接返回实例本身，而是返回 FactoryBean 所创建的实例
-			beanInstance = getObjectForBeanInstance(sharedInstance, name, beanName, null);
+			else {
+				logger.trace("Returning cached instance of singleton bean '" + beanName + "'");
+			}
+		}
+		// 3 检测实例是否为FactoryBean，比如在 FactoryBean 的情况不是
+		// 直接返回实例本身，而是返回 FactoryBean 所创建的实例
+		beanInstance = getObjectForBeanInstance(sharedInstance, name, beanName, null);
+	}
+
+	else {
+		// Fail if we're already creating this bean instance:
+		// We're assumably within a circular reference.
+		// 4. 创建实例前的准备
+		// 如果指定的 bean 是 prototype 作用域的并且正在创建中则返回 true
+		if (isPrototypeCurrentlyInCreation(beanName)) {
+			// 循环依赖 -- 多例检测
+			throw new BeanCurrentlyInCreationException(beanName);
 		}
 
-		else {
-			// Fail if we're already creating this bean instance:
-			// We're assumably within a circular reference.
-			// 4. 创建实例前的准备
-			// 如果指定的 bean 是 prototype 作用域的并且正在创建中则返回 true
-			if (isPrototypeCurrentlyInCreation(beanName)) {
-				// 循环依赖 -- 多例检测
-				throw new BeanCurrentlyInCreationException(beanName);
+		// Check if bean definition exists in this factory.
+		BeanFactory parentBeanFactory = getParentBeanFactory();
+		// 4.1 当前容器中并没有 beanName 对应的 BeanDefinition，尝试
+		// 从父容器中查找并由父容器创建
+		if (parentBeanFactory != null && !containsBeanDefinition(beanName)) {
+			// Not found -> check parent.
+			// 依旧先是解析beanName
+			String nameToLookup = originalBeanName(name);
+			if (parentBeanFactory instanceof AbstractBeanFactory) {
+				// 调用父容器的 doGetBean
+				return ((AbstractBeanFactory) parentBeanFactory).doGetBean(
+						nameToLookup, requiredType, args, typeCheckOnly);
 			}
-
-			// Check if bean definition exists in this factory.
-			BeanFactory parentBeanFactory = getParentBeanFactory();
-			// 4.1 当前容器中并没有 beanName 对应的 BeanDefinition，尝试
-			// 从父容器中查找并由父容器创建
-			if (parentBeanFactory != null && !containsBeanDefinition(beanName)) {
-				// Not found -> check parent.
-				// 依旧先是解析beanName
-				String nameToLookup = originalBeanName(name);
-				if (parentBeanFactory instanceof AbstractBeanFactory) {
-					// 调用父容器的 doGetBean
-					return ((AbstractBeanFactory) parentBeanFactory).doGetBean(
-							nameToLookup, requiredType, args, typeCheckOnly);
-				}
-				else if (args != null) {
-					// Delegation to parent with explicit args.
-					return (T) parentBeanFactory.getBean(nameToLookup, args);
-				}
-				else if (requiredType != null) {
-					// No args -> delegate to standard getBean method.
-					return parentBeanFactory.getBean(nameToLookup, requiredType);
-				}
-				else {
-					return (T) parentBeanFactory.getBean(nameToLookup);
-				}
+			else if (args != null) {
+				// Delegation to parent with explicit args.
+				return (T) parentBeanFactory.getBean(nameToLookup, args);
 			}
-			// 4.2 将指定的 bean 标记为即将创建
-			if (!typeCheckOnly) {
-				markBeanAsCreated(beanName);
+			else if (requiredType != null) {
+				// No args -> delegate to standard getBean method.
+				return parentBeanFactory.getBean(nameToLookup, requiredType);
 			}
+			else {
+				return (T) parentBeanFactory.getBean(nameToLookup);
+			}
+		}
+		// 4.2 将指定的 bean 标记为即将创建
+		if (!typeCheckOnly) {
+			markBeanAsCreated(beanName);
+		}
 
-			StartupStep beanCreation = this.applicationStartup.start("spring.beans.instantiate")
-					.tag("beanName", name);
-			try {
-				if (requiredType != null) {
-					beanCreation.tag("beanType", requiredType::toString);
-				}
-				// 4.3 将存储信息的 GernericBeanDefinition 转换为 RootBeanDefinition，
-				// 如果指定的 bean 是子 bean 会同时合并父类的相关属性
-				RootBeanDefinition mbd = getMergedLocalBeanDefinition(beanName);
-				checkMergedBeanDefinition(mbd, beanName, args);
+		StartupStep beanCreation = this.applicationStartup.start("spring.beans.instantiate")
+				.tag("beanName", name);
+		try {
+			if (requiredType != null) {
+				beanCreation.tag("beanType", requiredType::toString);
+			}
+			// 4.3 将存储信息的 GernericBeanDefinition 转换为 RootBeanDefinition，
+			// 如果指定的 bean 是子 bean 会同时合并父类的相关属性
+			RootBeanDefinition mbd = getMergedLocalBeanDefinition(beanName);
+			checkMergedBeanDefinition(mbd, beanName, args);
 
-				// Guarantee initialization of beans that the current bean depends on.
-				// 4.4 若存在依赖，先实例化依赖的 bean
-				String[] dependsOn = mbd.getDependsOn();
-				if (dependsOn != null) {
-					for (String dep : dependsOn) {
-						if (isDependent(beanName, dep)) {
-							throw new BeanCreationException(mbd.getResourceDescription(), beanName,
-									"Circular depends-on relationship between '" + beanName + "' and '" + dep + "'");
-						}
-						registerDependentBean(dep, beanName);
-						try {
-							getBean(dep);
-						}
-						catch (NoSuchBeanDefinitionException ex) {
-							throw new BeanCreationException(mbd.getResourceDescription(), beanName,
-									"'" + beanName + "' depends on missing bean '" + dep + "'", ex);
-						}
+			// Guarantee initialization of beans that the current bean depends on.
+			// 4.4 若存在依赖，先实例化依赖的 bean
+			String[] dependsOn = mbd.getDependsOn();
+			if (dependsOn != null) {
+				for (String dep : dependsOn) {
+					if (isDependent(beanName, dep)) {
+						throw new BeanCreationException(mbd.getResourceDescription(), beanName,
+								"Circular depends-on relationship between '" + beanName + "' and '" + dep + "'");
+					}
+					registerDependentBean(dep, beanName);
+					try {
+						getBean(dep);
+					}
+					catch (NoSuchBeanDefinitionException ex) {
+						throw new BeanCreationException(mbd.getResourceDescription(), beanName,
+								"'" + beanName + "' depends on missing bean '" + dep + "'", ex);
 					}
 				}
+			}
 
-				// Create bean instance.
-				// 5.创建 bean 实例
-				if (mbd.isSingleton()) {
-					// 5.1 单例 bean 的创建
-					sharedInstance = getSingleton(beanName, () -> {
+			// Create bean instance.
+			// 5.创建 bean 实例
+			if (mbd.isSingleton()) {
+				// 5.1 单例 bean 的创建
+				sharedInstance = getSingleton(beanName, () -> {
+					try {
+						return createBean(beanName, mbd, args);
+					}
+					catch (BeansException ex) {
+						// Explicitly remove instance from singleton cache: It might have been put there
+						// eagerly by the creation process, to allow for circular reference resolution.
+						// Also remove any beans that received a temporary reference to the bean.
+						destroySingleton(beanName);
+						throw ex;
+					}
+				});
+				beanInstance = getObjectForBeanInstance(sharedInstance, name, beanName, mbd);
+			}
+
+			else if (mbd.isPrototype()) {
+				// It's a prototype -> create a new instance.
+				// 5.2 多例 bean 的创建，直接 new 一个
+				Object prototypeInstance = null;
+				try {
+					beforePrototypeCreation(beanName);
+					prototypeInstance = createBean(beanName, mbd, args);
+				}
+				finally {
+					afterPrototypeCreation(beanName);
+				}
+				beanInstance = getObjectForBeanInstance(prototypeInstance, name, beanName, mbd);
+			}
+
+			else {
+				// 5.3 其他 scope 的 bean 的创建
+				String scopeName = mbd.getScope();
+				if (!StringUtils.hasLength(scopeName)) {
+					throw new IllegalStateException("No scope name defined for bean ´" + beanName + "'");
+				}
+				Scope scope = this.scopes.get(scopeName);
+				if (scope == null) {
+					throw new IllegalStateException("No Scope registered for scope name '" + scopeName + "'");
+				}
+				try {
+					Object scopedInstance = scope.get(beanName, () -> {
+						beforePrototypeCreation(beanName);
 						try {
 							return createBean(beanName, mbd, args);
 						}
-						catch (BeansException ex) {
-							// Explicitly remove instance from singleton cache: It might have been put there
-							// eagerly by the creation process, to allow for circular reference resolution.
-							// Also remove any beans that received a temporary reference to the bean.
-							destroySingleton(beanName);
-							throw ex;
+						finally {
+							afterPrototypeCreation(beanName);
 						}
 					});
-					beanInstance = getObjectForBeanInstance(sharedInstance, name, beanName, mbd);
+					beanInstance = getObjectForBeanInstance(scopedInstance, name, beanName, mbd);
 				}
-
-				else if (mbd.isPrototype()) {
-					// It's a prototype -> create a new instance.
-					// 5.2 多例 bean 的创建，直接 new 一个
-					Object prototypeInstance = null;
-					try {
-						beforePrototypeCreation(beanName);
-						prototypeInstance = createBean(beanName, mbd, args);
-					}
-					finally {
-						afterPrototypeCreation(beanName);
-					}
-					beanInstance = getObjectForBeanInstance(prototypeInstance, name, beanName, mbd);
+				catch (IllegalStateException ex) {
+					throw new ScopeNotActiveException(beanName, scopeName, ex);
 				}
-
-				else {
-					// 5.3 其他 scope 的 bean 的创建
-					String scopeName = mbd.getScope();
-					if (!StringUtils.hasLength(scopeName)) {
-						throw new IllegalStateException("No scope name defined for bean ´" + beanName + "'");
-					}
-					Scope scope = this.scopes.get(scopeName);
-					if (scope == null) {
-						throw new IllegalStateException("No Scope registered for scope name '" + scopeName + "'");
-					}
-					try {
-						Object scopedInstance = scope.get(beanName, () -> {
-							beforePrototypeCreation(beanName);
-							try {
-								return createBean(beanName, mbd, args);
-							}
-							finally {
-								afterPrototypeCreation(beanName);
-							}
-						});
-						beanInstance = getObjectForBeanInstance(scopedInstance, name, beanName, mbd);
-					}
-					catch (IllegalStateException ex) {
-						throw new ScopeNotActiveException(beanName, scopeName, ex);
-					}
-				}
-			}
-			catch (BeansException ex) {
-				beanCreation.tag("exception", ex.getClass().toString());
-				beanCreation.tag("message", String.valueOf(ex.getMessage()));
-				cleanupAfterBeanCreationFailure(beanName);
-				throw ex;
-			}
-			finally {
-				beanCreation.end();
 			}
 		}
-		// 6. 检测 bean 的类型是否符合实际类型
-		return adaptBeanInstance(name, beanInstance, requiredType);
+		catch (BeansException ex) {
+			beanCreation.tag("exception", ex.getClass().toString());
+			beanCreation.tag("message", String.valueOf(ex.getMessage()));
+			cleanupAfterBeanCreationFailure(beanName);
+			throw ex;
+		}
+		finally {
+			beanCreation.end();
+		}
 	}
+	// 6. 检测 bean 的类型是否符合实际类型
+	return adaptBeanInstance(name, beanInstance, requiredType);
+}
 ````
 
 &emsp;&emsp;方法非常长，从方法上就可以看出 bean 的加载过程非常复杂，其中涉及各种考虑的情况，先按照上面的注释大致了解一下过程。步骤如下：
@@ -431,34 +433,36 @@ public Object getSingleton(String beanName) {
 
 ```java
 protected Object getSingleton(String beanName, boolean allowEarlyReference) {
-   // 从一级缓存寻找
-   Object singletonObject = this.singletonObjects.get(beanName);
-   //如果当前一级缓存没找到且当前 bean 正在创建中
-   if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
-	   // 从二级缓存寻找
-      singletonObject = this.earlySingletonObjects.get(beanName);
-	  // 二级缓存没找到且需要创建引用对象
-      if (singletonObject == null && allowEarlyReference) {
-         synchronized (this.singletonObjects) {
-            singletonObject = this.singletonObjects.get(beanName);
-            if (singletonObject == null) {
-               singletonObject = this.earlySingletonObjects.get(beanName);
-               if (singletonObject == null) {
-                   //从三级缓存获取
-                  ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
-                  if (singletonFactory != null) {
-					  //调用预先设定的方法
-                     singletonObject = singletonFactory.getObject();
-					 //加入缓存，earlySingletonObjects与singletonFactories互斥，不能同时存在
-                     this.earlySingletonObjects.put(beanName, singletonObject);
-                     this.singletonFactories.remove(beanName);
-                  }
-               }
-            }
-         }
-      }
-   }
-   return singletonObject;
+	// Quick check for existing instance without full singleton lock
+	// 先从一级缓存寻找
+	Object singletonObject = this.singletonObjects.get(beanName);
+	if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
+		// 如果当前一级缓存没找到且当前 bean 正在创建中
+		// 从二级缓存寻找
+		singletonObject = this.earlySingletonObjects.get(beanName);
+		if (singletonObject == null && allowEarlyReference) {
+			// 二级缓存没找到且需要创建引用对象
+			synchronized (this.singletonObjects) {
+				// Consistent creation of early reference within full singleton lock
+				singletonObject = this.singletonObjects.get(beanName);
+				if (singletonObject == null) {
+					singletonObject = this.earlySingletonObjects.get(beanName);
+					if (singletonObject == null) {
+						// 从三级缓存获取
+						ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
+						if (singletonFactory != null) {
+							// 调用预先设定的方法，获取早期的 bean 引用，并存入早期单例 bean 缓存中
+							singletonObject = singletonFactory.getObject();
+							// 加入缓存，earlySingletonObjects 与 singletonFactories 互斥，不能同时存在
+							this.earlySingletonObjects.put(beanName, singletonObject);
+							this.singletonFactories.remove(beanName);
+						}
+					}
+				}
+			}
+		}
+	}
+	return singletonObject;
 }
 ```
 

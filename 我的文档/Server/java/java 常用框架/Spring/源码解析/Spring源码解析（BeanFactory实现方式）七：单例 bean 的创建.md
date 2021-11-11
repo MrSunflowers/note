@@ -9,114 +9,123 @@
 
 ```java
 protected Object doCreateBean(String beanName, RootBeanDefinition mbd, @Nullable Object[] args)
-			throws BeanCreationException {
+		throws BeanCreationException {
 
-		// Instantiate the bean.
-		BeanWrapper instanceWrapper = null;
-		if (mbd.isSingleton()) {
-			// 如果是单例则需要首先尝试从 factoryBeanInstanceCache 获取 instanceWrapper 并清除缓存。
-			// 存储包装后的 bean 实例 instanceWrapper
-			instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
-		}
-
-		if (instanceWrapper == null) {
-			// 1. 实例化bean ，将 BeanDefinition 转换为 BeanWrapper 。
-			instanceWrapper = createBeanInstance(beanName, mbd, args);
-		}
-		Object bean = instanceWrapper.getWrappedInstance();
-		Class<?> beanType = instanceWrapper.getWrappedClass();
-		if (beanType != NullBean.class) {
-			mbd.resolvedTargetType = beanType;
-		}
-
-		// Allow post-processors to modify the merged bean definition.
-		synchronized (mbd.postProcessingLock) {
-			if (!mbd.postProcessed) {
-				try {
-					// 2. bean 创建后的处理
-					applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
-				}
-				catch (Throwable ex) {
-					throw new BeanCreationException(mbd.getResourceDescription(), beanName,
-							"Post-processing of merged bean definition failed", ex);
-				}
-				mbd.postProcessed = true;
-			}
-		}
-
-		// Eagerly cache singletons to be able to resolve circular references
-		// even when triggered by lifecycle interfaces like BeanFactoryAware.
-		// 3. 循环依赖 -- 记录早期的 bean
-		boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
-				isSingletonCurrentlyInCreation(beanName));
-		if (earlySingletonExposure) {
-			if (logger.isTraceEnabled()) {
-				logger.trace("Eagerly caching bean '" + beanName +
-						"' to allow for resolving potential circular references");
-			}
-			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
-		}
-
-		// Initialize the bean instance.
-		Object exposedObject = bean;
-		try {
-			// 4. 填充bean的属性
-			populateBean(beanName, mbd, instanceWrapper);
-			// 5. 调用初始化方法
-			exposedObject = initializeBean(beanName, exposedObject, mbd);
-		}
-		catch (Throwable ex) {
-			if (ex instanceof BeanCreationException && beanName.equals(((BeanCreationException) ex).getBeanName())) {
-				throw (BeanCreationException) ex;
-			}
-			else {
-				throw new BeanCreationException(
-						mbd.getResourceDescription(), beanName, "Initialization of bean failed", ex);
-			}
-		}
-			// 6. 循环依赖的检测与处理
-		if (earlySingletonExposure) {
-			Object earlySingletonReference = getSingleton(beanName, false);
-			if (earlySingletonReference != null) {
-				if (exposedObject == bean) {
-					exposedObject = earlySingletonReference;
-				}
-				else if (!this.allowRawInjectionDespiteWrapping && hasDependentBean(beanName)) {
-					String[] dependentBeans = getDependentBeans(beanName);
-					Set<String> actualDependentBeans = new LinkedHashSet<>(dependentBeans.length);
-					for (String dependentBean : dependentBeans) {
-						if (!removeSingletonIfCreatedForTypeCheckOnly(dependentBean)) {
-							actualDependentBeans.add(dependentBean);
-						}
-					}
-					if (!actualDependentBeans.isEmpty()) {
-						throw new BeanCurrentlyInCreationException(beanName,
-								"Bean with name '" + beanName + "' has been injected into other beans [" +
-								StringUtils.collectionToCommaDelimitedString(actualDependentBeans) +
-								"] in its raw version as part of a circular reference, but has eventually been " +
-								"wrapped. This means that said other beans do not use the final version of the " +
-								"bean. This is often the result of over-eager type matching - consider using " +
-								"'getBeanNamesForType' with the 'allowEagerInit' flag turned off, for example.");
-					}
-				}
-			}
-		}
-
-		// Register bean as disposable.
-		try {
-			// 7. 注册 DisposableBean
-			registerDisposableBeanIfNecessary(beanName, bean, mbd);
-		}
-		catch (BeanDefinitionValidationException ex) {
-			throw new BeanCreationException(
-					mbd.getResourceDescription(), beanName, "Invalid destruction signature", ex);
-		}
-
-		return exposedObject;
+	// Instantiate the bean.
+	BeanWrapper instanceWrapper = null;
+	if (mbd.isSingleton()) {
+		// 如果是单例则需要首先尝试从 FactoryBean 实例的缓存 factoryBeanInstanceCache 中获取。
+		instanceWrapper = this.factoryBeanInstanceCache.remove(beanName);
 	}
+
+	if (instanceWrapper == null) {
+		// 1. 实例化 bean，将 BeanDefinition 转换为 BeanWrapper 。
+		instanceWrapper = createBeanInstance(beanName, mbd, args);
+	}
+	// 获取 bean 实例
+	Object bean = instanceWrapper.getWrappedInstance();
+	// 获取 bean 类型
+	Class<?> beanType = instanceWrapper.getWrappedClass();
+	if (beanType != NullBean.class) {
+		mbd.resolvedTargetType = beanType;
+	}
+
+	// Allow post-processors to modify the merged bean definition.
+	synchronized (mbd.postProcessingLock) {
+		if (!mbd.postProcessed) {
+			try {
+				// 2. bean 创建后的拓展处理，例如注解的扫描记录等
+				applyMergedBeanDefinitionPostProcessors(mbd, beanType, beanName);
+			}
+			catch (Throwable ex) {
+				throw new BeanCreationException(mbd.getResourceDescription(), beanName,
+						"Post-processing of merged bean definition failed", ex);
+			}
+			mbd.postProcessed = true;
+		}
+	}
+
+	// Eagerly cache singletons to be able to resolve circular references
+	// even when triggered by lifecycle interfaces like BeanFactoryAware.
+	// 3. 循环依赖 -- 记录早期的 bean 引用
+	// 此时的 bean 刚创建成功，还未初始化
+	boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
+			isSingletonCurrentlyInCreation(beanName));
+	// 当前bean是单例 且 允许自动处理循环依赖 且 当前 bean 正在创建
+	// 在 Spring 中，会有一个个专门的属性默认为 DefaultSingletonBeanRegistry 的 singletonsCurrentlyInCreation
+	// 来记录 bean 的创建状态，在 bean 开始创建前会将 beanName 记录在属性中，在 bean 创建结束后会将 beanName 从属性中移除。
+	if (earlySingletonExposure) {
+		if (logger.isTraceEnabled()) {
+			logger.trace("Eagerly caching bean '" + beanName +
+					"' to allow for resolving potential circular references");
+		}
+		// 将初始化完成前的 bean 通过 ObjectFactory 记录下来
+		addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
+	}
+
+	// Initialize the bean instance.
+	Object exposedObject = bean;
+	try {
+		// 4. 填充 bean 的属性
+		populateBean(beanName, mbd, instanceWrapper);
+		// 5. 调用初始化方法
+		exposedObject = initializeBean(beanName, exposedObject, mbd);
+	}
+	catch (Throwable ex) {
+		if (ex instanceof BeanCreationException && beanName.equals(((BeanCreationException) ex).getBeanName())) {
+			throw (BeanCreationException) ex;
+		}
+		else {
+			throw new BeanCreationException(
+					mbd.getResourceDescription(), beanName, "Initialization of bean failed", ex);
+		}
+	}
+	// 6. 循环依赖 -- 实例检查
+	if (earlySingletonExposure) {
+		Object earlySingletonReference = getSingleton(beanName, false);
+		if (earlySingletonReference != null) {
+			if (exposedObject == bean) {
+				exposedObject = earlySingletonReference;
+			}
+			else if (!this.allowRawInjectionDespiteWrapping && hasDependentBean(beanName)) {
+				// 获取所有依赖当前 bean 的 bean 名称
+				String[] dependentBeans = getDependentBeans(beanName);
+				Set<String> actualDependentBeans = new LinkedHashSet<>(dependentBeans.length);
+				// 遍历并删除他们
+				for (String dependentBean : dependentBeans) {
+					if (!removeSingletonIfCreatedForTypeCheckOnly(dependentBean)) {
+						actualDependentBeans.add(dependentBean);
+					}
+				}
+				// 存在没有删除成功的 bean
+				if (!actualDependentBeans.isEmpty()) {
+					// 当前 bean 已经被其他 bean 作为属性并注入，但注入的并不是最终的版本
+					throw new BeanCurrentlyInCreationException(beanName,
+							"Bean with name '" + beanName + "' has been injected into other beans [" +
+							StringUtils.collectionToCommaDelimitedString(actualDependentBeans) +
+							"] in its raw version as part of a circular reference, but has eventually been " +
+							"wrapped. This means that said other beans do not use the final version of the " +
+							"bean. This is often the result of over-eager type matching - consider using " +
+							"'getBeanNamesForType' with the 'allowEagerInit' flag turned off, for example.");
+				}
+			}
+		}
+	}
+
+	// Register bean as disposable.
+	try {
+		// 7. 注册 DisposableBean
+		registerDisposableBeanIfNecessary(beanName, bean, mbd);
+	}
+	catch (BeanDefinitionValidationException ex) {
+		throw new BeanCreationException(
+				mbd.getResourceDescription(), beanName, "Invalid destruction signature", ex);
+	}
+
+	return exposedObject;
+}
 ```
 
-【概要思路】
 1. 实例化 bean，将 BeanDefinition 转换为 BeanWrapper。
 2. 后处理器 applyMergedBeanDefinitionPostProcessors 的应用。bean 合并后的处理， A utowired 注解正是通过此方法实现诸如类型的预解析。
 3. 循环依赖 -- 记录早期的 bean

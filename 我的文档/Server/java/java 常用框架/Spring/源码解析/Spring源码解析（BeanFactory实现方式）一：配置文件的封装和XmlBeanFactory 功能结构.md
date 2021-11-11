@@ -309,7 +309,7 @@ public interface BeanMetadataElement {
 	// 是否自动解析循环引用
 	/** Whether to automatically try to resolve circular references between beans. */
 	private boolean allowCircularReferences = true;
-	//在循环引用的情况下是否诉诸于注入原始 bean 实例，即使注入的 bean 最终被包裹
+	// 是否允许在循环引用的情况下注入原始bean实例，即使它在后面的处理中被包装
 	/**
 	 * Whether to resort to injecting a raw bean instance in case of circular reference,
 	 * even if the injected bean eventually got wrapped.

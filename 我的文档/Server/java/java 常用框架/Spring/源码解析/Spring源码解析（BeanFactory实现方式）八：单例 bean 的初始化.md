@@ -8,20 +8,18 @@
 
 ```java
 boolean earlySingletonExposure = (mbd.isSingleton() && this.allowCircularReferences &&
-		isSingletonCurrentlyInCreation(beanName));
-		//当前bean是单例且需要自动处理循环依赖且当前bean正在创建
-		//在 Spring 中，会有一个个专门的属性默认为 DefaultSingletonBeanRegistry 的 singletonsCurrentlyInCreation 
-		//来记录 bean 的加载状态，在 bean 开始创建前会将 beanName 记录在属性中，在 bean 创建结束后会将 beanName 从属性中移除。
-if (earlySingletonExposure) {
-	if (logger.isTraceEnabled()) {
-		logger.trace("Eagerly caching bean '" + beanName +
-				"' to allow for resolving potential circular references");
-	}
-	//在 bean 初始化完成前将创建实例的ObjectFactory实现加入缓存
-	//getEarlyBeanReference 就是 ObjectFactory 的匿名实现，这里并不会执行
-	//后面调用才会执行
-	addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
-}
+				isSingletonCurrentlyInCreation(beanName));
+		// 当前bean是单例 且 允许自动处理循环依赖 且 当前 bean 正在创建
+		// 在 Spring 中，会有一个个专门的属性默认为 DefaultSingletonBeanRegistry 的 singletonsCurrentlyInCreation
+		// 来记录 bean 的创建状态，在 bean 开始创建前会将 beanName 记录在属性中，在 bean 创建结束后会将 beanName 从属性中移除。
+		if (earlySingletonExposure) {
+			if (logger.isTraceEnabled()) {
+				logger.trace("Eagerly caching bean '" + beanName +
+						"' to allow for resolving potential circular references");
+			}
+			// 将初始化完成前的 bean 通过 ObjectFactory 记录下来
+			addSingletonFactory(beanName, () -> getEarlyBeanReference(beanName, mbd, bean));
+		}
 ```
 
 &emsp;&emsp;这里最重要的一步就是在 bean 初始化完成前将创建实例的 ObjectFactory 的实现加入 DefaultSingletonBeanRegistry 的 singletonFactories 属性中，也就是三级缓存中，ObjectFactory 是一个函数式接口，仅有一个方法，可以传入 lambda 表达式，可以是匿名内部类，通过调用 getObject 方法来执行具体的逻辑。
@@ -49,6 +47,7 @@ protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFa
 ```java
 protected Object getEarlyBeanReference(String beanName, RootBeanDefinition mbd, Object bean) {
 		Object exposedObject = bean;
+		// 如果有增强器拓展处理则返回拓展处理之后的 bean 实例，否则直接返回 bean 实例
 		if (!mbd.isSynthetic() && hasInstantiationAwareBeanPostProcessors()) {
 			for (SmartInstantiationAwareBeanPostProcessor bp : getBeanPostProcessorCache().smartInstantiationAware) {
 				exposedObject = bp.getEarlyBeanReference(exposedObject, beanName);
@@ -773,36 +772,177 @@ protected void applyPropertyValues(String beanName, BeanDefinition mbd, BeanWrap
 
 ```java
 protected Object initializeBean(String beanName, Object bean, @Nullable RootBeanDefinition mbd) {
-		// 1. 激活 Aware 方法
+	// 1. 激活 Aware 方法
+	if (System.getSecurityManager() != null) {
+		AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+			invokeAwareMethods(beanName, bean);
+			return null;
+		}, getAccessControlContext());
+	}
+	else {
+		invokeAwareMethods(beanName, bean);
+	}
+	// 2. 执行初始化前的回调方法
+	Object wrappedBean = bean;
+	if (mbd == null || !mbd.isSynthetic()) {
+		wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
+	}
+
+	// 3. 执行自定义 init 方法
+	try {
+		invokeInitMethods(beanName, wrappedBean, mbd);
+	}
+	catch (Throwable ex) {
+		throw new BeanCreationException(
+				(mbd != null ? mbd.getResourceDescription() : null),
+				beanName, "Invocation of init method failed", ex);
+	}
+	// 4. 执行初始化后的回调方法
+	if (mbd == null || !mbd.isSynthetic()) {
+		wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
+	}
+
+	return wrappedBean;
+}
+```
+
+### 3.1 激活 Aware 方法
+
+&emsp;&emsp;在 Spring 中提供了一些 Aware 接口 ，用于在用户自定义的 bean 中获取相对应的资源，看个示例：
+
+```java
+public class AwareTestBean implements BeanFactoryAware {
+
+	private BeanFactory beanFactory;
+
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) throws BeansException {
+		this.beanFactory = beanFactory;
+	}
+
+	public BeanFactory getBeanFactory() {
+		return beanFactory;
+	}
+}
+```
+
+&emsp;&emsp;自定义一个 bean，并实现 BeanFactoryAware 接口，当一个 bean 实现了 BeanFactoryAware 接口，在其初始化的时候就会将 beanFactory 注入到 bean 中，这样就可以在 bean 中获取到 beanFactory，其他的 Aware 接口的作用也是一样，不过是注入的资源不同。然后看下 Spring 中的实现：
+
+```java
+private void invokeAwareMethods(String beanName, Object bean) {
+	if (bean instanceof Aware) {
+		if (bean instanceof BeanNameAware) {
+			((BeanNameAware) bean).setBeanName(beanName);
+		}
+		if (bean instanceof BeanClassLoaderAware) {
+			ClassLoader bcl = getBeanClassLoader();
+			if (bcl != null) {
+				((BeanClassLoaderAware) bean).setBeanClassLoader(bcl);
+			}
+		}
+		if (bean instanceof BeanFactoryAware) {
+			((BeanFactoryAware) bean).setBeanFactory(AbstractAutowireCapableBeanFactory.this);
+		}
+	}
+}
+```
+
+### 3.2 执行初始化前后的回调方法
+
+&emsp;&emsp;又是增强器 PostProcessors 的应用，用于在执行初始化方法前后的拓展处理。
+
+```java
+public Object applyBeanPostProcessorsBeforeInitialization(Object existingBean, String beanName)
+		throws BeansException {
+
+	Object result = existingBean;
+	for (BeanPostProcessor processor : getBeanPostProcessors()) {
+		Object current = processor.postProcessBeforeInitialization(result, beanName);
+		if (current == null) {
+			return result;
+		}
+		result = current;
+	}
+	return result;
+}
+```
+
+### 3.2 执行自定义 init 方法
+
+&emsp;&emsp;自定义的初始化方法除了在 xml 中配置的 init-method 之外，还有使用自定义的 bean 实现 InitializingBean 接口，并在 afterPropertiesSet 中实现自己的初始化业务逻辑。
+
+**AbstractAutowireCapableBeanFactory.invokeInitMethods**
+
+```java
+protected void invokeInitMethods(String beanName, Object bean, @Nullable RootBeanDefinition mbd)
+		throws Throwable {
+
+	boolean isInitializingBean = (bean instanceof InitializingBean);
+	// 1. bean 是否实现了 InitializingBean 接口
+	if (isInitializingBean && (mbd == null || !mbd.isExternallyManagedInitMethod("afterPropertiesSet"))) {
+		if (logger.isTraceEnabled()) {
+			logger.trace("Invoking afterPropertiesSet() on bean with name '" + beanName + "'");
+		}
+		// 执行 afterPropertiesSet 方法
 		if (System.getSecurityManager() != null) {
-			AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
-				invokeAwareMethods(beanName, bean);
-				return null;
-			}, getAccessControlContext());
+			try {
+				AccessController.doPrivileged((PrivilegedExceptionAction<Object>) () -> {
+					((InitializingBean) bean).afterPropertiesSet();
+					return null;
+				}, getAccessControlContext());
+			}
+			catch (PrivilegedActionException pae) {
+				throw pae.getException();
+			}
 		}
 		else {
-			invokeAwareMethods(beanName, bean);
+			((InitializingBean) bean).afterPropertiesSet();
 		}
-		// 2. 执行初始化前的回调方法
-		Object wrappedBean = bean;
-		if (mbd == null || !mbd.isSynthetic()) {
-			wrappedBean = applyBeanPostProcessorsBeforeInitialization(wrappedBean, beanName);
-		}
-
-		// 3. 执行自定义 init 方法
-		try {
-			invokeInitMethods(beanName, wrappedBean, mbd);
-		}
-		catch (Throwable ex) {
-			throw new BeanCreationException(
-					(mbd != null ? mbd.getResourceDescription() : null),
-					beanName, "Invocation of init method failed", ex);
-		}
-		// 4. 执行初始化后的回调方法
-		if (mbd == null || !mbd.isSynthetic()) {
-			wrappedBean = applyBeanPostProcessorsAfterInitialization(wrappedBean, beanName);
-		}
-
-		return wrappedBean;
 	}
+
+	if (mbd != null && bean.getClass() != NullBean.class) {
+		String initMethodName = mbd.getInitMethodName();
+		// 2. 存在 initMethod
+		if (StringUtils.hasLength(initMethodName) &&
+				!(isInitializingBean && "afterPropertiesSet".equals(initMethodName)) &&
+				!mbd.isExternallyManagedInitMethod(initMethodName)) {
+			// 查找并执行 initMethod
+			invokeCustomInitMethod(beanName, bean, mbd);
+		}
+	}
+}
 ```
+
+&emsp;&emsp;可以看到 init-method 和 afterPropertiesSet 两种方式都是在初始化 bean 时执行，执行顺序是 afterPropertiesSet 在先，init-method 在后。
+
+## 4 注册 DisposableBean
+
+&emsp;&emsp;Spring 中同样也提供了销毁方法的拓展入口，除了 xml 中配置的属性 destroy-method 之外，还可以通过注册增强器 DestructionAwareBeanPostProcessor 来统一处理 bean 的销毁方法。
+
+```java
+protected void registerDisposableBeanIfNecessary(String beanName, Object bean, RootBeanDefinition mbd) {
+	AccessControlContext acc = (System.getSecurityManager() != null ? getAccessControlContext() : null);
+	if (!mbd.isPrototype() && requiresDestruction(bean, mbd)) {
+		if (mbd.isSingleton()) {
+			// Register a DisposableBean implementation that performs all destruction
+			// work for the given bean: DestructionAwareBeanPostProcessors,
+			// DisposableBean interface, custom destroy method.
+			// 将单例的需要在关闭时销毁的 bean 注册到容器中
+			registerDisposableBean(beanName, new DisposableBeanAdapter(
+					bean, beanName, mbd, getBeanPostProcessorCache().destructionAware, acc));
+		}
+		else {
+			// A bean with a custom scope...
+			// 其他的定义作用域的 bean
+			Scope scope = this.scopes.get(mbd.getScope());
+			if (scope == null) {
+				throw new IllegalStateException("No Scope registered for scope name '" + mbd.getScope() + "'");
+			}
+			scope.registerDestructionCallback(beanName, new DisposableBeanAdapter(
+					bean, beanName, mbd, getBeanPostProcessorCache().destructionAware, acc));
+		}
+	}
+}
+```
+
+&emsp;&emsp;至此，单例 bean 的创建过程，已经全部完成了。
