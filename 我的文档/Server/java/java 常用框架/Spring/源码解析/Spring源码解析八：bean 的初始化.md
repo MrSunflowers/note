@@ -945,4 +945,87 @@ protected void registerDisposableBeanIfNecessary(String beanName, Object bean, R
 }
 ```
 
-&emsp;&emsp;至此，单例 bean 的创建过程，已经全部完成了。
+&emsp;&emsp;至此，单例 bean 的创建过程，已经全部完成了，现在回到 doGetBean 方法中。
+
+## 5 检测 bean 的类型是否符合实际类型
+
+&emsp;&emsp;还剩最后一步，检测刚创建的 bean 的类型是否符合实际类型。
+
+**AbstractBeanFactory.adaptBeanInstance**
+
+```java
+<T> T adaptBeanInstance(String name, Object bean, @Nullable Class<?> requiredType) {
+		// Check if required type matches the type of the actual bean instance.
+		// 检查所需类型是否与实际 bean 实例的类型匹配
+		if (requiredType != null && !requiredType.isInstance(bean)) {
+			try {
+				// 如果不匹配则转换为需要的类型
+				Object convertedBean = getTypeConverter().convertIfNecessary(bean, requiredType);
+				if (convertedBean == null) {
+					throw new BeanNotOfRequiredTypeException(name, requiredType, bean.getClass());
+				}
+				return (T) convertedBean;
+			}
+			catch (TypeMismatchException ex) {
+				if (logger.isTraceEnabled()) {
+					logger.trace("Failed to convert bean '" + name + "' to required type '" +
+							ClassUtils.getQualifiedName(requiredType) + "'", ex);
+				}
+				throw new BeanNotOfRequiredTypeException(name, requiredType, bean.getClass());
+			}
+		}
+		return (T) bean;
+	}
+```
+
+## 6 循环依赖的处理流程
+
+&emsp;&emsp;bean 已经创建完成，总结一下循环依赖的整体处理流程，用例子来说明可能更容易理解，创建两个 bean
+
+```xml
+<bean name="userA" class="myTest.UserA" autowire="byType" />
+<bean name="userB" class="myTest.UserB" autowire="byType" />
+```
+
+【UserB】
+
+```java
+public class UserB{
+	
+	private UserA userA;
+
+	public UserA getUserA() {
+		return userA;
+	}
+
+	public void setUserA(UserA userA) {
+		this.userA = userA;
+	}
+
+}
+```
+
+【UserA】
+
+```java
+public class UserA {
+	
+	private UserB userB;
+
+	public UserB getUserB() {
+		return userB;
+	}
+
+	public void setUserB(UserB userB) {
+		this.userB = userB;
+	}
+
+}
+```
+
+1. 将 UserA 实例化以后，在填充属性之前，会将这个时候的 UserA 通过 ObjectFactory 记录下来，并存入三级缓存 `singletonFactories` 中。
+2. 在填充 UserA 的属性时发现 UserA 中引用了 UserB，这时去调用 doGetBean 方法去获取 UserB，同样，在填充属性之前，会将这个时候的 UserB 通过 ObjectFactory 记录下来，并存入三级缓存 `singletonFactories` 中，现在 `singletonFactories` 中同时存在 UserA 和 UserB 的早期引用。
+3. 在填充 UserB 的属性时发现 UserB 中引用了 UserA，此时再次调用 doGetBean 取获取 UserA，因为在 `singletonFactories` 中已经存在 UserA 直接获取在第一步中缓存的 UserA 的引用。
+4. 将缓存的 UserA 的引用转换为半成品对象，加入二级缓存 `earlySingletonObjects` 中，并从三级缓存 `singletonFactories` 中移除，现在二级缓存 `earlySingletonObjects` 中存在 UserA，三级缓存 `singletonFactories` 中存在 UserB。
+5. 将获取到的 UserA 填充至 UserB 中，UserB 完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时将 UserB 从三级缓存 `singletonFactories` 中移除，现在三级缓存 `singletonFactories` 中没有缓存的 bean 了。
+6. 获取到 UserB 的 UserA 随后完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时从二级缓存 `earlySingletonObjects` 中移除，现在二级缓存 `earlySingletonObjects` 中也没有缓存的 bean 了，循环引用处理完成。
