@@ -1,4 +1,4 @@
-# Spring源码解析（BeanFactory实现方式）四：beanDinition注册及其他默认标签的解析
+# Spring源码解析四：beanDinition注册及其他默认标签的解析
 
 ## 1. 注册解析的 beanDinition
 

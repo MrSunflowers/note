@@ -1,4 +1,4 @@
-# Spring源码解析（BeanFactory实现方式）九：循环依赖的处理流程
+# Spring源码解析九：循环依赖的处理流程
 
 &emsp;&emsp;接上文，回到 doCreateBean 中。
 

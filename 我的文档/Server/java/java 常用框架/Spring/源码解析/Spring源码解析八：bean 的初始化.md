@@ -1,4 +1,4 @@
-# Spring源码解析（BeanFactory实现方式）八：单例 bean 的初始化
+# Spring源码解析八： bean 的初始化
 
 &emsp;&emsp;接上文，回到 doCreateBean 中来，前两步看完，下面接着看第三步。
 

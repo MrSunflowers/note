@@ -1,4 +1,4 @@
-# Spring源码解析（BeanFactory实现方式）六：加载 bean 的准备
+# Spring源码解析六：加载 bean 的准备
 
 &emsp;&emsp;前面已经完成了从 xml 到 BeanDefinition 的解析工作，接下来就是 bean 加载和使用。
 
@@ -27,8 +27,8 @@ public Object getBean(String name) throws BeansException {
 
 ````java
 protected <T> T doGetBean(
-		String name, @Nullable Class<T> requiredType, @Nullable Object[] args, boolean typeCheckOnly)
-		throws BeansException {
+			String name, @Nullable Class<T> requiredType, @Nullable Object[] args, boolean typeCheckOnly)
+			throws BeansException {
 	// 1.获取实际的 bean 的名字
 	String beanName = transformedBeanName(name);
 	Object beanInstance;
@@ -148,10 +148,12 @@ protected <T> T doGetBean(
 				// 5.2 多例 bean 的创建，直接 new 一个
 				Object prototypeInstance = null;
 				try {
+					// 创建 bean 之前的回调，默认实现将 bean 设置为正在创建
 					beforePrototypeCreation(beanName);
 					prototypeInstance = createBean(beanName, mbd, args);
 				}
 				finally {
+					// 创建 bean 之后的回调，默认实现将 bean 从正在创建中移除
 					afterPrototypeCreation(beanName);
 				}
 				beanInstance = getObjectForBeanInstance(prototypeInstance, name, beanName, mbd);

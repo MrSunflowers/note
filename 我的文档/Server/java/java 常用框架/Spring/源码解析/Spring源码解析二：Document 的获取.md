@@ -1,4 +1,4 @@
-# Spring源码解析（BeanFactory实现方式）二：Document 的获取
+# Spring源码解析二：Document 的获取
 
 &emsp;&emsp;上篇主要介绍了在加载配置文件之前的准备工作和 XmlBeanFactory 的一部分内容，接着上次继续往下看。
 
