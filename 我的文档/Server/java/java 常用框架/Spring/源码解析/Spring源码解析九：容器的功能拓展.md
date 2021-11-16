@@ -109,6 +109,8 @@ protected void prepareRefresh() {
 }
 ```
 
+### 3.1 自定义 ApplicationContext 实现属性校验
+
 &emsp;&emsp;有时候在我们的项目运行过程中，所需要的某个属性（例如 user.name），是从系统环境中获得的，而这个属性对我们的项目很重要，没有它不行，这时 Spring 提供了一个可以验证项目的运行环境所必要的系统属性是否都已经加载完成的功能，我们只需要继承当前所使用的 ClassPathXmlApplicationContext 并在其中进行拓展即可。
 
 ```java
@@ -138,9 +140,9 @@ public static void main(String[] args) {
 
 ## 4. 加载 BeanFactory
 
-&emsp;&emsp;
+&emsp;&emsp;前面说过 ApplicationContext 是对 BeanFactory 的功能上的拓展，它包含 BeanFactory 的所有功能并在此基础上做了大量的拓展，obtainFreshBeanFactory 就是实现 BeanFactory 的函数，经过该方法后 ApplicationContext 就已经拥有了 BeanFactory 的全部功能。 
 
-AbstractApplicationContext.obtainFreshBeanFactory
+**AbstractApplicationContext.obtainFreshBeanFactory**
 
 ```java
 protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
@@ -151,6 +153,85 @@ protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
 }
 ```
 
-```java
+**AbstractRefreshableApplicationContext.refreshBeanFactory**
 
+```java
+protected final void refreshBeanFactory() throws BeansException {
+	// 1. 如果当前已经存在一个 BeanFactory 销毁它
+	if (hasBeanFactory()) {
+		destroyBeans();
+		closeBeanFactory();
+	}
+	try {
+		// 2. 创建一个新的 DefaultListableBeanFactory 包括初始化 BeanFactory 中的各种属性
+		DefaultListableBeanFactory beanFactory = createBeanFactory();
+		beanFactory.setSerializationId(getId());
+		// 3. 设置循环引用处理方式 以及 是否允许同名 BeanDefinition 覆盖
+		customizeBeanFactory(beanFactory);
+		// 4. 加载解析 xml 文件
+		loadBeanDefinitions(beanFactory);
+		this.beanFactory = beanFactory;
+	}
+	catch (IOException ex) {
+		throw new ApplicationContextException("I/O error parsing bean definition source for " + getDisplayName(), ex);
+	}
+}
 ```
+
+### 4.1 自定义设置循环引用处理方式
+
+**AbstractRefreshableApplicationContext.customizeBeanFactory**
+
+```java
+protected void customizeBeanFactory(DefaultListableBeanFactory beanFactory) {
+		if (this.allowBeanDefinitionOverriding != null) {
+			beanFactory.setAllowBeanDefinitionOverriding(this.allowBeanDefinitionOverriding);
+		}
+		if (this.allowCircularReferences != null) {
+			beanFactory.setAllowCircularReferences(this.allowCircularReferences);
+		}
+	}
+```
+
+&emsp;&emsp;这里只做了判空处理，如果不为空则进行设置，而对其进行设置的代码需要用户继承来自定义实现。还是以刚才的 MyClassPathXmlApplicationContext 作为实现。
+
+**MyClassPathXmlApplicationContext.customizeBeanFactory**
+
+```java
+@Override
+protected void customizeBeanFactory(DefaultListableBeanFactory beanFactory) {
+	super.setAllowBeanDefinitionOverriding(false);
+	super.setAllowCircularReferences(false);
+	super.customizeBeanFactory(beanFactory);
+}
+```
+
+&emsp;&emsp;这样就实现了由用户自定义设置属性。
+
+### 4.2 加载解析 xml 文件
+
+**AbstractXmlApplicationContext.loadBeanDefinitions**
+
+```java
+protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throws BeansException, IOException {
+	// Create a new XmlBeanDefinitionReader for the given BeanFactory.
+	// 为给定的 BeanFactory 创建一个新的 XmlBeanDefinitionReader。
+	XmlBeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+
+	// Configure the bean definition reader with this context's
+	// resource loading environment.
+	// 为 beanDefinitionReader 设置初始化属性
+	beanDefinitionReader.setEnvironment(this.getEnvironment());
+	beanDefinitionReader.setResourceLoader(this);
+	beanDefinitionReader.setEntityResolver(new ResourceEntityResolver(this));
+
+	// Allow a subclass to provide custom initialization of the reader,
+	// then proceed with actually loading the bean definitions.
+	// 初始化 BeanDefinitionReader ，支持子类覆盖拓展
+	initBeanDefinitionReader(beanDefinitionReader);
+	// 加载 BeanDefinition
+	loadBeanDefinitions(beanDefinitionReader);
+}
+```
+
+&emsp;&emsp;在准备好了 beanFactory 和 beanDefinitionReader 后就可以进行 xml 的读取工作了，这部分内容和前面讲过的解析过程都一样。
