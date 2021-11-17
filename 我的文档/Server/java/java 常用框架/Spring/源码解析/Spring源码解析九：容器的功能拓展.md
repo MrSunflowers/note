@@ -138,7 +138,7 @@ public static void main(String[] args) {
 
 &emsp;&emsp;实现也很简单，就是需要验证的属性为 null 就抛出异常。
 
-## 4. 加载 BeanFactory
+## 4. 创建 BeanFactory
 
 &emsp;&emsp;前面说过 ApplicationContext 是对 BeanFactory 的功能上的拓展，它包含 BeanFactory 的所有功能并在此基础上做了大量的拓展，obtainFreshBeanFactory 就是实现 BeanFactory 的函数，经过该方法后 ApplicationContext 就已经拥有了 BeanFactory 的全部功能。 
 
@@ -146,7 +146,7 @@ public static void main(String[] args) {
 
 ```java
 protected ConfigurableListableBeanFactory obtainFreshBeanFactory() {
-	// 1. 初始化 BeanFactory，并进行文件读取
+	// 1. 初始化 BeanFactory，并进行 xml 文件读取
 	refreshBeanFactory();
 	// 2. 返回当前的 BeanFactory
 	return getBeanFactory();
@@ -193,13 +193,14 @@ protected void customizeBeanFactory(DefaultListableBeanFactory beanFactory) {
 	}
 ```
 
-&emsp;&emsp;这里只做了判空处理，如果不为空则进行设置，而对其进行设置的代码需要用户继承来自定义实现。还是以刚才的 MyClassPathXmlApplicationContext 作为实现。
+&emsp;&emsp;这里只做了判空处理，如果不为空则进行设置，而对其进行设置的代码需要用户继承来自定义实现。还是用继承并拓展的方法实现，这里还使用刚才的 MyClassPathXmlApplicationContext 作为实现。
 
 **MyClassPathXmlApplicationContext.customizeBeanFactory**
 
 ```java
 @Override
 protected void customizeBeanFactory(DefaultListableBeanFactory beanFactory) {
+	// 进行自定义设置值
 	super.setAllowBeanDefinitionOverriding(false);
 	super.setAllowCircularReferences(false);
 	super.customizeBeanFactory(beanFactory);
@@ -232,6 +233,92 @@ protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throw
 	// 加载 BeanDefinition
 	loadBeanDefinitions(beanDefinitionReader);
 }
+
+protected void loadBeanDefinitions(XmlBeanDefinitionReader reader) throws BeansException, IOException {
+	Resource[] configResources = getConfigResources();
+	if (configResources != null) {
+		reader.loadBeanDefinitions(configResources);
+	}
+	String[] configLocations = getConfigLocations();
+	if (configLocations != null) {
+		reader.loadBeanDefinitions(configLocations);
+	}
+}
 ```
 
-&emsp;&emsp;在准备好了 beanFactory 和 beanDefinitionReader 后就可以进行 xml 的读取工作了，这部分内容和前面讲过的解析过程都一样。
+&emsp;&emsp;这部分和之前的套路一样，也是使用 XmlBeanDefinitionReader 解析 xml 配置文件，经过该方法后 BeanFactory 中已经包含了所有解析好的配置了。
+
+## 5 功能拓展
+
+&emsp;&emsp;下面开始是 ApplicationContext 在功能上的拓展操作。
+
+**AbstractApplicationContext.prepareBeanFactory**
+
+```java
+protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
+	// Tell the internal bean factory to use the context's class loader etc.
+	// 设置使用的 ClassLoader
+	beanFactory.setBeanClassLoader(getClassLoader());
+	if (!shouldIgnoreSpel) {
+		// 设置 spel 解析器
+		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
+	}
+	// 设置默认的 PropertyEditor 属性编辑器
+	beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
+
+	// Configure the bean factory with context callbacks.
+	// 设置自动装配时需要忽略的接口
+	beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+	beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
+	beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
+	beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
+	beanFactory.ignoreDependencyInterface(ApplicationEventPublisherAware.class);
+	beanFactory.ignoreDependencyInterface(MessageSourceAware.class);
+	beanFactory.ignoreDependencyInterface(ApplicationContextAware.class);
+	beanFactory.ignoreDependencyInterface(ApplicationStartupAware.class);
+
+	// BeanFactory interface not registered as resolvable type in a plain factory.
+	// MessageSource registered (and found for autowiring) as a bean.
+	// 设置自动装配时的特殊匹配规则
+	beanFactory.registerResolvableDependency(BeanFactory.class, beanFactory);
+	beanFactory.registerResolvableDependency(ResourceLoader.class, this);
+	beanFactory.registerResolvableDependency(ApplicationEventPublisher.class, this);
+	beanFactory.registerResolvableDependency(ApplicationContext.class, this);
+
+	// Register early post-processor for detecting inner beans as ApplicationListeners.
+	// 注册 ApplicationListenerDetector
+	beanFactory.addBeanPostProcessor(new ApplicationListenerDetector(this));
+
+	// Detect a LoadTimeWeaver and prepare for weaving, if found.
+	// 增加对 AspectJ 的支持
+	// 参考 https://www.cnblogs.com/wade-luffy/p/6073702.html
+	if (!NativeDetector.inNativeImage() && beanFactory.containsBean(LOAD_TIME_WEAVER_BEAN_NAME)) {
+		beanFactory.addBeanPostProcessor(new LoadTimeWeaverAwareProcessor(beanFactory));
+		// Set a temporary ClassLoader for type matching.
+		beanFactory.setTempClassLoader(new ContextTypeMatchClassLoader(beanFactory.getBeanClassLoader()));
+	}
+
+	// Register default environment beans.
+	// 添加默认的系统环境 bean
+	if (!beanFactory.containsLocalBean(ENVIRONMENT_BEAN_NAME)) {
+		beanFactory.registerSingleton(ENVIRONMENT_BEAN_NAME, getEnvironment());
+	}
+	if (!beanFactory.containsLocalBean(SYSTEM_PROPERTIES_BEAN_NAME)) {
+		beanFactory.registerSingleton(SYSTEM_PROPERTIES_BEAN_NAME, getEnvironment().getSystemProperties());
+	}
+	if (!beanFactory.containsLocalBean(SYSTEM_ENVIRONMENT_BEAN_NAME)) {
+		beanFactory.registerSingleton(SYSTEM_ENVIRONMENT_BEAN_NAME, getEnvironment().getSystemEnvironment());
+	}
+	if (!beanFactory.containsLocalBean(APPLICATION_STARTUP_BEAN_NAME)) {
+		beanFactory.registerSingleton(APPLICATION_STARTUP_BEAN_NAME, getApplicationStartup());
+	}
+}
+```
+
+### 5.1 SpEL
+
+&emsp;&emsp;之前在 bean 初始化之后做属性填充的时候，有解析 SpEL 这一步，SpEL（Spring Expression Language），即 Spring 表达式语言，是比 JSP 的 EL 更强大的一种表达式语言。类似于 Struts 2x 中使用的 OGNL 表达式语言，能在运行时构建复杂表达式、存取对象图属性、对象方法调用等，并且能与 Spring 功能完美整合，比如能用来配置 bean 定义。SpEL 是单独模块，只依赖于core模块，不依赖于其他模块，可以单独使用。
+
+#### SpEL 使用
+
+&emsp;&emsp;SpEL 有三种用法，一种是在注解 @Value 中；一种是 XML 配置；最后一种是在代码块中使用 Expression。
