@@ -319,6 +319,155 @@ protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 
 &emsp;&emsp;之前在 bean 初始化之后做属性填充的时候，有解析 SpEL 这一步，SpEL（Spring Expression Language），即 Spring 表达式语言，是比 JSP 的 EL 更强大的一种表达式语言。类似于 Struts 2x 中使用的 OGNL 表达式语言，能在运行时构建复杂表达式、存取对象图属性、对象方法调用等，并且能与 Spring 功能完美整合，比如能用来配置 bean 定义。SpEL 是单独模块，只依赖于core模块，不依赖于其他模块，可以单独使用。
 
-#### SpEL 使用
+#### 5.1.1 SpEL 使用
 
-&emsp;&emsp;SpEL 有三种用法，一种是在注解 @Value 中；一种是 XML 配置；最后一种是在代码块中使用 Expression。
+&emsp;&emsp;SpEL 有三种用法，一种是在注解 @Value 中；一种是 XML 配置；最后一种是在代码块中使用 Expression。SpEL 使用 `#{表达式}` 作为定界符，所有在大框号中的字符都将被认为是 SpEL，例如在 xml 中的使用：
+
+```xml
+<bean name="userA" class="org.springframework.myTest.UserA" >
+	<property name="userB" value="#{userB}" />
+</bean>
+<bean name="userB" class="org.springframework.myTest.UserB" />
+```
+
+&emsp;&emsp;相当于：
+
+```xml
+<bean name="userA" class="org.springframework.myTest.UserA" >
+	<property name="userB" ref="userB" />
+</bean>
+<bean name="userB" class="org.springframework.myTest.UserB" />
+```
+
+#### 5.1.2 SpEL 表达式语法
+
+##### 5.1.2.1 字面量赋值
+
+```xml
+<!-- 整数 -->
+<property name="count" value="#{5}" />
+<!-- 小数 -->
+<property name="frequency" value="#{13.2}" />
+<!-- 科学计数法 -->
+<property name="capacity" value="#{1e4}" />
+<!-- 字符串  #{"字符串"} 或  #{'字符串'} -->
+<property name="name" value="#{'我是字符串'}" />
+<!-- Boolean -->
+<property name="enabled" value="#{false}" />
+```
+
+&emsp;&emsp;字面量赋值必须要和对应的属性类型兼容，否则会报异常，一般情况下不会使用 SpEL字面量赋值，因为可以直接赋值。
+
+##### 5.1.2.2 引用Bean、属性和方法（必须是public修饰的）
+
+```xml
+<property name="car" value="#{car}" />
+<!-- 引用其他对象的属性 -->
+<property name="carName" value="#{car.name}" />
+<!-- 引用其他对象的方法 -->
+<property name="carPrint" value="#{car.print()}" />
+```
+
+##### 5.1.2.3 运算符
+
+**算术运算符**
+
+```xml
+<!-- 3 -->
+<property name="num" value="#{2+1}" />
+<!-- 1 -->
+<property name="num" value="#{2-1}" />
+<!-- 4 -->
+<property name="num" value="#{2*2}" />
+<!-- 3 -->
+<property name="num" value="#{9/3}" />
+<!-- 1 -->
+<property name="num" value="#{10%3}" />
+<!-- 1000 -->
+<property name="num" value="#{10^3}" />
+
+```
+
+**字符串连接符**
+
+```xml
+<!-- 10年3个月 -->
+<property name="numStr" value="#{10+'年'+3+'个月'}" />
+```
+
+**比较运算符**
+
+```xml
+<!-- false -->
+<property name="numBool" value="#{10&lt;0}" />
+<!-- false -->
+<property name="numBool" value="#{10 lt 0}" />
+<!-- true -->
+<property name="numBool" value="#{10&gt;0}" />
+<!-- true -->
+<property name="numBool" value="#{10 gt 0}" />
+<!-- true -->
+<property name="numBool" value="#{10==10}" />
+<!-- true -->
+<property name="numBool" value="#{10 eq 10}" />
+<!-- false -->
+<property name="numBool" value="#{10&lt;=0}" />
+<!-- false -->
+<property name="numBool" value="#{10 le 0}" />
+<!-- true -->
+<property name="numBool" value="#{10&gt;=0}" />
+<!-- true -->
+<property name="numBool" value="#{10 ge 0}" />
+```
+
+**逻辑运算符**
+
+```xml
+<!-- false -->
+<property name="numBool" value="#{true and false}" />
+<!-- false -->
+<property name="numBool" value="#{true&amp;&amp;false}" />
+<!-- true -->
+<property name="numBool" value="#{true or false}" />
+<!-- true -->
+<property name="numBool" value="#{true||false}" />
+<!-- false -->
+<property name="numBool" value="#{not true}" />
+<!-- false -->
+<property name="numBool" value="#{!true}" />
+```
+
+**条件运算符**
+
+```xml
+<!-- 真 -->
+<property name="numStr" value="#{(10>3)?'真':'假'}" />
+```
+
+**正则表达式**
+
+```xml
+<!-- true -->
+<property name="numBool" value="#{user.email matches '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+.[a-zA-Z]{2,4}'}" />
+```
+
+##### 5.1.2.4 调用静态方法或静态属性
+
+```xml
+<!-- 3.141592653589793 -->
+<property name="PI" value="#{T(java.lang.Math).PI}" />
+```
+
+&emsp;&emsp;通过 T() 调用一个类的静态方法，它将返回一个 Class Object，然后再调用相应的方法或属性。
+
+##### 5.1.2.5 获取容器内的变量
+
+&emsp;&emsp;获取容器内的变量，可以使用“#bean_id”来获取，有两个特殊的变量，可以直接使用。
+
+```java
+String result2 = parser.parseExpression("#root").getValue(ctx, String.class);  
+String s = new String("abcdef");
+ctx.setVariable("abc",s);
+//取id为abc的bean，然后调用其中的substring方法
+parser.parseExpression("#abc.substring(0,1)").getValue(ctx, String.class);
+```
