@@ -471,3 +471,4 @@ ctx.setVariable("abc",s);
 //取id为abc的bean，然后调用其中的substring方法
 parser.parseExpression("#abc.substring(0,1)").getValue(ctx, String.class);
 ```
+
