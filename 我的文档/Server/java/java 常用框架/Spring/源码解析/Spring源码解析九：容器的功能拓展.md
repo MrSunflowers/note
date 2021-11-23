@@ -358,7 +358,7 @@ protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 
 &emsp;&emsp;字面量赋值必须要和对应的属性类型兼容，否则会报异常，一般情况下不会使用 SpEL字面量赋值，因为可以直接赋值。
 
-##### 5.1.2.2 引用Bean、属性和方法（必须是public修饰的）
+##### 5.1.2.2 引用Bean、属性和方法（必须是 public 修饰的）
 
 ```xml
 <property name="car" value="#{car}" />
@@ -472,3 +472,67 @@ ctx.setVariable("abc",s);
 parser.parseExpression("#abc.substring(0,1)").getValue(ctx, String.class);
 ```
 
+#### 5.1.3 SpEL 表达式实现
+
+&emsp;&emsp;以解析 @value 注解中的 Spel 表达式为例看一下实现
+
+**AbstractBeanFactory.evaluateBeanDefinitionString**
+
+```java
+protected Object evaluateBeanDefinitionString(@Nullable String value, @Nullable BeanDefinition beanDefinition) {
+	if (this.beanExpressionResolver == null) {
+		return value;
+	}
+
+	Scope scope = null;
+	if (beanDefinition != null) {
+		String scopeName = beanDefinition.getScope();
+		if (scopeName != null) {
+			scope = getRegisteredScope(scopeName);
+		}
+	}
+	//使用解析器解析
+	//如果适用，将给定值计算为表达式； 否则按原样返回值
+	return this.beanExpressionResolver.evaluate(value, new BeanExpressionContext(this, scope));
+}
+```
+
+**StandardBeanExpressionResolver.evaluate**
+
+```java
+public Object evaluate(@Nullable String value, BeanExpressionContext evalContext) throws BeansException {
+	if (!StringUtils.hasLength(value)) {
+		return value;
+	}
+	try {
+		// 以前解析过了，直接返回解析结果
+		Expression expr = this.expressionCache.get(value);
+		if (expr == null) {
+			// 开始解析
+			expr = this.expressionParser.parseExpression(value, this.beanExpressionParserContext);
+			this.expressionCache.put(value, expr);
+		}
+		StandardEvaluationContext sec = this.evaluationCache.get(evalContext);
+		if (sec == null) {
+			sec = new StandardEvaluationContext(evalContext);
+			sec.addPropertyAccessor(new BeanExpressionContextAccessor());
+			sec.addPropertyAccessor(new BeanFactoryAccessor());
+			sec.addPropertyAccessor(new MapAccessor());
+			sec.addPropertyAccessor(new EnvironmentAccessor());
+			sec.setBeanResolver(new BeanFactoryResolver(evalContext.getBeanFactory()));
+			sec.setTypeLocator(new StandardTypeLocator(evalContext.getBeanFactory().getBeanClassLoader()));
+			ConversionService conversionService = evalContext.getBeanFactory().getConversionService();
+			if (conversionService != null) {
+				sec.setTypeConverter(new StandardTypeConverter(conversionService));
+			}
+			customizeEvaluationContext(sec);
+			this.evaluationCache.put(evalContext, sec);
+		}
+		// 获取解析后的值，包括类型转换
+		return expr.getValue(sec);
+	}
+	catch (Throwable ex) {
+		throw new BeanExpressionException("Expression parsing failed", ex);
+	}
+}
+```
