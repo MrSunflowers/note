@@ -1,4 +1,4 @@
-# Spring源码解析九：ClassPathXmlApplicationContext 启动流程
+# Spring源码解析九：ApplicationContext 容器启动流程
 
 &emsp;&emsp;除了 XmlBeanFactory 可以用于加载 bean 之外，Spring 中还提供了另一个 ApplicationContext 接口用于拓展 BeanFactory 中现有的功能，ApplicationContext 包含了 BeanFactory 的所有功能，通常建议优先使用，除非在一些有特殊限制的场合，比如字节长度对内存有很大的影响时(Applet)。绝大多数情况下，建议使用 ApplicationContext。
 
@@ -10,7 +10,7 @@ UserA userA = (UserA)context.getBean("userA");
 UserB userB = (UserB)context.getBean("userB");
 ```
 
-&emsp;&emsp;同样，现在以 ClassPathXmlApplicationContext 作为切入点进行分析。
+&emsp;&emsp;现在以 ClassPathXmlApplicationContext 作为切入点进行分析。
 
 **【构造函数】**
 
@@ -31,7 +31,7 @@ public ClassPathXmlApplicationContext(
 }
 ```
 
-&emsp;&emsp;ClassPathXmlApplicationContext 中支持将配置文件的路径以数组方式传入，ClassPathXmlApplicationContext 可以对数组进行解析并加载。而对于解析和功能实现都在 `refresh()` 方法中实现。
+&emsp;&emsp;ClassPathXmlApplicationContext 中支持将配置文件的路径以数组方式传入，ClassPathXmlApplicationContext 可以对数组进行解析并加载。而对于功能实现都在 `refresh()` 方法中实现。
 
 ## 1. 设置配置路径
 
@@ -52,11 +52,11 @@ public void setConfigLocations(@Nullable String... locations) {
 }
 ```
 
-&emsp;&emsp;这里主要用于解析给定的路径数组，当然，数组中如果包含特殊占位符，例如 ${userName} ,那么在 resolvePath 方法中将统一搜寻匹配的系统变量并替换，寻找和替换的具体操作前面已经讲过了。
+&emsp;&emsp;这里主要用于解析给定的路径数组，当然，数组中如果包含特殊占位符，例如 ${userName} ,那么在 resolvePath 方法中将统一搜寻匹配的系统变量并替换，寻找和替换的具体过程前面已经讲过了。
 
-## 2. 拓展功能
+## 2. refresh
 
-&emsp;&emsp;在设置路径之后，便可以根据路径做配置文件的解析以及各种功能的实现了，其中 refresh 几乎包含了 ApplicationContext 的所有功能。
+&emsp;&emsp;在设置路径之后，便可以根据路径做配置文件的解析以及各种功能的实现了，其中 refresh 方法中几乎包含了 ApplicationContext 的所有功能。
 
 **AbstractApplicationContext.refresh**
 
@@ -64,7 +64,7 @@ public void setConfigLocations(@Nullable String... locations) {
 
 ```
 
-## 3. 刷新前的准备工作
+## 3. 刷新容器前的准备工作
 
 **AbstractApplicationContext.prepareRefresh**
 
@@ -136,9 +136,9 @@ public static void main(String[] args) {
 }
 ```
 
-&emsp;&emsp;实现也很简单，就是需要验证的属性为 null 就抛出异常。
+&emsp;&emsp;实现也很简单，就是容器环境中没有需要验证的属性就抛出异常。
 
-## 4. 创建 BeanFactory
+## 4. 创建 BeanFactory 和 xml 转换
 
 &emsp;&emsp;前面说过 ApplicationContext 是对 BeanFactory 的功能上的拓展，它包含 BeanFactory 的所有功能并在此基础上做了大量的拓展，obtainFreshBeanFactory 就是实现 BeanFactory 的函数，经过该方法后 ApplicationContext 就已经拥有了 BeanFactory 的全部功能。 
 
@@ -248,9 +248,9 @@ protected void loadBeanDefinitions(XmlBeanDefinitionReader reader) throws BeansE
 
 &emsp;&emsp;这部分和之前的套路一样，也是使用 XmlBeanDefinitionReader 解析 xml 配置文件，经过该方法后 BeanFactory 中已经包含了所有解析好的配置了。
 
-## 5 为 BeanFactory 填充各种功能
+## 5 为 BeanFactory 拓展各种功能
 
-&emsp;&emsp;下面开始是 ApplicationContext 在功能上的拓展操作。
+&emsp;&emsp;下面开始是 ApplicationContext 在基于 BeanFactory 功能上的拓展操作。
 
 **AbstractApplicationContext.prepareBeanFactory**
 
@@ -260,7 +260,7 @@ protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 	// 设置使用的 ClassLoader
 	beanFactory.setBeanClassLoader(getClassLoader());
 	if (!shouldIgnoreSpel) {
-		// 设置 spel 解析器
+		// 增加 spel 解析器
 		beanFactory.setBeanExpressionResolver(new StandardBeanExpressionResolver(beanFactory.getBeanClassLoader()));
 	}
 	// 设置默认的 PropertyEditor 属性编辑器
@@ -415,7 +415,153 @@ public Object evaluate(@Nullable String value, BeanExpressionContext evalContext
 </property>
 ```
 
-&emsp;&emsp;在上述直接配置使用时，会报类型转换不成功异常，Spring 中针对此问题提供了两种解决方案。
+&emsp;&emsp;在上述直接配置使用时，会报类型转换不成功异常，因为需要的属性是 Date 类型的，而提供的是 String 类型的，Spring 中针对此问题提供了两种解决方案。
 
 #### 5.2.1 使用自定义属性编辑器
 
+&emsp;&emsp;使用自定义属性编辑器，通过继承 PropertyEditorSupport ，覆盖 setAsText 方法：
+
+```java
+public class MyPropertyEditor extends PropertyEditorSupport {
+
+	private String format = "yyyy-MM-dd";
+
+	public void setFormat(String format) {
+		this.format = format;
+	}
+	
+	@Override
+	public void setAsText(String dateStr){
+		SimpleDateFormat simpleDateFormat = new SimpleDateFormat(format);
+		Date date = null;
+		try {
+			date = simpleDateFormat.parse(dateStr);
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		this.setValue(date);
+	}
+
+}
+```
+
+&emsp;&emsp;创建 PropertyEditorRegistrar 注册 PropertyEditor
+
+```java
+public class DatePropertyEditorRegistrars implements PropertyEditorRegistrar {
+
+	private PropertyEditor propertyEditor;
+
+	@Override
+	public void registerCustomEditors(PropertyEditorRegistry registry) {
+		registry.registerCustomEditor(java.util.Date.class,propertyEditor);
+	}
+
+	public void setPropertyEditor(PropertyEditor propertyEditor) {
+		this.propertyEditor = propertyEditor;
+	}
+}
+```
+
+&emsp;&emsp;在 xml 配置中将它们组装起来。
+
+```xml
+<bean name="userA" class="org.springframework.myTest.UserA">
+	<property name="date">
+		<value>2021-11-25</value>
+	</property>
+</bean>
+
+<bean name="myPropertyEditor" class="org.springframework.myTest.PrpertyEdit.MyPropertyEditor" />
+
+<bean name="datePropertyEditorRegistrars" class="org.springframework.myTest.PrpertyEdit.DatePropertyEditorRegistrars">
+	<property name="propertyEditor" ref="myPropertyEditor" />
+</bean>
+<bean class="org.springframework.beans.factory.config.CustomEditorConfigurer" >
+	<property name="propertyEditorRegistrars" >
+		<list>
+			<ref bean="datePropertyEditorRegistrars" />
+		</list>
+	</property>
+</bean>
+```
+
+&emsp;&emsp;通过这样的配置，当 Spring 在进行属性注入时遇到 Date 类型的属性时就会调用自定义的属性编辑器进行类型转换，并用解析的结果代替属性进行注入。
+
+#### 5.2.2 使用 Spring 自带的属性编辑器
+
+&emsp;&emsp;除了可以自定义属性编辑器之外，Spring 还提供了一个自带的 Date 属性编辑器 CustomDateEditor。在配置文件中将自定义属性编辑器替换为 CustomDateEditor 可以达到同样的效果。
+
+```xml
+<bean name="userA" class="org.springframework.myTest.UserA">
+	<property name="date">
+		<value>2021-11-25</value>
+	</property>
+</bean>
+
+<bean name="customDateEditor" class="org.springframework.beans.propertyeditors.CustomDateEditor" >
+	<constructor-arg name="dateFormat" ref="dateFormat" />
+	<constructor-arg name="allowEmpty" value="false" />
+</bean>
+<bean name="dateFormat" class="java.text.SimpleDateFormat" scope="prototype">
+	<constructor-arg name="pattern" value="yyyy-MM-dd" />
+</bean>
+
+<bean name="datePropertyEditorRegistrars" class="org.springframework.myTest.PrpertyEdit.DatePropertyEditorRegistrars">
+	<property name="propertyEditor" ref="customDateEditor" />
+</bean>
+<bean class="org.springframework.beans.factory.config.CustomEditorConfigurer" >
+	<property name="propertyEditorRegistrars" >
+		<list>
+			<ref bean="datePropertyEditorRegistrars" />
+		</list>
+	</property>
+</bean>
+```
+
+#### 5.2.3 属性编辑器的注册
+
+&emsp;&emsp;那么属性编辑器是如何注册到容器中的呢，回到前面最开始的地方：
+
+```java
+beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
+```
+
+&emsp;&emsp;在 addPropertyEditorRegistrar 方法中注册了 Spring 中自带的 ResourceEditorRegistrar，ResourceEditorRegistrar 的核心方法就是 registerCustomEditors。
+
+**ResourceEditorRegistrar.registerCustomEditors**
+
+```java
+public void registerCustomEditors(PropertyEditorRegistry registry) {
+	ResourceEditor baseEditor = new ResourceEditor(this.resourceLoader, this.propertyResolver);
+	doRegisterEditor(registry, Resource.class, baseEditor);
+	doRegisterEditor(registry, ContextResource.class, baseEditor);
+	doRegisterEditor(registry, InputStream.class, new InputStreamEditor(baseEditor));
+	doRegisterEditor(registry, InputSource.class, new InputSourceEditor(baseEditor));
+	doRegisterEditor(registry, File.class, new FileEditor(baseEditor));
+	doRegisterEditor(registry, Path.class, new PathEditor(baseEditor));
+	doRegisterEditor(registry, Reader.class, new ReaderEditor(baseEditor));
+	doRegisterEditor(registry, URL.class, new URLEditor(baseEditor));
+
+	ClassLoader classLoader = this.resourceLoader.getClassLoader();
+	doRegisterEditor(registry, URI.class, new URIEditor(classLoader));
+	doRegisterEditor(registry, Class.class, new ClassEditor(classLoader));
+	doRegisterEditor(registry, Class[].class, new ClassArrayEditor(classLoader));
+
+	if (this.resourceLoader instanceof ResourcePatternResolver) {
+		doRegisterEditor(registry, Resource[].class,
+				new ResourceArrayPropertyEditor((ResourcePatternResolver) this.resourceLoader, this.propertyResolver));
+	}
+}
+private void doRegisterEditor(PropertyEditorRegistry registry, Class<?> requiredType, PropertyEditor editor) {
+	if (registry instanceof PropertyEditorRegistrySupport) {
+		((PropertyEditorRegistrySupport) registry).overrideDefaultEditor(requiredType, editor);
+	}
+	else {
+		// 调用 PropertyEditorRegistry 的 registerCustomEditor 方法注册 PropertyEditor
+		registry.registerCustomEditor(requiredType, editor);
+	}
+}
+```
+
+&emsp;&emsp;这里注册了一系列的常用的属性编辑器，注册后，一旦某个实体 bean 中存在一些注册的类型属性，Spring 就会调用其对应的属性编辑器来进行类型转换并赋值。
