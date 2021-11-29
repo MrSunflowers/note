@@ -267,8 +267,8 @@ protected void prepareBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 	beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 
 	// Configure the bean factory with context callbacks.
-	// 设置自动装配时需要忽略的接口
 	beanFactory.addBeanPostProcessor(new ApplicationContextAwareProcessor(this));
+	// 设置自动装配时需要忽略的接口
 	beanFactory.ignoreDependencyInterface(EnvironmentAware.class);
 	beanFactory.ignoreDependencyInterface(EmbeddedValueResolverAware.class);
 	beanFactory.ignoreDependencyInterface(ResourceLoaderAware.class);
@@ -521,13 +521,24 @@ public class DatePropertyEditorRegistrars implements PropertyEditorRegistrar {
 
 #### 5.2.3 属性编辑器的注册
 
-&emsp;&emsp;那么属性编辑器是如何注册到容器中的呢，回到前面最开始的地方：
+&emsp;&emsp;那么属性编辑器是如何注册到容器中的呢，回到前面 prepareBeanFactory 方法中来：
 
 ```java
 beanFactory.addPropertyEditorRegistrar(new ResourceEditorRegistrar(this, getEnvironment()));
 ```
 
-&emsp;&emsp;在 addPropertyEditorRegistrar 方法中注册了 Spring 中自带的 ResourceEditorRegistrar，ResourceEditorRegistrar 的核心方法就是 registerCustomEditors。
+&emsp;&emsp;在 addPropertyEditorRegistrar 方法中注册了 Spring 中自带的 ResourceEditorRegistrar，并存储在 propertyEditorRegistrars 属性中。
+
+**AbstractBeanFactory.addPropertyEditorRegistrar**
+
+```java
+public void addPropertyEditorRegistrar(PropertyEditorRegistrar registrar) {
+	Assert.notNull(registrar, "PropertyEditorRegistrar must not be null");
+	this.propertyEditorRegistrars.add(registrar);
+}
+```
+
+&emsp;&emsp;进入到 ResourceEditorRegistrar 类中，发现该类的结构和我们自定义的 DatePropertyEditorRegistrars 类基本一致，它的核心方法也是 registerCustomEditors。
 
 **ResourceEditorRegistrar.registerCustomEditors**
 
@@ -564,4 +575,235 @@ private void doRegisterEditor(PropertyEditorRegistry registry, Class<?> required
 }
 ```
 
-&emsp;&emsp;这里注册了一系列的常用的属性编辑器，注册后，一旦某个实体 bean 中存在一些注册的类型属性，Spring 就会调用其对应的属性编辑器来进行类型转换并赋值。
+&emsp;&emsp;这里注册了一系列的常用的属性编辑器，注册后，一旦某个实体 bean 中存在一些注册的类型属性，Spring 就会调用其对应的属性编辑器来进行类型转换并赋值。通过调试发现 registerCustomEditors 方法是在实例化 bean，并将 BeanDefinition 转换为 BeanWrapper 的 initBeanWrapper 方法中调用的。
+
+**AbstractBeanFactory.initBeanWrapper**
+
+```java
+protected void initBeanWrapper(BeanWrapper bw) {
+	bw.setConversionService(getConversionService());
+	registerCustomEditors(bw);
+}
+```
+
+**AbstractBeanFactory.registerCustomEditors**
+
+```java
+protected void registerCustomEditors(PropertyEditorRegistry registry) {
+	if (registry instanceof PropertyEditorRegistrySupport) {
+		((PropertyEditorRegistrySupport) registry).useConfigValueEditors();
+	}
+	if (!this.propertyEditorRegistrars.isEmpty()) {
+		for (PropertyEditorRegistrar registrar : this.propertyEditorRegistrars) {
+			try {
+				// 遍历存储的 PropertyEditorRegistrar 并调用其 registerCustomEditors 方法
+				registrar.registerCustomEditors(registry);
+			}
+			catch (BeanCreationException ex) {
+				Throwable rootCause = ex.getMostSpecificCause();
+				if (rootCause instanceof BeanCurrentlyInCreationException) {
+					BeanCreationException bce = (BeanCreationException) rootCause;
+					String bceBeanName = bce.getBeanName();
+					if (bceBeanName != null && isCurrentlyInCreation(bceBeanName)) {
+						if (logger.isDebugEnabled()) {
+							logger.debug("PropertyEditorRegistrar [" + registrar.getClass().getName() +
+									"] failed because it tried to obtain currently created bean '" +
+									ex.getBeanName() + "': " + ex.getMessage());
+						}
+						onSuppressedException(ex);
+						continue;
+					}
+				}
+				throw ex;
+			}
+		}
+	}
+	if (!this.customEditors.isEmpty()) {
+		this.customEditors.forEach((requiredType, editorClass) ->
+				registry.registerCustomEditor(requiredType, BeanUtils.instantiateClass(editorClass)));
+	}
+}
+```
+
+&emsp;&emsp;到此逻辑已经明了，在 Spring 中，BeanWrapper 除了作为封装 bean 的容器之外，它还间接继承了 PropertyEditorRegistry ，在将 BeanDefinition 转换为 BeanWrapper 的过程中就会调用 registerCustomEditors 方法将一些 Spring 自带的属性编辑器注册，注册后，在属性填充的环节就可以直接让 Spring 使用这些编辑器来进行属性的解析转换操作了。而 BeanWrapper 的默认实现 BeanWrapperImpl 还继承了 PropertyEditorRegistrySupport，在 PropertyEditorRegistrySupport 中还有这样一个方法：
+
+**PropertyEditorRegistrySupport.createDefaultEditors**
+
+```java
+private void createDefaultEditors() {
+	this.defaultEditors = new HashMap<>(64);
+
+	// Simple editors, without parameterization capabilities.
+	// The JDK does not contain a default editor for any of these target types.
+	this.defaultEditors.put(Charset.class, new CharsetEditor());
+	this.defaultEditors.put(Class.class, new ClassEditor());
+	this.defaultEditors.put(Class[].class, new ClassArrayEditor());
+	this.defaultEditors.put(Currency.class, new CurrencyEditor());
+	this.defaultEditors.put(File.class, new FileEditor());
+	this.defaultEditors.put(InputStream.class, new InputStreamEditor());
+	if (!shouldIgnoreXml) {
+		this.defaultEditors.put(InputSource.class, new InputSourceEditor());
+	}
+	this.defaultEditors.put(Locale.class, new LocaleEditor());
+	this.defaultEditors.put(Path.class, new PathEditor());
+	this.defaultEditors.put(Pattern.class, new PatternEditor());
+	this.defaultEditors.put(Properties.class, new PropertiesEditor());
+	this.defaultEditors.put(Reader.class, new ReaderEditor());
+	this.defaultEditors.put(Resource[].class, new ResourceArrayPropertyEditor());
+	this.defaultEditors.put(TimeZone.class, new TimeZoneEditor());
+	this.defaultEditors.put(URI.class, new URIEditor());
+	this.defaultEditors.put(URL.class, new URLEditor());
+	this.defaultEditors.put(UUID.class, new UUIDEditor());
+	this.defaultEditors.put(ZoneId.class, new ZoneIdEditor());
+
+	// Default instances of collection editors.
+	// Can be overridden by registering custom instances of those as custom editors.
+	this.defaultEditors.put(Collection.class, new CustomCollectionEditor(Collection.class));
+	this.defaultEditors.put(Set.class, new CustomCollectionEditor(Set.class));
+	this.defaultEditors.put(SortedSet.class, new CustomCollectionEditor(SortedSet.class));
+	this.defaultEditors.put(List.class, new CustomCollectionEditor(List.class));
+	this.defaultEditors.put(SortedMap.class, new CustomMapEditor(SortedMap.class));
+
+	// Default editors for primitive arrays.
+	this.defaultEditors.put(byte[].class, new ByteArrayPropertyEditor());
+	this.defaultEditors.put(char[].class, new CharArrayPropertyEditor());
+
+	// The JDK does not contain a default editor for char!
+	this.defaultEditors.put(char.class, new CharacterEditor(false));
+	this.defaultEditors.put(Character.class, new CharacterEditor(true));
+
+	// Spring's CustomBooleanEditor accepts more flag values than the JDK's default editor.
+	this.defaultEditors.put(boolean.class, new CustomBooleanEditor(false));
+	this.defaultEditors.put(Boolean.class, new CustomBooleanEditor(true));
+
+	// The JDK does not contain default editors for number wrapper types!
+	// Override JDK primitive number editors with our own CustomNumberEditor.
+	this.defaultEditors.put(byte.class, new CustomNumberEditor(Byte.class, false));
+	this.defaultEditors.put(Byte.class, new CustomNumberEditor(Byte.class, true));
+	this.defaultEditors.put(short.class, new CustomNumberEditor(Short.class, false));
+	this.defaultEditors.put(Short.class, new CustomNumberEditor(Short.class, true));
+	this.defaultEditors.put(int.class, new CustomNumberEditor(Integer.class, false));
+	this.defaultEditors.put(Integer.class, new CustomNumberEditor(Integer.class, true));
+	this.defaultEditors.put(long.class, new CustomNumberEditor(Long.class, false));
+	this.defaultEditors.put(Long.class, new CustomNumberEditor(Long.class, true));
+	this.defaultEditors.put(float.class, new CustomNumberEditor(Float.class, false));
+	this.defaultEditors.put(Float.class, new CustomNumberEditor(Float.class, true));
+	this.defaultEditors.put(double.class, new CustomNumberEditor(Double.class, false));
+	this.defaultEditors.put(Double.class, new CustomNumberEditor(Double.class, true));
+	this.defaultEditors.put(BigDecimal.class, new CustomNumberEditor(BigDecimal.class, true));
+	this.defaultEditors.put(BigInteger.class, new CustomNumberEditor(BigInteger.class, true));
+
+	// Only register config value editors if explicitly requested.
+	if (this.configValueEditorsActive) {
+		StringArrayPropertyEditor sae = new StringArrayPropertyEditor();
+		this.defaultEditors.put(String[].class, sae);
+		this.defaultEditors.put(short[].class, sae);
+		this.defaultEditors.put(int[].class, sae);
+		this.defaultEditors.put(long[].class, sae);
+	}
+}
+```
+
+&emsp;&emsp;在这里 Spring 定义了一系列常用的属性编辑器，如果我们定义的 bean 中的某个属性的类型不在上面的时候，才需要自定义个性化的属性编辑器。而通过上面一系列的方法跟踪，发现我们自定义的 DatePropertyEditorRegistrars 并没有被注册，因为它是在后续的步骤中注册的。
+
+### 5.3 ApplicationContextAwareProcessor
+
+&emsp;&emsp;继续往下看，为容器增加 ApplicationContextAwareProcessor 的过程没什么可说的，重点看一下 ApplicationContextAwareProcessor 类本身的作用，进入类中发现其主要方法为 postProcessBeforeInitialization 
+
+**ApplicationContextAwareProcessor.postProcessBeforeInitialization**
+
+```java
+public Object postProcessBeforeInitialization(Object bean, String beanName) throws BeansException {
+	if (!(bean instanceof EnvironmentAware || bean instanceof EmbeddedValueResolverAware ||
+			bean instanceof ResourceLoaderAware || bean instanceof ApplicationEventPublisherAware ||
+			bean instanceof MessageSourceAware || bean instanceof ApplicationContextAware ||
+			bean instanceof ApplicationStartupAware)) {
+		return bean;
+	}
+
+	AccessControlContext acc = null;
+
+	if (System.getSecurityManager() != null) {
+		acc = this.applicationContext.getBeanFactory().getAccessControlContext();
+	}
+
+	if (acc != null) {
+		AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+			invokeAwareInterfaces(bean);
+			return null;
+		}, acc);
+	}
+	else {
+		invokeAwareInterfaces(bean);
+	}
+
+	return bean;
+}
+
+private void invokeAwareInterfaces(Object bean) {
+	if (bean instanceof EnvironmentAware) {
+		((EnvironmentAware) bean).setEnvironment(this.applicationContext.getEnvironment());
+	}
+	if (bean instanceof EmbeddedValueResolverAware) {
+		((EmbeddedValueResolverAware) bean).setEmbeddedValueResolver(this.embeddedValueResolver);
+	}
+	if (bean instanceof ResourceLoaderAware) {
+		((ResourceLoaderAware) bean).setResourceLoader(this.applicationContext);
+	}
+	if (bean instanceof ApplicationEventPublisherAware) {
+		((ApplicationEventPublisherAware) bean).setApplicationEventPublisher(this.applicationContext);
+	}
+	if (bean instanceof MessageSourceAware) {
+		((MessageSourceAware) bean).setMessageSource(this.applicationContext);
+	}
+	if (bean instanceof ApplicationStartupAware) {
+		((ApplicationStartupAware) bean).setApplicationStartup(this.applicationContext.getApplicationStartup());
+	}
+	if (bean instanceof ApplicationContextAware) {
+		((ApplicationContextAware) bean).setApplicationContext(this.applicationContext);
+	}
+}
+```
+
+&emsp;&emsp;如果还记得前面讲的，postProcessBeforeInitialization 方法将在 bean 初始化过程中执行自定义 init 方法之前被调用，用于为实现了 Aware 接口的 bean 获取对应的资源。
+
+### 5.4 设置自动装配忽略的接口
+
+&emsp;&emsp;当 bean 实现了一些带有 setXXX 方法的接口时，自动装配时需要忽略这些。前面讲自动装配时具体说过，不再赘述。
+
+### 5.5 设置自动装配时的特殊匹配规则
+
+&emsp;&emsp;当 bean 在自动装配时遇到这里注册的类型的属性时，将用这里注册的实例代替。
+
+## 6 激活各种 BeanFactory 增强器
+
+&emsp;&emsp;BeanFactoryPostProcessor 与 BeanPostProcessor 类似，可以对 BeanFactory 容器进行增强处理。需要注意的是，它只对当前容器进行增强处理，不会对另一个容器进行增强，即使这两个容器都是在同一层次上。
+
+### 6.1 PropertyPlaceholderConfigurer
+
+&emsp;&emsp;以 BeanFactoryPostProcessor 的典型实现 PropertyPlaceholderConfigurer 为例来看一下 BeanFactoryPostProcessor 的作用（尽管在 Spring 5.2 版本以后官方更建议使用 PropertySourcesPlaceholderConfigurer 作为 PropertyPlaceholderConfigurer 的替代，但并不影响这里的演示）。在日常使用 Spring 进行配置的时候，经常需要将一些经常变化的属性配置到单独的配置文件中，然后在 xml 配置中引入：
+
+**applicationContext.xml**
+
+```xml
+<bean class="org.springframework.beans.factory.config.PropertyPlaceholderConfigurer">
+	<property name="locations">
+		<list>
+			<value>myTestResources/userTest.properties</value>
+		</list>
+	</property>
+</bean>
+<bean name="userA" class="org.springframework.myTest.UserA">
+	<property name="name" value="${myuser.name}" />
+</bean>
+```
+
+**userTest.properties**
+
+```properties
+myuser.name=zhang
+```
+
+&emsp;&emsp;其中出现的 `${myuser.name}` 就是 Spring 的分散配置，可以在另外的配置中为其指定值，当 Spring 遇到它时，就会将它解析成为指定的值。
+
+&emsp;&emsp;PropertyPlaceholderConfigurer 间接继承了 BeanFactoryPostProcessor 接口，这就是问题的关键，当 Spring 加载任何实现了此接口的 bean 时，都会在 BeanFactory 载入所有 bean 配置之后执行其 postProcessBeanFactory 方法，而 PropertyPlaceholderConfigurer 正时在对 postProcessBeanFactory 方法的实现中完成了配置文件的读取转换工作。
