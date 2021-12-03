@@ -228,7 +228,7 @@ protected void loadBeanDefinitions(DefaultListableBeanFactory beanFactory) throw
 
 	// Allow a subclass to provide custom initialization of the reader,
 	// then proceed with actually loading the bean definitions.
-	// 初始化 BeanDefinitionReader ，支持子类覆盖拓展
+	// 初始化 BeanDefinitionReader，支持子类覆盖拓展
 	initBeanDefinitionReader(beanDefinitionReader);
 	// 加载 BeanDefinition
 	loadBeanDefinitions(beanDefinitionReader);
@@ -419,7 +419,7 @@ public Object evaluate(@Nullable String value, BeanExpressionContext evalContext
 
 #### 5.2.1 使用自定义属性编辑器
 
-&emsp;&emsp;使用自定义属性编辑器，通过继承 PropertyEditorSupport ，覆盖 setAsText 方法：
+&emsp;&emsp;使用自定义属性编辑器，通过继承 PropertyEditorSupport，覆盖 setAsText 方法：
 
 ```java
 public class MyPropertyEditor extends PropertyEditorSupport {
@@ -625,7 +625,7 @@ protected void registerCustomEditors(PropertyEditorRegistry registry) {
 }
 ```
 
-&emsp;&emsp;到此逻辑已经明了，在 Spring 中，BeanWrapper 除了作为封装 bean 的容器之外，它还间接继承了 PropertyEditorRegistry ，在将 BeanDefinition 转换为 BeanWrapper 的过程中就会调用 registerCustomEditors 方法将一些 Spring 自带的属性编辑器注册，注册后，在属性填充的环节就可以直接让 Spring 使用这些编辑器来进行属性的解析转换操作了。而 BeanWrapper 的默认实现 BeanWrapperImpl 还继承了 PropertyEditorRegistrySupport，在 PropertyEditorRegistrySupport 中还有这样一个方法：
+&emsp;&emsp;到此逻辑已经明了，在 Spring 中，BeanWrapper 除了作为封装 bean 的容器之外，它还间接继承了 PropertyEditorRegistry，在将 BeanDefinition 转换为 BeanWrapper 的过程中就会调用 registerCustomEditors 方法将一些 Spring 自带的属性编辑器注册，注册后，在属性填充的环节就可以直接让 Spring 使用这些编辑器来进行属性的解析转换操作了。而 BeanWrapper 的默认实现 BeanWrapperImpl 还继承了 PropertyEditorRegistrySupport，在 PropertyEditorRegistrySupport 中还有这样一个方法：
 
 **PropertyEditorRegistrySupport.createDefaultEditors**
 
@@ -867,7 +867,7 @@ public static void main(String[] args) {
 }
 ```
 
-&emsp;&emsp;结果：1**456 ，可以看到通过自定义 MyBeanFactoryPostProcessor 很好的屏蔽掉了敏感信息。
+&emsp;&emsp;结果：1**456，可以看到通过自定义 MyBeanFactoryPostProcessor 很好的屏蔽掉了敏感信息。
 
 ### 6.3 激活 BeanFactoryPostProcessor
 
@@ -1051,7 +1051,7 @@ public static void invokeBeanFactoryPostProcessors(
 
 &emsp;&emsp;从上面方法可以看出，对于 BeanFactoryPostProcessor 的处理主要分为两种情况进行，区分两种情况的判断就是判断当前使用的 beanFactory 是否实现了 BeanDefinitionRegistry 接口，对于实现了 BeanDefinitionRegistry 接口的 beanFactory 来说，则需要考虑针对 BeanDefinitionRegistryPostProcessor 的特殊处理，如果不是则可以忽略直接处理 BeanFactoryPostProcessor。值得一提的是这里对于使用编码方式添加的 BeanFactoryPostProcessor 是不需要做任何排序处理的，而对于在配置文件中读取的 BeanFactoryPostProcessor 来说，因为不能保证读取顺序，为了保证用户调用顺序的要求，Spring 支持按照 PriorityOrdered 、Ordered 接口的顺序调用。
 
-&emsp;&emsp;现在回看 5.2.1 自定义属性编辑器的过程中使用了 CustomEditorConfigurer 类，这个类就实现了 BeanFactoryPostProcessor ，并可以看到它给容器添加 PropertyEditorRegistrar 的全过程。
+&emsp;&emsp;现在回看 5.2.1 自定义属性编辑器的过程中使用了 CustomEditorConfigurer 类，这个类就实现了 BeanFactoryPostProcessor，并可以看到它给容器添加 PropertyEditorRegistrar 的全过程。
 
 **CustomEditorConfigurer.postProcessBeanFactory**
 
@@ -1194,4 +1194,68 @@ public static void registerBeanPostProcessors(
 
 ## 8 国际化处理
 
-&emsp;&emsp;
+### 8.1 国际化使用
+
+&emsp;&emsp;对于国际化的使用，假设现在有一个支持多国语言的 web 应用，要求系统可以根据客户端系统的语言类型返回对应界面，英文的操作系统返回英文界面，而中文操作系统返回中文界面。对于这种具有国际化要求的应用，开发时不能简单的用硬编码方式编写用户界面等信息，必须为这些信息进行特殊处理，简单来说，就是为每种语言提供一套相应的资源文件，并以规范化的命名方式保存在特定的目录中，由系统自动根据客户端语言选择合适的资源文件。
+
+&emsp;&emsp;"国际化信息"也称为"本地化信息"，一般需要两个条件才可以确定一个特定类型的本地化信息，它们分别是"语言类型"和"国家/地区的类型"。如中文本地化信息既有中国大陆地区的中文，又有中国台湾地区、中国香港地区的中文，还有新加坡地区的中文。在 Java 中通过 java.util.Locale 类表示一个本地化对象，它允许通过**语言**参数和**国家/地区**参数创建一个确定的本地化对象。
+
+例如简体中文 Locale 对象的创建:
+
+```java
+Locale local = new Locale("zh","CN");
+```
+
+&emsp;&emsp;在 Java 中实现国际化主要是借助一个工具类 ResourceBundle，核心的思想就是，对不同的语言环境提供一个不同的资源文件。定义资源文件时，先将资源文件放在一个资源包中，一个资源包中每个资源文件必须拥有共同的基名，除了基名，每个文件的名称中还必须有标识其本地信息的附加部分，例如 ：一个资源包的基名是"message"，则与中文（中国）、英文（美国）环境相对应的资源文件名分别为 ：
+
+- message_zh_CN.properties
+- message_en_US.properties
+
+【示例】
+
+&emsp;&emsp;ResourceBundle 类提供了相应的静态方法 getBundle，这个方法可以根据来访者的国家地区自动绑定对应的资源文件。
+
+**message_zh_CN.properties**
+
+```properties
+name=张三
+```
+
+**message_en_US.properties**
+
+```properties
+name=ZhangSan
+```
+
+```java
+public static void main(String[] args) {
+    Locale locale_en = new Locale("en","US");
+    Locale locale_zh = new Locale("zh","CN");
+    ResourceBundle resourceBundle = ResourceBundle.getBundle("message",locale_en);
+    System.out.println(resourceBundle.getString("name"));//ZhangSan
+    resourceBundle = ResourceBundle.getBundle("message",locale_zh);
+    System.out.println(resourceBundle.getString("name"));//张三
+}
+```
+
+&emsp;&emsp;以上就是一些固定文本的国际化，固定文本包括菜单名，导航条，系统提示信息等，都是手工配置在 properties 文件中的，但有些数据，比方说，数值，货币，时间，日期等由于可能在程序运行时动态产生，所以无法像文字一样简单地将它们从应用程序中分离出来，而需要特殊处理 。
+
+```java
+public static void main(String[] args) {
+        Date date = new Date();
+        DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.DEFAULT,Locale.CHINA);
+        String format = dateFormat.format(date);
+        System.out.println(format);
+        dateFormat = DateFormat.getTimeInstance(DateFormat.DEFAULT,Locale.CHINA);
+        format = dateFormat.format(date);
+        System.out.println(format);
+        dateFormat = DateFormat.getDateTimeInstance(DateFormat.FULL,DateFormat.SHORT,Locale.CHINA);
+        format = dateFormat.format(date);
+        System.out.println(format);
+        dateFormat = DateFormat.getInstance();
+        format = dateFormat.format(date);
+        System.out.println(format);
+    }
+```
+
+[](https://blog.csdn.net/yujikui1/article/details/81458255)
