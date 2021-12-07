@@ -1194,7 +1194,7 @@ public static void registerBeanPostProcessors(
 
 ## 8 国际化处理
 
-### 8.1 国际化使用
+### 8.1 国际化的使用
 
 &emsp;&emsp;对于国际化的使用，假设现在有一个支持多国语言的 web 应用，要求系统可以根据客户端系统的语言类型返回对应界面，英文的操作系统返回英文界面，而中文操作系统返回中文界面。对于这种具有国际化要求的应用，开发时不能简单的用硬编码方式编写用户界面等信息，必须为这些信息进行特殊处理，简单来说，就是为每种语言提供一套相应的资源文件，并以规范化的命名方式保存在特定的目录中，由系统自动根据客户端语言选择合适的资源文件。
 
@@ -1218,7 +1218,8 @@ Locale local = new Locale("zh","CN");
 **message_zh_CN.properties**
 
 ```properties
-name=张三
+#张三
+name=\u5f20\u4e09 #张三
 ```
 
 **message_en_US.properties**
@@ -1238,24 +1239,89 @@ public static void main(String[] args) {
 }
 ```
 
-&emsp;&emsp;以上就是一些固定文本的国际化，固定文本包括菜单名，导航条，系统提示信息等，都是手工配置在 properties 文件中的，但有些数据，比方说，数值，货币，时间，日期等由于可能在程序运行时动态产生，所以无法像文字一样简单地将它们从应用程序中分离出来，而需要特殊处理 。
+&emsp;&emsp;以上就是一些固定文本的国际化，固定文本包括菜单名，导航条，系统提示信息等，都是手工配置在 properties 文件中的，但有些数据，比方说，数值，货币，时间，日期等由于可能在程序运行时动态产生，所以无法像文字一样简单地将它们从应用程序中分离出来，而需要特殊处理。Java 中提供了 NumberFormat，DateFormat 和 MessageFormat 类分别对数字、日期和字符串进行处理，而在 Spring 中的国际化处理也就是对这些类的封装操作。
+
+### 8.2 MessageSource
+
+&emsp;&emsp;Spring 定义了访问国际化信息的 MessageSource 接口，并提供了几个实现类，这里主要看一下 HierarchicalMessageSource 接口的实现类，HierarchicalMessageSource 的实现类中 ReloadableResourceBundleMessageSource 和 ResourceBundleMessageSource 基于 Java 的 ResourceBundle 基础类实现，允许仅通过资源名加载国际化资源，ReloadableResourceBundleMessageSource 则提供了定时刷新功能，可以在不重启系统的情况下，更新资源信息，StaticMessageSource 主要用于程序测试，它允许通过编程的方式提供国际化信息，而 DelegatingMessageSource 是为了方便操作父 MessageSource 而提供的代理类。
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112061007248.png)
+
+&emsp;&emsp;然后来看如何使用，第一步仍然是创建资源包：
+
+**message_zh_CN.properties**
+
+```properties
+#测试
+test=\u6d4b\u8bd5
+```
+
+**message_en_US.properties**
+
+```properties
+test=test
+```
+
+&emsp;&emsp;然后定义配置文件：
+
+```xml
+<!-- 这里 bean 的 id 必须为 messageSource -->
+<bean id="messageSource" class="org.springframework.context.support.ResourceBundleMessageSource">
+	<property name="basename">
+		<value>myTestResources/message/message</value>
+	</property>
+</bean>
+```
 
 ```java
 public static void main(String[] args) {
-        Date date = new Date();
-        DateFormat dateFormat = DateFormat.getDateInstance(DateFormat.DEFAULT,Locale.CHINA);
-        String format = dateFormat.format(date);
-        System.out.println(format);
-        dateFormat = DateFormat.getTimeInstance(DateFormat.DEFAULT,Locale.CHINA);
-        format = dateFormat.format(date);
-        System.out.println(format);
-        dateFormat = DateFormat.getDateTimeInstance(DateFormat.FULL,DateFormat.SHORT,Locale.CHINA);
-        format = dateFormat.format(date);
-        System.out.println(format);
-        dateFormat = DateFormat.getInstance();
-        format = dateFormat.format(date);
-        System.out.println(format);
-    }
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext.xml");
+	System.out.println(context.getMessage("test",null, Locale.CHINA));
+}
 ```
 
-[](https://blog.csdn.net/yujikui1/article/details/81458255)
+### 8.3 源码实现
+
+【初始化 messageSource】
+
+**AbstractApplicationContext.initMessageSource**
+
+```java
+protected void initMessageSource() {
+	ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+	// 如果有自定义配置 messageSource 则使用自定义配置的
+	if (beanFactory.containsLocalBean(MESSAGE_SOURCE_BEAN_NAME)) {
+		this.messageSource = beanFactory.getBean(MESSAGE_SOURCE_BEAN_NAME, MessageSource.class);
+		// Make MessageSource aware of parent MessageSource.
+		if (this.parent != null && this.messageSource instanceof HierarchicalMessageSource) {
+			HierarchicalMessageSource hms = (HierarchicalMessageSource) this.messageSource;
+			if (hms.getParentMessageSource() == null) {
+				// Only set parent context as parent MessageSource if no parent MessageSource
+				// registered already.
+				hms.setParentMessageSource(getInternalParentMessageSource());
+			}
+		}
+		if (logger.isTraceEnabled()) {
+			logger.trace("Using MessageSource [" + this.messageSource + "]");
+		}
+	}
+	else {
+		// 没有配置则使用默认配置的 DelegatingMessageSource
+		// Use empty MessageSource to be able to accept getMessage calls.
+		DelegatingMessageSource dms = new DelegatingMessageSource();
+		dms.setParentMessageSource(getInternalParentMessageSource());
+		this.messageSource = dms;
+		beanFactory.registerSingleton(MESSAGE_SOURCE_BEAN_NAME, this.messageSource);
+		if (logger.isTraceEnabled()) {
+			logger.trace("No '" + MESSAGE_SOURCE_BEAN_NAME + "' bean, using [" + this.messageSource + "]");
+		}
+	}
+}
+```
+
+&emsp;&emsp;在容器启动时会初始化 messageSource，如果有自定义配置 messageSource 则使用自定义配置的，没有则使用默认配置的 DelegatingMessageSource，在获取自定义 messageSource 的时候在代码中硬性规定了 bean 的名字必须为 messageSource，否则就获取不到，当获取到 messageSource 后将其存储在当前容器中，用的时候直接读取即可。
+
+## 9 初始化事件监听器
+
+
+
