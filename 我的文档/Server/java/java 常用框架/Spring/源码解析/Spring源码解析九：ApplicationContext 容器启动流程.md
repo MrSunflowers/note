@@ -1282,7 +1282,7 @@ public static void main(String[] args) {
 
 ### 8.3 源码实现
 
-【初始化 messageSource】
+**【初始化 messageSource】**
 
 **AbstractApplicationContext.initMessageSource**
 
@@ -1321,7 +1321,95 @@ protected void initMessageSource() {
 
 &emsp;&emsp;在容器启动时会初始化 messageSource，如果有自定义配置 messageSource 则使用自定义配置的，没有则使用默认配置的 DelegatingMessageSource，在获取自定义 messageSource 的时候在代码中硬性规定了 bean 的名字必须为 messageSource，否则就获取不到，当获取到 messageSource 后将其存储在当前容器中，用的时候直接读取即可。
 
-## 9 初始化事件监听器
+## 9 初始化 ApplicationEventMulticaster
 
+### 9.1 事件监听器的使用
 
+#### 9.1.1 自定义监听事件
 
+**【TestEvent】**
+
+```java
+public class TestEvent extends ApplicationEvent {
+
+	private String msg;
+
+	public TestEvent(Object source) {
+		super(source);
+	}
+
+	public TestEvent(Object source, String msg) {
+		super(source);
+		this.msg = msg;
+	}
+
+	public void print(){
+		System.out.println(msg);
+	}
+
+}
+```
+
+**【TestListener】**
+
+```java
+public class TestListener implements ApplicationListener {
+	@Override
+	public void onApplicationEvent(ApplicationEvent event) {
+		if(event instanceof TestEvent){
+			TestEvent testEvent = (TestEvent) event;
+			testEvent.print();
+		}
+	}
+}
+```
+
+**【main】**
+
+```java
+public static void main(String[] args) {
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext.xml");
+	TestEvent event = new TestEvent("hello","msg");
+	//触发 TestEvent 事件
+	context.publishEvent(event);
+}
+```
+
+**【applicationContext.xml】将事件监听器注册到容器中**
+
+```xml
+<bean id="testListener" class="org.springframework.myTest.eventListener.TestListener" />
+```
+
+&emsp;&emsp;当程序运行时，Spring 会将发出的 TestEvent 事件传给所有注册的监听器并触发其监听事件，示例中是典型的观察者模式的应用，可以在比较关心的事件结束后及时处理。
+
+#### 9.1.2 源码实现
+
+&emsp;&emsp;
+
+**initApplicationEventMulticaster**
+
+```java
+protected void initApplicationEventMulticaster() {
+	ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+	// 如果有用户自定义的事件多播器使用用户自定义的
+	if (beanFactory.containsLocalBean(APPLICATION_EVENT_MULTICASTER_BEAN_NAME)) {
+		this.applicationEventMulticaster =
+				beanFactory.getBean(APPLICATION_EVENT_MULTICASTER_BEAN_NAME, ApplicationEventMulticaster.class);
+		if (logger.isTraceEnabled()) {
+			logger.trace("Using ApplicationEventMulticaster [" + this.applicationEventMulticaster + "]");
+		}
+	}
+	else {
+		// 没有自定义的则使用默认的 SimpleApplicationEventMulticaster
+		this.applicationEventMulticaster = new SimpleApplicationEventMulticaster(beanFactory);
+		beanFactory.registerSingleton(APPLICATION_EVENT_MULTICASTER_BEAN_NAME, this.applicationEventMulticaster);
+		if (logger.isTraceEnabled()) {
+			logger.trace("No '" + APPLICATION_EVENT_MULTICASTER_BEAN_NAME + "' bean, using " +
+					"[" + this.applicationEventMulticaster.getClass().getSimpleName() + "]");
+		}
+	}
+}
+```
+
+&emsp;&emsp;
