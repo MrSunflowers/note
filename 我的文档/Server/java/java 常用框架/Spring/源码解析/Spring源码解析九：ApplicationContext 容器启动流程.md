@@ -1321,11 +1321,9 @@ protected void initMessageSource() {
 
 &emsp;&emsp;在容器启动时会初始化 messageSource，如果有自定义配置 messageSource 则使用自定义配置的，没有则使用默认配置的 DelegatingMessageSource，在获取自定义 messageSource 的时候在代码中硬性规定了 bean 的名字必须为 messageSource，否则就获取不到，当获取到 messageSource 后将其存储在当前容器中，用的时候直接读取即可。
 
-## 9 初始化 ApplicationEventMulticaster
+## 9 事件监听器的使用
 
-### 9.1 事件监听器的使用
-
-#### 9.1.1 自定义监听事件
+### 9.1 自定义事件监听器
 
 **【TestEvent】**
 
@@ -1383,11 +1381,9 @@ public static void main(String[] args) {
 
 &emsp;&emsp;当程序运行时，Spring 会将发出的 TestEvent 事件传给所有注册的监听器并触发其监听事件，示例中是典型的观察者模式的应用，可以在比较关心的事件结束后及时处理。
 
-#### 9.1.2 源码实现
+### 9.2 初始化 ApplicationEventMulticaster
 
-&emsp;&emsp;
-
-**initApplicationEventMulticaster**
+**AbstractApplicationContext.initApplicationEventMulticaster**
 
 ```java
 protected void initApplicationEventMulticaster() {
@@ -1412,4 +1408,94 @@ protected void initApplicationEventMulticaster() {
 }
 ```
 
-&emsp;&emsp;
+&emsp;&emsp;如果用户自定义了事件广播器，那么使用用户自定义的事件广播器，如果用户没有自定义事件广播器，那么使用默认的 applicationEventMulticaster。进入默认的广播器 SimpleApplicationEventMulticaster 的广播事件方法。
+
+**SimpleApplicationEventMulticaster.multicastEvent**
+
+```java
+public void multicastEvent(final ApplicationEvent event, @Nullable ResolvableType eventType) {
+	ResolvableType type = (eventType != null ? eventType : resolveDefaultEventType(event));
+	Executor executor = getTaskExecutor();
+	for (ApplicationListener<?> listener : getApplicationListeners(event, type)) {
+		if (executor != null) {
+			executor.execute(() -> invokeListener(listener, event));
+		}
+		else {
+			invokeListener(listener, event);
+		}
+	}
+}
+
+protected void invokeListener(ApplicationListener<?> listener, ApplicationEvent event) {
+	ErrorHandler errorHandler = getErrorHandler();
+	if (errorHandler != null) {
+		try {
+			doInvokeListener(listener, event);
+		}
+		catch (Throwable err) {
+			errorHandler.handleError(err);
+		}
+	}
+	else {
+		doInvokeListener(listener, event);
+	}
+}
+
+private void doInvokeListener(ApplicationListener listener, ApplicationEvent event) {
+	try {
+		listener.onApplicationEvent(event);
+	}
+	catch (ClassCastException ex) {
+		String msg = ex.getMessage();
+		if (msg == null || matchesClassCastMessage(msg, event.getClass()) ||
+				(event instanceof PayloadApplicationEvent &&
+						matchesClassCastMessage(msg, ((PayloadApplicationEvent) event).getPayload().getClass()))) {
+			// Possibly a lambda-defined listener which we could not resolve the generic event type for
+			// -> let's suppress the exception.
+			Log loggerToUse = this.lazyLogger;
+			if (loggerToUse == null) {
+				loggerToUse = LogFactory.getLog(getClass());
+				this.lazyLogger = loggerToUse;
+			}
+			if (loggerToUse.isTraceEnabled()) {
+				loggerToUse.trace("Non-matching event type for listener: " + listener, ex);
+			}
+		}
+		else {
+			throw ex;
+		}
+	}
+}
+```
+
+&emsp;&emsp;当产生 Spring 事件的时候会使用 SimpleApplicationEventMulticaster 的 multicastEvent 来广播事件，遍历所有的监听器，并调用监听器中的 onApplicationEvent 方法来进行监听器的处理，而对于每个监听器来说其实都可以获取到事件，但是否进行处理则由事件监听器来决定。
+
+### 9.3 监听器的注册
+
+```java
+protected void registerListeners() {
+		// Register statically specified listeners first.
+		// 首先注册代码中硬编码的监听器
+		for (ApplicationListener<?> listener : getApplicationListeners()) {
+			getApplicationEventMulticaster().addApplicationListener(listener);
+		}
+
+		// Do not initialize FactoryBeans here: We need to leave all regular beans
+		// uninitialized to let post-processors apply to them!
+		// 然后注册配置的监听器
+		String[] listenerBeanNames = getBeanNamesForType(ApplicationListener.class, true, false);
+		for (String listenerBeanName : listenerBeanNames) {
+			getApplicationEventMulticaster().addApplicationListenerBean(listenerBeanName);
+		}
+
+		// Publish early application events now that we finally have a multicaster...
+		// 发布早期的应用程序事件
+		Set<ApplicationEvent> earlyEventsToProcess = this.earlyApplicationEvents;
+		this.earlyApplicationEvents = null;
+		if (!CollectionUtils.isEmpty(earlyEventsToProcess)) {
+			for (ApplicationEvent earlyEvent : earlyEventsToProcess) {
+				getApplicationEventMulticaster().multicastEvent(earlyEvent);
+			}
+		}
+	}
+```
