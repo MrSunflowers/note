@@ -61,7 +61,90 @@ public void setConfigLocations(@Nullable String... locations) {
 **AbstractApplicationContext.refresh**
 
 ```java
+public void refresh() throws BeansException, IllegalStateException {
+	synchronized (this.startupShutdownMonitor) {
+		StartupStep contextRefresh = this.applicationStartup.start("spring.context.refresh");
 
+		// Prepare this context for refreshing.
+		// 1. 刷新前的准备工作
+		prepareRefresh();
+
+		// Tell the subclass to refresh the internal bean factory.
+		// 2. 创建并初始化 BeanFactory 并进行 xml 文件读取
+		ConfigurableListableBeanFactory beanFactory = obtainFreshBeanFactory();
+
+		// Prepare the bean factory for use in this context.
+		// 3. 为 BeanFactory 填充各种功能
+		prepareBeanFactory(beanFactory);
+
+		try {
+			// Allows post-processing of the bean factory in context subclasses.
+			// 4. 用于预留给某些 ApplicationContext 的特殊实现中为 BeanFactory 注册特殊的 BeanPostProcessor 等
+			postProcessBeanFactory(beanFactory);
+
+			StartupStep beanPostProcess = this.applicationStartup.start("spring.context.beans.post-process");
+
+			// Invoke factory processors registered as beans in the context.
+			// 5. 激活各种 BeanFactory 增强器
+			invokeBeanFactoryPostProcessors(beanFactory);
+
+			// Register bean processors that intercept bean creation.
+			// 6. 注册各种针对 bean 创建时使用的增强器
+			registerBeanPostProcessors(beanFactory);
+			beanPostProcess.end();
+
+			// Initialize message source for this context.
+			// 7. 为环境初始化不同的语言环境，即国际化处理
+			initMessageSource();
+
+			// Initialize event multicaster for this context.
+			// 8. 初始化事件广播器
+			initApplicationEventMulticaster();
+
+			// Initialize other special beans in specific context subclasses.
+			// 9. 预留给特殊的子类拓展
+			onRefresh();
+
+			// Check for listener beans and register them.
+			// 10. 注册监听器
+			registerListeners();
+
+			// Instantiate all remaining (non-lazy-init) singletons.
+			// 11. 实例化所有非懒加载的单例 bean
+			finishBeanFactoryInitialization(beanFactory);
+
+			// Last step: publish corresponding event.
+			// 12. 完成刷新，通知生命周期处理器刷新容器
+			finishRefresh();
+		}
+
+		catch (BeansException ex) {
+			if (logger.isWarnEnabled()) {
+				logger.warn("Exception encountered during context initialization - " +
+						"cancelling refresh attempt: " + ex);
+			}
+
+			// Destroy already created singletons to avoid dangling resources.
+			// 销毁已经创建的单例 bean
+			destroyBeans();
+
+			// Reset 'active' flag.
+			// 重置此上下文当前是否处于活动状态的标志
+			cancelRefresh(ex);
+
+			// Propagate exception to caller.
+			throw ex;
+		}
+
+		finally {
+			// Reset common introspection caches in Spring's core, since we
+			// might not ever need metadata for singleton beans anymore...
+			// 重置缓存
+			resetCommonCaches();
+			contextRefresh.end();
+		}
+	}
+}
 ```
 
 ## 3. 刷新容器前的准备工作
@@ -1351,13 +1434,10 @@ public class TestEvent extends ApplicationEvent {
 **【TestListener】**
 
 ```java
-public class TestListener implements ApplicationListener {
+public class TestListener implements ApplicationListener<TestEvent> {
 	@Override
-	public void onApplicationEvent(ApplicationEvent event) {
-		if(event instanceof TestEvent){
-			TestEvent testEvent = (TestEvent) event;
-			testEvent.print();
-		}
+	public void onApplicationEvent(TestEvent event) {
+		event.print();
 	}
 }
 ```
@@ -1379,7 +1459,7 @@ public static void main(String[] args) {
 <bean id="testListener" class="org.springframework.myTest.eventListener.TestListener" />
 ```
 
-&emsp;&emsp;当程序运行时，Spring 会将发出的 TestEvent 事件传给所有注册的监听器并触发其监听事件，示例中是典型的观察者模式的应用，可以在比较关心的事件结束后及时处理。
+&emsp;&emsp;在 spring 中通过 ApplicationListener 及 ApplicationEventMulticaster 来进行事件驱动开发，即实现观察者设计模式或发布-订阅模式，ApplicationListener 负责监听容器中发布的事件，只要事件发生，就触发监听器的回调，来完成事件驱动开发，扮演观察者设计模式中的 Observer 对象，ApplicationEventMulticaster 用来通知所有的观察者对象，扮演观察者设计模式中的 Subject 对象。
 
 ### 9.2 初始化 ApplicationEventMulticaster
 
@@ -1408,14 +1488,67 @@ protected void initApplicationEventMulticaster() {
 }
 ```
 
-&emsp;&emsp;如果用户自定义了事件广播器，那么使用用户自定义的事件广播器，如果用户没有自定义事件广播器，那么使用默认的 applicationEventMulticaster。进入默认的广播器 SimpleApplicationEventMulticaster 的广播事件方法。
+&emsp;&emsp;如果用户自定义了事件广播器，那么使用用户自定义的事件广播器，如果用户没有自定义事件广播器，那么使用默认的 applicationEventMulticaster。默认的广播器实现中有这样一个属性:
+
+```java
+public final Set<ApplicationListener<?>> applicationListeners = new LinkedHashSet<>();
+```
+
+&emsp;&emsp;用于将系统中的 ApplicationListener 维护到这个 set 中。
+
+### 9.3 ApplicationEvent 事件的发布
+
+**AbstractApplicationContext.publishEvent**
+
+```java
+public void publishEvent(ApplicationEvent event) {
+	publishEvent(event, null);
+}
+
+protected void publishEvent(Object event, @Nullable ResolvableType eventType) {
+	Assert.notNull(event, "Event must not be null");
+
+	// Decorate event as an ApplicationEvent if necessary
+	ApplicationEvent applicationEvent;
+	if (event instanceof ApplicationEvent) {
+		applicationEvent = (ApplicationEvent) event;
+	}
+	else {
+		applicationEvent = new PayloadApplicationEvent<>(this, event);
+		if (eventType == null) {
+			eventType = ((PayloadApplicationEvent<?>) applicationEvent).getResolvableType();
+		}
+	}
+
+	// Multicast right now if possible - or lazily once the multicaster is initialized
+	if (this.earlyApplicationEvents != null) {
+		this.earlyApplicationEvents.add(applicationEvent);
+	}
+	else {
+		// 获取 ApplicationEventMulticaster 并调用其 multicastEvent
+		getApplicationEventMulticaster().multicastEvent(applicationEvent, eventType);
+	}
+
+	// Publish event via parent context as well...
+	if (this.parent != null) {
+		if (this.parent instanceof AbstractApplicationContext) {
+			((AbstractApplicationContext) this.parent).publishEvent(event, eventType);
+		}
+		else {
+			this.parent.publishEvent(event);
+		}
+	}
+}
+```
 
 **SimpleApplicationEventMulticaster.multicastEvent**
 
 ```java
 public void multicastEvent(final ApplicationEvent event, @Nullable ResolvableType eventType) {
+	// 解析事件类型
 	ResolvableType type = (eventType != null ? eventType : resolveDefaultEventType(event));
 	Executor executor = getTaskExecutor();
+	// 获取对应事件类型的监听器并触发其监听事件
 	for (ApplicationListener<?> listener : getApplicationListeners(event, type)) {
 		if (executor != null) {
 			executor.execute(() -> invokeListener(listener, event));
@@ -1443,6 +1576,7 @@ protected void invokeListener(ApplicationListener<?> listener, ApplicationEvent 
 
 private void doInvokeListener(ApplicationListener listener, ApplicationEvent event) {
 	try {
+		// 调用 ApplicationListener 的 onApplicationEvent 
 		listener.onApplicationEvent(event);
 	}
 	catch (ClassCastException ex) {
@@ -1468,9 +1602,11 @@ private void doInvokeListener(ApplicationListener listener, ApplicationEvent eve
 }
 ```
 
-&emsp;&emsp;当产生 Spring 事件的时候会使用 SimpleApplicationEventMulticaster 的 multicastEvent 来广播事件，遍历所有的监听器，并调用监听器中的 onApplicationEvent 方法来进行监听器的处理，而对于每个监听器来说其实都可以获取到事件，但是否进行处理则由事件监听器来决定。
+&emsp;&emsp;当产生 Spring 事件的时候会使用 SimpleApplicationEventMulticaster 的 multicastEvent 来广播事件，遍历所有匹配的监听器，并调用监听器中的 onApplicationEvent 方法来进行处理。
 
-### 9.3 监听器的注册
+### 9.3 监听器 ApplicationListener 的注册
+
+**AbstractApplicationContext.registerListeners**
 
 ```java
 protected void registerListeners() {
@@ -1499,3 +1635,185 @@ protected void registerListeners() {
 		}
 	}
 ```
+
+## 10 实例化所有非懒加载的单例 bean
+
+**AbstractApplicationContext.finishBeanFactoryInitialization**
+
+```java
+
+```
+
+### 10.1 conversionService 的使用
+
+&emsp;&emsp;前面讲过使用自定义类型转换器将 String 转换为 Date 的方式，在 Spring 中还提供了另一种转换方式，使用 conversionService 来进行类型转换。
+
+&emsp;&emsp;自定义一个类型转换器 String2DateConverter
+
+```java
+public class String2DateConverter implements Converter<String, Date> {
+	@Override
+	public Date convert(String source) {
+		try {
+			return DateUtils.parseDate(source,"yyyy-MM-dd");
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return null;
+	}
+}
+```
+
+&emsp;&emsp;配置文件
+
+```xml
+<bean id="conversionService" class="org.springframework.context.support.ConversionServiceFactoryBean">
+	<property name="converters">
+		<list>
+			<bean class="org.springframework.myTest.testConverter.String2DateConverter" />
+		</list>
+	</property>
+</bean>
+```
+
+&emsp;&emsp;使用
+
+```java
+public static void main(String[] args) {
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext.xml");
+	ConversionService conversionService = context.getBeanFactory().getConversionService();
+	Date convert = conversionService.convert("2020-12-10", Date.class);
+	System.out.println(convert);
+}
+```
+
+#### 10.1.2 源码结构
+
+&emsp;&emsp;conversionService 的使用主要涉及一个类(ConversionServiceFactoryBean)和两个接口(ConversionService、Converter)，现在分别来看，先从配置文件配置的 ConversionServiceFactoryBean 入手。ConversionServiceFactoryBean 类的功能很简单，就是提供对 ConversionService 的创建和将具体的转换器 Converter 注册到 ConversionService 中的功能。
+
+&emsp;&emsp;**ConversionService 的创建**：默认情况下 Spring 使用 DefaultConversionService 实例作为 ConversionService 的实现，子类可以重写该方法以自定义创建 ConversionService 实例，在创建 DefaultConversionService 时在其初始化方法 **addDefaultConverters()** 中已经添加了一些常用的转换器。
+
+**ConversionServiceFactoryBean.createConversionService**
+
+```java
+protected GenericConversionService createConversionService() {
+	return new DefaultConversionService();
+}
+```
+
+&emsp;&emsp;**Converter 的注册**：此方法在设置所有 bean 属性并满足 BeanFactoryAware ，ApplicationContextAware 等之后，由 BeanFactory 调用，用于将具体的 Converter 注册到刚创建的 DefaultConversionService 中。
+
+**ConversionServiceFactoryBean.afterPropertiesSet**
+
+```java
+public void afterPropertiesSet() {
+	this.conversionService = createConversionService();
+	ConversionServiceFactory.registerConverters(this.converters, this.conversionService);
+}
+```
+
+&emsp;&emsp;在使用时通过 ConversionService 的 convert() 方法来匹配合适的类型转换器完成属性转换。
+
+### 10.2 实例化剩余的所有非懒加载单例 bean
+
+&emsp;&emsp;ApplicationContext 在启动过程中就会将所有的单例 bean 全部实例化，这个过程在 DefaultListableBeanFactory 中实现。
+
+**DefaultListableBeanFactory.preInstantiateSingletons**
+
+```java
+public void preInstantiateSingletons() throws BeansException {
+	if (logger.isTraceEnabled()) {
+		logger.trace("Pre-instantiating singletons in " + this);
+	}
+
+	// Iterate over a copy to allow for init methods which in turn register new bean definitions.
+	// While this may not be part of the regular factory bootstrap, it does otherwise work fine.
+	List<String> beanNames = new ArrayList<>(this.beanDefinitionNames);
+
+	// Trigger initialization of all non-lazy singleton beans...
+	// 遍历所有加载的 beandefinition 并依次实例化
+	for (String beanName : beanNames) {
+		RootBeanDefinition bd = getMergedLocalBeanDefinition(beanName);
+		if (!bd.isAbstract() && bd.isSingleton() && !bd.isLazyInit()) {
+			if (isFactoryBean(beanName)) {
+				Object bean = getBean(FACTORY_BEAN_PREFIX + beanName);
+				if (bean instanceof FactoryBean) {
+					FactoryBean<?> factory = (FactoryBean<?>) bean;
+					boolean isEagerInit;
+					if (System.getSecurityManager() != null && factory instanceof SmartFactoryBean) {
+						isEagerInit = AccessController.doPrivileged(
+								(PrivilegedAction<Boolean>) ((SmartFactoryBean<?>) factory)::isEagerInit,
+								getAccessControlContext());
+					}
+					else {
+						isEagerInit = (factory instanceof SmartFactoryBean &&
+								((SmartFactoryBean<?>) factory).isEagerInit());
+					}
+					if (isEagerInit) {
+						getBean(beanName);
+					}
+				}
+			}
+			else {
+				getBean(beanName);
+			}
+		}
+	}
+
+	// Trigger post-initialization callback for all applicable beans...
+	// 为所有适用的 bean 触发初始化后回调方法
+	for (String beanName : beanNames) {
+		Object singletonInstance = getSingleton(beanName);
+		if (singletonInstance instanceof SmartInitializingSingleton) {
+			StartupStep smartInitialize = this.getApplicationStartup().start("spring.beans.smart-initialize")
+					.tag("beanName", beanName);
+			SmartInitializingSingleton smartSingleton = (SmartInitializingSingleton) singletonInstance;
+			if (System.getSecurityManager() != null) {
+				AccessController.doPrivileged((PrivilegedAction<Object>) () -> {
+					smartSingleton.afterSingletonsInstantiated();
+					return null;
+				}, getAccessControlContext());
+			}
+			else {
+				smartSingleton.afterSingletonsInstantiated();
+			}
+			smartInitialize.end();
+		}
+	}
+}
+```
+
+## 11 完成刷新，通知生命周期处理器刷新容器
+
+&emsp;&emsp;完成此容器的刷新，调用 LifecycleProcessor 的 onRefresh（）方法和发布 ContextRefreshedEvent 事件。
+
+**AbstractApplicationContext.finishRefresh**
+
+```java
+protected void finishRefresh() {
+	// Clear context-level resource caches (such as ASM metadata from scanning).
+	// 清除 resource 缓存
+	clearResourceCaches();
+
+	// Initialize lifecycle processor for this context.
+	// 初始化 LifecycleProcessor 
+	initLifecycleProcessor();
+
+	// Propagate refresh to lifecycle processor first.
+	// 调用 LifecycleProcessor 的 onRefresh
+	getLifecycleProcessor().onRefresh();
+
+	// Publish the final event.
+	// 发布容器刷新完成事件
+	publishEvent(new ContextRefreshedEvent(this));
+
+	// Participate in LiveBeansView MBean, if active.
+	if (!NativeDetector.inNativeImage()) {
+		LiveBeansView.registerApplicationContext(this);
+	}
+}
+```
+
+### 11.1 Lifecycle 
+
+[](https://www.cnblogs.com/deityjian/p/11296846.html)
