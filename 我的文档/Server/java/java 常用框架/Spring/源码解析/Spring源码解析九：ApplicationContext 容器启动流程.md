@@ -1701,7 +1701,7 @@ protected GenericConversionService createConversionService() {
 }
 ```
 
-&emsp;&emsp;**Converter 的注册**：此方法在设置所有 bean 属性并满足 BeanFactoryAware ，ApplicationContextAware 等之后，由 BeanFactory 调用，用于将具体的 Converter 注册到刚创建的 DefaultConversionService 中。
+&emsp;&emsp;**Converter 的注册**：此方法在设置了所有 bean 属性后在执行自定义 init 方法之前调用，用于将具体的 Converter 注册到刚创建的 DefaultConversionService 中。
 
 **ConversionServiceFactoryBean.afterPropertiesSet**
 
@@ -1814,6 +1814,102 @@ protected void finishRefresh() {
 }
 ```
 
-### 11.1 Lifecycle 
+### 11.1 Lifecycle 生命周期回调接口
 
-[](https://www.cnblogs.com/deityjian/p/11296846.html)
+&emsp;&emsp;生命周期接口定义了任何具有自身生命周期需求的对象的基本方法，任何 spring 管理的对象都可以实现该接口，然后，当 ApplicationContext 本身接收启动和停止信号(例如在运行时停止/重启场景)时，spring 容器将在容器上下文中找出所有实现了 LifeCycle 及其子类接口的类，并一一调用它们。spring 是通过委托给生命周期处理器 LifecycleProcessor 来实现这一点的。值得注意的是，目前的 Lifecycle 接口仅在顶级单例 bean 上受支持。 在任何其他组件上， Lifecycle 接口将保持未被检测到，因此将被忽略。
+
+```java
+public interface Lifecycle {
+    /**
+     * 启动当前组件
+     * <p>如果组件已经在运行，不应该抛出异常
+     * <p>在容器的情况下，这会将开始信号 传播到应用的所有组件中去。
+     */
+    void start();
+    /**
+     * (1)通常以同步方式停止该组件，当该方法执行完成后,该组件会被完全停止。当需要异步停止行为时，考虑实现SmartLifecycle 和它的 stop(Runnable) 方法变体。
+
+　　注意，此停止通知在销毁前不能保证到达:　　　　在常规关闭时，{@code Lifecycle} bean将首先收到一个停止通知，然后才传播常规销毁回调;　　　　在上下文的生命周期内的刷新或中止时，只调用销毁方法
+　　　　对于容器，这将把停止信号传播到应用的所有组件
+     */
+    void stop();
+
+    /**
+      *  检查此组件是否正在运行。
+      *  1. 只有该方法返回false时，start方法才会被执行。
+      *  2. 只有该方法返回true时，stop(Runnable callback)或stop()方法才会被执行。
+      */
+    boolean isRunning();
+}
+```
+
+#### 11.1.1 LifecycleProcessor
+
+&emsp;&emsp;LifecycleProcessor 是 LifeCycle 接口的扩展，，而在 LifecycleProcessor 的使用前需要初始化。
+
+**AbstractApplicationContext.initLifecycleProcessor**
+
+```java
+protected void initLifecycleProcessor() {
+	ConfigurableListableBeanFactory beanFactory = getBeanFactory();
+	if (beanFactory.containsLocalBean(LIFECYCLE_PROCESSOR_BEAN_NAME)) {
+		this.lifecycleProcessor =
+				beanFactory.getBean(LIFECYCLE_PROCESSOR_BEAN_NAME, LifecycleProcessor.class);
+		if (logger.isTraceEnabled()) {
+			logger.trace("Using LifecycleProcessor [" + this.lifecycleProcessor + "]");
+		}
+	}
+	else {
+		DefaultLifecycleProcessor defaultProcessor = new DefaultLifecycleProcessor();
+		defaultProcessor.setBeanFactory(beanFactory);
+		this.lifecycleProcessor = defaultProcessor;
+		beanFactory.registerSingleton(LIFECYCLE_PROCESSOR_BEAN_NAME, this.lifecycleProcessor);
+		if (logger.isTraceEnabled()) {
+			logger.trace("No '" + LIFECYCLE_PROCESSOR_BEAN_NAME + "' bean, using " +
+					"[" + this.lifecycleProcessor.getClass().getSimpleName() + "]");
+		}
+	}
+}
+```
+
+&emsp;&emsp;和之前的套路一样，用户配置了就使用用户配置的，否则就使用默认的 DefaultLifecycleProcessor。
+
+#### 11.1.2 SmartLifecycle
+
+&emsp;&emsp;现在定义一个类实现 Lifecycle 接口。
+
+```java
+public class TestLifecycle implements Lifecycle {
+
+	private boolean running = false;
+
+	@Override
+	public void start() {
+		this.running = true;
+		System.out.println("TestLifecycle is start");
+	}
+
+	@Override
+	public void stop() {
+		this.running = false;
+		System.out.println("TestLifecycle is stop");
+	}
+
+	@Override
+	public boolean isRunning() {
+		return this.running;
+	}
+
+}
+```
+
+```java
+public static void main(String[] args) {
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext.xml");
+}
+```
+
+```xml
+<bean name="testLifecycle" class="org.springframework.myTest.TestLifecycle.TestLifecycle"/>
+```
+
