@@ -1816,7 +1816,7 @@ protected void finishRefresh() {
 
 ### 11.1 Lifecycle 生命周期回调接口
 
-&emsp;&emsp;生命周期接口定义了任何具有自身生命周期需求的对象的基本方法，任何 spring 管理的对象都可以实现该接口，然后，当 ApplicationContext 本身接收启动和停止信号(例如在运行时停止/重启场景)时，spring 容器将在容器上下文中找出所有实现了 LifeCycle 及其子类接口的类，并一一调用它们。spring 是通过委托给生命周期处理器 LifecycleProcessor 来实现这一点的。值得注意的是，目前的 Lifecycle 接口仅在顶级单例 bean 上受支持。 在任何其他组件上， Lifecycle 接口将保持未被检测到，因此将被忽略。
+&emsp;&emsp;生命周期接口定义了任何具有自身生命周期需求的对象的基本方法，任何 spring 管理的对象都可以实现该接口，然后，当 ApplicationContext 本身接收启动和停止信号(例如在运行时停止/重启场景)时，spring 容器将在容器上下文中找出所有实现了 LifeCycle 及其子类接口的类，并一一调用它们。spring 是通过委托给生命周期处理器 **LifecycleProcessor** 来实现这一点的。值得注意的是，目前的 Lifecycle 接口仅在顶级单例 bean 上受支持。 在任何其他组件上，Lifecycle 接口将保持未被检测到，因此将被忽略。
 
 ```java
 public interface Lifecycle {
@@ -1845,7 +1845,7 @@ public interface Lifecycle {
 
 #### 11.1.1 LifecycleProcessor
 
-&emsp;&emsp;LifecycleProcessor 是 LifeCycle 接口的扩展，，而在 LifecycleProcessor 的使用前需要初始化。
+&emsp;&emsp;LifecycleProcessor 本身就是 LifeCycle 接口的扩展，是用于在 ApplicationContext 中处理 Lifecycle bean 的策略接口，当 ApplicationContext 启动或停止时，它会通过 LifecycleProcessor 来与所有声明的 bean 的周期做状态更新，它还添加了另外两个方法来响应 spring 容器上下文的刷新 (onRefresh) 和关闭 (close)，而在 LifecycleProcessor 的使用前需要初始化。
 
 **AbstractApplicationContext.initLifecycleProcessor**
 
@@ -1873,8 +1873,6 @@ protected void initLifecycleProcessor() {
 ```
 
 &emsp;&emsp;和之前的套路一样，用户配置了就使用用户配置的，否则就使用默认的 DefaultLifecycleProcessor。
-
-#### 11.1.2 SmartLifecycle
 
 &emsp;&emsp;现在定义一个类实现 Lifecycle 接口。
 
@@ -1912,4 +1910,80 @@ public static void main(String[] args) {
 ```xml
 <bean name="testLifecycle" class="org.springframework.myTest.TestLifecycle.TestLifecycle"/>
 ```
+
+&emsp;&emsp;发现在容器启动过程中并没有自动调用代用自定义的 TestLifecycle 里实现的方法，此时就需要显示调用容器的启动和停止方法来实现调用。
+
+```java
+public static void main(String[] args) {
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext.xml");
+	context.start();
+	context.close();
+}
+```
+
+#### 11.1.2 SmartLifecycle
+
+&emsp;&emsp;当想要自动的实现声明周期方法的回调时，就需要用到 SmartLifecycle 接口，SmartLifecycle 继承自 Lifecycle，并进行了以下拓展。
+
+```java
+public interface SmartLifecycle extends Lifecycle, Phased {
+
+	int DEFAULT_PHASE = Integer.MAX_VALUE;
+	
+	//返回值指示是否应在上下文刷新时启动此对象
+	default boolean isAutoStartup() {
+		return true;
+	}
+
+	default void stop(Runnable callback) {
+		stop();
+		callback.run();
+	}
+
+	@Override
+	default int getPhase() {
+		return DEFAULT_PHASE;
+	}
+}
+```
+
+&emsp;&emsp;这个接口还扩展了 Phased 接口，当容器中实现了 Lifecycle 的多个类如果希望有顺序的进行回调时，那么启动和关闭调用的顺序可能很重要。如果任何两个对象之间存在依赖关系，那么依赖方将在依赖后开始，在依赖前停止。然而，有时直接依赖关系是未知的。您可能只知道某个类型的对象应该在另一个类型的对象之前开始。在这些情况下，SmartLifecycle 接口定义了另一个选项，即在其超接口上定义的 getPhase() 方法。getPhase() 方法的返回值指示了这个 Lifecycle 组件应该在哪个阶段启动和停止。当开始时，getPhase() 返回值最小的对象先开始，当停止时，遵循相反的顺序。因此，实现 SmartLifecycle 的对象及其 getPhase() 方法返回 Integer.MIN_VALUE 将在第一个开始和最后一个停止。相反，MAX_VALUE 将指示对象应该在最后启动并首先停止，例如：如果组件 B 依赖于组件 A 已经启动，那么组件 A 的相位值应该低于组件 B。在关闭过程中，组件 B 将在组件 A 之前停止。
+
+&emsp;&emsp;容器中没有实现 SmartLifecycle 的任何 Lifecycle 组件都将被视为它们的阶段值为 0，因此，任何实现类的 phase 的值为负数时都表明一个对象应该在这些标准的生命周期回调之前进行执行，反之亦然。
+
+&emsp;&emsp;SmartLifecycle 定义的 stop 方法接受一个回调。在实现的关闭过程完成之后，任何实现都必须调用回调的 run() 方法。这允许在必要时进行异步关闭，因为 LifecycleProcessor 接口，即 DefaultLifecycleProcessor，的默认实现，将等待每个阶段中的对象组的超时值来调用这个回调。默认的每个阶段超时为30秒，当然也可以通过配置来改变这一点。
+
+#### 11.1.3 onRefresh
+
+&emsp;&emsp;在 LifecycleProcessor 的默认实现即 DefaultLifecycleProcessor 中的 onRefresh 方法中启动了所有实现了接口的bean。
+
+DefaultLifecycleProcessor.onRefresh
+
+```java
+public void onRefresh() {
+	startBeans(true);
+	this.running = true;
+}
+
+private void startBeans(boolean autoStartupOnly) {
+	Map<String, Lifecycle> lifecycleBeans = getLifecycleBeans();
+	Map<Integer, LifecycleGroup> phases = new TreeMap<>();
+	lifecycleBeans.forEach((beanName, bean) -> {
+		if (!autoStartupOnly || (bean instanceof SmartLifecycle && ((SmartLifecycle) bean).isAutoStartup())) {
+			int phase = getPhase(bean);
+			phases.computeIfAbsent(
+					phase,
+					p -> new LifecycleGroup(phase, this.timeoutPerShutdownPhase, lifecycleBeans, autoStartupOnly)
+			).add(beanName, bean);
+		}
+	});
+	if (!phases.isEmpty()) {
+		phases.values().forEach(LifecycleGroup::start);
+	}
+}
+```
+
+### 11.2 发布容器刷新完成事件
+
+&emsp;&emsp;当完成 ApplicationContext 初始化的时候，将通过 Spring 中的事件发布机制来发出 ContextRefreshedEvent 事件，以保证对应的监听器可以做进一步的处理。
 
