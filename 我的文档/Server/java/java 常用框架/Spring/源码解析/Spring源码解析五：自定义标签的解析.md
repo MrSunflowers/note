@@ -390,7 +390,7 @@ protected final AbstractBeanDefinition parseInternal(Element element, ParserCont
 	}
 ```
 
-&emsp;&emsp;在 parseInternal 方法中并没有直接调用我们自定义的解析函数，而是先进行了一系列的数据准备，包括对 beanClass、scope、lazy-init 等属性的准备，最后才调用 doParse 函数。
+&emsp;&emsp;在 parseInternal 方法中并没有直接调用自定义的解析函数，而是先进行了一系列的数据准备，包括对 beanClass、scope、lazy-init 等属性的准备，最后才调用 doParse 函数。
 
 **AbstractSingleBeanDefinitionParser.doParse**
 
