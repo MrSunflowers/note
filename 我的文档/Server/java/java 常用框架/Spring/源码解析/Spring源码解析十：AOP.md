@@ -114,7 +114,7 @@ public class TestServiceStaticProxy implements TestService {
 }
 ```
 
-**main**
+**测试**
 
 ```java
 public static void main(String[] args) {
@@ -181,7 +181,7 @@ public class MyInvocationHandler implements InvocationHandler {
 }
 ```
 
-**main**
+**测试**
 
 ```java
 public static void main(String[] args) {
@@ -236,7 +236,7 @@ public class TestServiceImpl{
 }
 ```
 
-main
+**测试**
 
 ```java
 public static void main(String[] args) {
@@ -248,7 +248,7 @@ public static void main(String[] args) {
 }
 ```
 
-## 2 AOP 中的术语 & Spring 中的 AOP
+## 2 Spring 中的 AOP
 
 - 通知（Advice）: AOP 框架中的增强处理，通知描述了切面何时执行以及如何执行增强处理，**在方法执行的什么时机（方法前/方法后/方法前后）做什么（增强的功能）**。
 - 连接点（join point）: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
@@ -314,13 +314,13 @@ execution(* org.springframework.myTest.*.*(..))
 execution(* org.springframework.myTest..*.*(..))
 ```
 
-- myTest 包**及其子包**中所有以 Service 结尾的类中的任意方法
+- myTest 包及其子包中所有以 Service 结尾的类中的任意方法
 
 ```
 execution(* org.springframework.myTest..*Service.*(..))
 ```
 
-- myTest 包**及其子包**中所有以 Service 结尾的类中的任意方法并且 bean 名称为 testServiceImpl 并且在 org.springframework.myTest.aop.demo 包中
+- myTest 包及其子包中所有以 Service 结尾的类中的任意方法并且 bean 名称为 testServiceImpl 并且在 org.springframework.myTest.aop.demo 包中
 
 ```
 execution(* org.springframework.myTest..*Service.*(..)) and bean(testServiceImpl) and within(org.springframework.myTest.aop.demo.*)
@@ -340,7 +340,7 @@ execution(* org.springframework.myTest..*Service.*(..)) and bean(testServiceImpl
 
 #### 3.3.1 xml 示例
 
-&emsp;&emsp;首先定义一个增强类 TransactionManager 来确定需要增强什么操作。
+&emsp;&emsp;首先定义一个通知类 TransactionManager 来确定需要增强什么操作。
 
 ```java
 public class TransactionManager {
@@ -417,12 +417,13 @@ public class TestServiceImpl implements TestService{
 	<context:component-scan base-package="org.springframework.myTest"/>
 
 	<bean name="testServiceImpl" class="org.springframework.myTest.aop.demo.TestServiceImpl" />
-
+	
+	<!-- 通知 bean -->
 	<bean name="transactionManager" class="org.springframework.myTest.aop.demo.TransactionManager" />
 
 	<aop:config>
 
-		<!--切入点-->
+		<!-- 切入点 -->
 		<aop:pointcut id="transactionPointcut" expression="execution(* org.springframework.myTest..*Service.*(..))"/>
 
 		<!-- 切面 = 切入点 + 通知 -->
@@ -437,16 +438,16 @@ public class TestServiceImpl implements TestService{
 					1.方法必须要返回一个Object（返回的结果）
 					2.方法的第一个参数必须是ProceedingJoinPoint（可以继续向下传递的切入点）
 			-->
-			<!--在 transactionPointcut 方法执行之前执行 begin 方法-->
+			<!--在切入点方法执行之前执行通知的 begin 方法-->
 			<!--<aop:before method="begin" pointcut-ref="transactionPointcut" />-->
 
-			<!--在 transactionPointcut 方法执行之后执行 commit 方法-->
+			<!--在切入点方法执行之后执行通知的 commit 方法-->
 			<!--<aop:after-returning method="commit" pointcut-ref="transactionPointcut"/>-->
 
-			<!--在 transactionPointcut 方法执行抛出异常之后执行 rollBack 方法-->
+			<!--在切入点方法执行抛出异常之后执行通知的 rollBack 方法-->
 			<!--<aop:after-throwing method="rollBack" pointcut-ref="transactionPointcut" throwing="e"/>-->
 
-			<!--在 transactionPointcut 方法执行后执行 close 方法,相当于在 finally 里面执行-->
+			<!--在切入点方法执行后执行通知的 close 方法,相当于在 finally 里面执行-->
 			<!--<aop:after method="close" pointcut-ref="transactionPointcut" />-->
 
 			<aop:around method="around" pointcut-ref="transactionPointcut" />
@@ -458,7 +459,7 @@ public class TestServiceImpl implements TestService{
 </beans>
 ```
 
-&emsp;&emsp;main方法
+&emsp;&emsp;测试方法
 
 ```java
 public static void main(String[] args) throws Exception {
@@ -468,7 +469,7 @@ public static void main(String[] args) throws Exception {
 }
 ```
 
-#### 3.3.1 注解示例
+#### 3.3.2 注解使用示例
 
 &emsp;&emsp;当然也可以使用注解配置。
 
@@ -545,9 +546,143 @@ public class TransactionManager {
 </beans>
 ```
 
-### 3.4 AOP 自定义标签
+#### 3.3.3 advisor 标签
 
-&emsp;&emsp;示例中实现了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。
+&emsp;&emsp;上面都是使用 aspect 标签来实现 aop 的增强配置的，Spring 中还有一个标签 advisor 也可以用于配置。
+
+- `<aop:aspect>`：定义切面（切面包括通知和切点）
+- `<aop:advisor>`：定义通知器（通知器跟切面一样，也包括通知和切点）
+
+&emsp;&emsp;在使用 `<aop:aspect>` 定义切面时，通知只需要定义一般的 bean 就行，而定义 `<aop:advisor>` 中引用的通知时，通知必须实现 Advice 接口。
+
+**通知 TransactionManager 类**
+
+```java
+public class TransactionManager implements MethodBeforeAdvice, AfterReturningAdvice,ThrowsAdvice {
+
+	public void begin(){
+		System.out.println("开启事务");
+	}
+
+	public void commit(){
+		System.out.println("事务提交");
+		System.out.println("释放资源");
+	}
+
+	public void rollBack(Exception e){
+		System.out.println("事务回滚" + e);
+		System.out.println("释放资源");
+	}
+
+	@Override
+	public void afterReturning(Object returnValue, Method method, Object[] args, Object target) throws Throwable {
+		commit();
+	}
+
+	@Override
+	public void before(Method method, Object[] args, Object target) throws Throwable {
+		begin();
+	}
+
+	public void afterThrowing(Exception ex){
+		rollBack(ex);
+	}
+
+}
+```
+
+**aop 配置**
+
+```xml
+<bean name="testServiceImpl" class="org.springframework.myTest.aop.demo.TestServiceImpl" />
+<!-- 通知 bean -->
+<bean name="transactionManager" class="org.springframework.myTest.aop.demo.TransactionManager" />
+
+<aop:config >
+
+	<aop:pointcut id="transactionPointcut" expression="execution(* org.springframework.myTest..*Service*.*(..))"/>
+
+	<aop:advisor advice-ref="transactionManager" pointcut-ref="transactionPointcut" />
+
+</aop:config>
+```
+
+#### 3.3.4 declare-parents 标签
+
+&emsp;&emsp;如果有这样一个需求，为一个已知的 API 添加一个新的功能，由于是已知的 API，不能修改其类，只能通过外部包装。但是如果通过之前的 AOP 前置或后置通知，又不太合理，最简单的办法就是实现某个自定义的接口，这个接口包含了想要添加的方法。但是 JAVA 不是一门动态的语言，无法再编译后动态添加新的功能，这个时候就可以使用 aop:declare-parents 来实现。
+
+&emsp;&emsp;假设给现有的类 TestServiceImpl 添加一个 update 功能，新建要添加的功能接口及实现：
+
+```java
+public interface AddService {
+	void update();
+}
+public class AddServiceImpl implements AddService{
+	@Override
+	public void update() {
+		System.out.println("更新数据库");
+	}
+}
+```
+
+配置文件
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans
+	   http://www.springframework.org/schema/beans/spring-beans.xsd
+	   http://www.springframework.org/schema/aop
+	   https://www.springframework.org/schema/aop/spring-aop.xsd"
+>
 
 
+	<bean name="testServiceImpl" class="org.springframework.myTest.aop.demo.TestServiceImpl" />
+
+
+	<aop:config proxy-target-class="true"  >
+		<aop:aspect >
+			<aop:declare-parents types-matching="org.springframework.myTest.aop.demo.TestServiceImpl"
+								 implement-interface="org.springframework.myTest.aop.demo.AddService"
+								 default-impl="org.springframework.myTest.aop.demo.AddServiceImpl" />
+		</aop:aspect>
+	</aop:config>
+
+</beans>
+```
+
+测试类
+
+```java
+public static void main(String[] args) throws Exception {
+	ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("myTestResources/applicationContext_AOP.xml");
+	TestServiceImpl testServiceImpl = (TestServiceImpl) context.getBean("testServiceImpl");
+	testServiceImpl.save();
+	((AddService)testServiceImpl).update();
+}
+```
+
+&emsp;&emsp;在使用时，直接通过 getBean 获得 bean 转换成相应的接口就可以使用了。
+
+## 4 AOP 源码实现
+
+&emsp;&emsp;示例中实现了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
+
+**AopNamespaceHandler.init**
+
+```java
+public void init() {
+	// In 2.0 XSD as well as in 2.5+ XSDs
+	registerBeanDefinitionParser("config", new ConfigBeanDefinitionParser());
+	registerBeanDefinitionParser("aspectj-autoproxy", new AspectJAutoProxyBeanDefinitionParser());
+	registerBeanDefinitionDecorator("scoped-proxy", new ScopedProxyBeanDefinitionDecorator());
+
+	// Only in 2.0 XSD: moved to context namespace in 2.5+
+	registerBeanDefinitionParser("spring-configured", new SpringConfiguredBeanDefinitionParser());
+}
+```
+
+&emsp;&emsp;无论是任何自定义解析器，由于是对 BeanDefinitionParser 接口的统一实现，所以入口都是从 parse 函数开始解析的。
 
