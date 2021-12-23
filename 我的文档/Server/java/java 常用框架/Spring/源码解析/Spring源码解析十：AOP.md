@@ -668,6 +668,8 @@ public static void main(String[] args) throws Exception {
 
 ## 4 AOP 源码实现
 
+### 4.1 自定义标签解析
+
 &emsp;&emsp;示例中实现了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
 
 **AopNamespaceHandler.init**
@@ -684,5 +686,304 @@ public void init() {
 }
 ```
 
-&emsp;&emsp;无论是任何自定义解析器，由于是对 BeanDefinitionParser 接口的统一实现，所以入口都是从 parse 函数开始解析的。
+&emsp;&emsp;无论是任何自定义解析器，由于是对 BeanDefinitionParser 接口的统一实现，所以入口都是从 parse 函数开始解析的，这里不再关注 parse 方法是如何调用的，可以翻看以前的笔记内容。
 
+**ConfigBeanDefinitionParser.parse**
+
+```java
+public BeanDefinition parse(Element element, ParserContext parserContext) {
+	CompositeComponentDefinition compositeDef =
+			new CompositeComponentDefinition(element.getTagName(), parserContext.extractSource(element));
+	parserContext.pushContainingComponent(compositeDef);
+
+	// 1. 根据 <aop:config> 标签创建并配置 自动代理创建器
+	configureAutoProxyCreator(parserContext, element);
+
+	List<Element> childElts = DomUtils.getChildElements(element);
+	for (Element elt: childElts) {
+		String localName = parserContext.getDelegate().getLocalName(elt);
+		// 切入点 pointcut 标签解析
+		if (POINTCUT.equals(localName)) {
+			parsePointcut(elt, parserContext);
+		}
+		// advisor 标签解析
+		else if (ADVISOR.equals(localName)) {
+			parseAdvisor(elt, parserContext);
+		}
+		// 切面 aspect 标签解析
+		else if (ASPECT.equals(localName)) {
+			parseAspect(elt, parserContext);
+		}
+	}
+
+	parserContext.popAndRegisterContainingComponent();
+	return null;
+}
+```
+
+#### 4.1.1 升级或创建自动代理创建器
+
+&emsp;&emsp;解析的第一个比较重要的方法就是 configureAutoProxyCreator，在这里完成了自动代理创建器的创建过程，也是关键逻辑的实现。
+
+**ConfigBeanDefinitionParser.configureAutoProxyCreator**
+
+```java
+private void configureAutoProxyCreator(ParserContext parserContext, Element element) {
+	AopNamespaceUtils.registerAspectJAutoProxyCreatorIfNecessary(parserContext, element);
+}
+```
+
+**AopNamespaceUtils.registerAspectJAutoProxyCreatorIfNecessary**
+
+```java
+public static void registerAspectJAutoProxyCreatorIfNecessary(
+		ParserContext parserContext, Element sourceElement) {
+	// 1. 升级或创建 自动代理创建器的 beanDefinition
+	BeanDefinition beanDefinition = AopConfigUtils.registerAspectJAutoProxyCreatorIfNecessary(
+			parserContext.getRegistry(), parserContext.extractSource(sourceElement));
+	// 2. 处理 config 标签的 proxy-target-class 和 expose-proxy 属性
+	useClassProxyingIfNecessary(parserContext.getRegistry(), sourceElement);
+	// 3. 注册组件并触发组件注册监听回调，由监听器进一步处理
+	registerComponentIfNecessary(beanDefinition, parserContext);
+}
+```
+
+**AopConfigUtils.registerAspectJAutoProxyCreatorIfNecessary**
+
+```java
+public static BeanDefinition registerAspectJAutoProxyCreatorIfNecessary(
+		BeanDefinitionRegistry registry, @Nullable Object source) {
+
+	return registerOrEscalateApcAsRequired(AspectJAwareAdvisorAutoProxyCreator.class, registry, source);
+}
+```
+
+&emsp;&emsp;这里涉及到一个优先级问题，如果容器中包含了自动代理创建器 且 存在的自动代理创建器与当前使用的不一致，那么需要根据优先级来判断到底要使用哪一个。
+
+**AopConfigUtils.registerOrEscalateApcAsRequired**
+
+```java
+private static BeanDefinition registerOrEscalateApcAsRequired(
+		Class<?> cls, BeanDefinitionRegistry registry, @Nullable Object source) {
+
+	Assert.notNull(registry, "BeanDefinitionRegistry must not be null");
+	// 如果容器中包含了自动代理创建器 且 存在的自动代理创建器与当前使用的不一致
+	// 那么需要根据优先级来判断到底要使用哪一个
+	if (registry.containsBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME)) {
+		BeanDefinition apcDefinition = registry.getBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME);
+		if (!cls.getName().equals(apcDefinition.getBeanClassName())) {
+			int currentPriority = findPriorityForClass(apcDefinition.getBeanClassName());
+			int requiredPriority = findPriorityForClass(cls);
+			// 存在的自动代理创建器优先级小于当前使用的自动代理创建器
+			// 数值越大优先级越高
+			if (currentPriority < requiredPriority) {
+				// 将存在的自动代理创建器的 className 属性替换为当前使用的自动代理创建器
+				apcDefinition.setBeanClassName(cls.getName());
+			}
+		}
+		// 存在于当前使用相同，不需要再次创建
+		return null;
+	}
+	// 当前不存在自动代理创建器，使用 cls 创建一个
+	RootBeanDefinition beanDefinition = new RootBeanDefinition(cls);
+	beanDefinition.setSource(source);
+	beanDefinition.getPropertyValues().add("order", Ordered.HIGHEST_PRECEDENCE);
+	beanDefinition.setRole(BeanDefinition.ROLE_INFRASTRUCTURE);
+	registry.registerBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME, beanDefinition);
+	return beanDefinition;
+}
+```
+
+&emsp;&emsp;在静态代码块中设置的自动代理创建器的优先级顺序：
+
+```java
+private static final List<Class<?>> APC_PRIORITY_LIST = new ArrayList<>(3);
+static {
+	// Set up the escalation list...
+	APC_PRIORITY_LIST.add(InfrastructureAdvisorAutoProxyCreator.class);// 1
+	APC_PRIORITY_LIST.add(AspectJAwareAdvisorAutoProxyCreator.class);// 2
+	APC_PRIORITY_LIST.add(AnnotationAwareAspectJAutoProxyCreator.class);// 3
+}
+```
+
+##### proxy-target-class 和 expose-proxy
+
+&emsp;&emsp;同时在这一步骤中涉及到 config 标签的两个属性 proxy-target-class 和 expose-proxy。
+
+- proxy-target-class：Spring 中使用了 JDK 动态代理和 CGLIB 动态代理两种实现方式，当代理目标实现了至少一个接口时，则会使用 JDK 动态代理，否则使用 CGLIB 动态代理，至于两种方式的区别上文已经说过了，设置 proxy-target-class 为 true 则会强制使用 CGLIB 动态代理。
+- expose-proxy：有时候**对象内部**自我调用将无法实施切面中的增强，设置 expose-proxy 为 true 则可以暴露代理对象，实现增强操作。
+
+```java
+public class TestServiceImpl {
+	public void save() throws Exception {
+		System.out.println("保存数据到数据库");
+		//this.update(); 此处的 this 指向目标对象，因此无法实施切面中的增强
+		((TestServiceImpl)AopContext.currentProxy()).update();
+	}
+	public void update(){
+		System.out.println("更新数据到数据库");
+	}
+}
+```
+
+#### 4.1.2 aspect 标签解析
+
+&emsp;&emsp;这里对标签的解析过程比较简单，这里简单关注一下 aspect 标签的解析。
+
+**ConfigBeanDefinitionParser.parseAspect**
+
+```java
+private void parseAspect(Element aspectElement, ParserContext parserContext) {
+	String aspectId = aspectElement.getAttribute(ID);
+	String aspectName = aspectElement.getAttribute(REF);
+
+	try {
+		this.parseState.push(new AspectEntry(aspectId, aspectName));
+		List<BeanDefinition> beanDefinitions = new ArrayList<>();
+		List<BeanReference> beanReferences = new ArrayList<>();
+
+		// 1. declare-parents 标签
+		List<Element> declareParents = DomUtils.getChildElementsByTagName(aspectElement, DECLARE_PARENTS);
+		for (int i = METHOD_INDEX; i < declareParents.size(); i++) {
+			Element declareParentsElement = declareParents.get(i);
+			beanDefinitions.add(parseDeclareParents(declareParentsElement, parserContext));
+		}
+
+		// We have to parse "advice" and all the advice kinds in one loop, to get the
+		// ordering semantics right.
+		NodeList nodeList = aspectElement.getChildNodes();
+		boolean adviceFoundAlready = false;
+		// 2. 如果 aspect 标签的子节点中存在'before'、'after'、'after-returning'、'after-throwing' 或 'around' 标签
+		// 那么 aspect 标签必须拥有 ref 属性
+		for (int i = 0; i < nodeList.getLength(); i++) {
+			Node node = nodeList.item(i);
+			// 子标签如果是 'before'、'after'、'after-returning'、'after-throwing' 或 'around' 标签
+			if (isAdviceNode(node, parserContext)) {
+				if (!adviceFoundAlready) {
+					adviceFoundAlready = true;
+					// aspect 标签必须拥有 ref 属性
+					if (!StringUtils.hasText(aspectName)) {
+						parserContext.getReaderContext().error(
+								"<aspect> tag needs aspect bean reference via 'ref' attribute when declaring advices.",
+								aspectElement, this.parseState.snapshot());
+						return;
+					}
+					beanReferences.add(new RuntimeBeanReference(aspectName));
+				}
+				// 3. 对遍历到的Advice子标签逐个解析
+				AbstractBeanDefinition advisorDefinition = parseAdvice(
+						aspectName, i, aspectElement, (Element) node, parserContext, beanDefinitions, beanReferences);
+				beanDefinitions.add(advisorDefinition);
+			}
+		}
+
+		AspectComponentDefinition aspectComponentDefinition = createAspectComponentDefinition(
+				aspectElement, aspectId, beanDefinitions, beanReferences, parserContext);
+		parserContext.pushContainingComponent(aspectComponentDefinition);
+
+		// 3. pointcut 标签
+		List<Element> pointcuts = DomUtils.getChildElementsByTagName(aspectElement, POINTCUT);
+		for (Element pointcutElement : pointcuts) {
+			parsePointcut(pointcutElement, parserContext);
+		}
+
+		parserContext.popAndRegisterContainingComponent();
+	}
+	finally {
+		this.parseState.pop();
+	}
+}
+```
+
+&emsp;&emsp;解析 “before”、“after”、“after-returning”、“after-throwing” 或 “around” 之一，并使用提供的 BeanDefinitionRegistry 注册生成的 BeanDefinition。
+
+**ConfigBeanDefinitionParser.parseAdvice**
+
+```java
+private AbstractBeanDefinition parseAdvice(
+		String aspectName, int order, Element aspectElement, Element adviceElement, ParserContext parserContext,
+		List<BeanDefinition> beanDefinitions, List<BeanReference> beanReferences) {
+
+	try {
+		this.parseState.push(new AdviceEntry(parserContext.getDelegate().getLocalName(adviceElement)));
+
+		// create the method factory bean
+		// 1. 构建 MethodLocatingFactoryBean BeanDefinition
+		RootBeanDefinition methodDefinition = new RootBeanDefinition(MethodLocatingFactoryBean.class);
+		// 通知 beanName
+		methodDefinition.getPropertyValues().add("targetBeanName", aspectName);
+		// 要调用通知 bean 的 methodName
+		methodDefinition.getPropertyValues().add("methodName", adviceElement.getAttribute("method"));
+		methodDefinition.setSynthetic(true);
+
+		// create instance factory definition
+		// 2. 构建 SimpleBeanFactoryAwareAspectInstanceFactory BeanDefinition
+		RootBeanDefinition aspectFactoryDef =
+				new RootBeanDefinition(SimpleBeanFactoryAwareAspectInstanceFactory.class);
+		aspectFactoryDef.getPropertyValues().add("aspectBeanName", aspectName);
+		aspectFactoryDef.setSynthetic(true);
+
+		// register the pointcut
+		// 3. 将标签解析为 BeanDefinition
+		AbstractBeanDefinition adviceDef = createAdviceDefinition(
+				adviceElement, parserContext, aspectName, order, methodDefinition, aspectFactoryDef,
+				beanDefinitions, beanReferences);
+
+		// configure the advisor
+		// 配置 advisor
+		RootBeanDefinition advisorDefinition = new RootBeanDefinition(AspectJPointcutAdvisor.class);
+		advisorDefinition.setSource(parserContext.extractSource(adviceElement));
+		advisorDefinition.getConstructorArgumentValues().addGenericArgumentValue(adviceDef);
+		if (aspectElement.hasAttribute(ORDER_PROPERTY)) {
+			advisorDefinition.getPropertyValues().add(
+					ORDER_PROPERTY, aspectElement.getAttribute(ORDER_PROPERTY));
+		}
+
+		// register the final advisor
+		// 注册最终的 advisor
+		parserContext.getReaderContext().registerWithGeneratedName(advisorDefinition);
+
+		return advisorDefinition;
+	}
+	finally {
+		this.parseState.pop();
+	}
+}
+```
+
+&emsp;&emsp;各种标签对应使用的实现类关系如下：
+
+**ConfigBeanDefinitionParser.getAdviceClass**
+
+```java
+private Class<?> getAdviceClass(Element adviceElement, ParserContext parserContext) {
+	String elementName = parserContext.getDelegate().getLocalName(adviceElement);
+	//before
+	if (BEFORE.equals(elementName)) {
+		return AspectJMethodBeforeAdvice.class;
+	}
+	//after
+	else if (AFTER.equals(elementName)) {
+		return AspectJAfterAdvice.class;
+	}
+	//after_returning
+	else if (AFTER_RETURNING_ELEMENT.equals(elementName)) {
+		return AspectJAfterReturningAdvice.class;
+	}
+	//after_throwing
+	else if (AFTER_THROWING_ELEMENT.equals(elementName)) {
+		return AspectJAfterThrowingAdvice.class;
+	}
+	//around
+	else if (AROUND.equals(elementName)) {
+		return AspectJAroundAdvice.class;
+	}
+	else {
+		throw new IllegalArgumentException("Unknown advice kind [" + elementName + "].");
+	}
+}
+```
+
+### 4.2 AOP 代理的创建
+
+&emsp;&emsp;
