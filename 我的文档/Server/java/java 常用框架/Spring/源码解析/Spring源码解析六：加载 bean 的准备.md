@@ -805,7 +805,7 @@ protected RootBeanDefinition getMergedBeanDefinition(
 	}
 ```
 
-&emsp;&emsp;上面方法中的合并逻辑比较清晰，通过判断 parentName 来判定 BeanDefinition 是否有父 bean，来决定使用不同的处理方式，对于RootBeanDefinition 直接拷贝一份即可，如果是 ChildBeanDefinition 则需要再次递归判断父 BeanDefinition 是否是顶层元素并通过 mbd.overrideFrom(bd) 合并属性，合并的逻辑主要就是使用子 bean 的值覆盖父 bean 的值，也就实现了逻辑上的继承关系，即子类有单独设置的属性值则使用子类设置的值，没有的设置的使用父类的值，这里的继承。
+&emsp;&emsp;上面方法中的合并逻辑比较清晰，通过判断 parentName 来判定 BeanDefinition 是否有父 bean，来决定使用不同的处理方式，对于RootBeanDefinition 直接拷贝一份即可，如果是 ChildBeanDefinition 则需要再次递归判断父 BeanDefinition 是否是顶层元素并通过 mbd.overrideFrom(bd) 合并属性，合并的逻辑主要就是使用子 bean 的值覆盖父 bean 的值，也就实现了逻辑上的继承关系，即子类有单独设置的属性值则使用子类设置的值，没有的设置的使用父类的值。
 
 ### 4.2 依赖闭环的检测
 

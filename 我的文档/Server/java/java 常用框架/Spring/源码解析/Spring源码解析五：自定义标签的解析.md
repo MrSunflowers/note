@@ -411,4 +411,4 @@ protected void doParse(Element element, BeanDefinitionBuilder builder) {
 
 &emsp;&emsp;到这里，解析xml文件到注册 BeanDinition 的过程就已经全部介绍完了，回顾一下全部的流程。
 
-![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202111021023668.png)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112241005413.png)
