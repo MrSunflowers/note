@@ -1040,44 +1040,46 @@ public Object instantiate(RootBeanDefinition bd, @Nullable String beanName, Bean
 
 ```java
 protected Object instantiateWithMethodInjection(RootBeanDefinition bd, @Nullable String beanName, BeanFactory owner) {
-		return instantiateWithMethodInjection(bd, beanName, owner, null);
-	}
+	return instantiateWithMethodInjection(bd, beanName, owner, null);
+}
 	
 protected Object instantiateWithMethodInjection(RootBeanDefinition bd, @Nullable String beanName, BeanFactory owner,
-			@Nullable Constructor<?> ctor, Object... args) {
+		@Nullable Constructor<?> ctor, Object... args) {
 
-		// Must generate CGLIB subclass...
-		return new CglibSubclassCreator(bd, owner).instantiate(ctor, args);
-	}
+	// Must generate CGLIB subclass...
+	return new CglibSubclassCreator(bd, owner).instantiate(ctor, args);
+}
 	
 public Object instantiate(@Nullable Constructor<?> ctor, Object... args) {
-			Class<?> subclass = createEnhancedSubclass(this.beanDefinition);
-			Object instance;
-			if (ctor == null) {
-				instance = BeanUtils.instantiateClass(subclass);
-			}
-			else {
-				try {
-					Constructor<?> enhancedSubclassConstructor = subclass.getConstructor(ctor.getParameterTypes());
-					instance = enhancedSubclassConstructor.newInstance(args);
-				}
-				catch (Exception ex) {
-					throw new BeanInstantiationException(this.beanDefinition.getBeanClass(),
-							"Failed to invoke constructor for CGLIB enhanced subclass [" + subclass.getName() + "]", ex);
-				}
-			}
-			// SPR-10785: set callbacks directly on the instance instead of in the
-			// enhanced class (via the Enhancer) in order to avoid memory leaks.
-			Factory factory = (Factory) instance;
-			factory.setCallbacks(new Callback[] {NoOp.INSTANCE,
-					new LookupOverrideMethodInterceptor(this.beanDefinition, this.owner),
-					new ReplaceOverrideMethodInterceptor(this.beanDefinition, this.owner)});
-			return instance;
+	// 使用 Cglib 生成子类 Class
+	Class<?> subclass = createEnhancedSubclass(this.beanDefinition);
+	Object instance;
+	// 没有构造方法，使用默认的
+	if (ctor == null) {
+		instance = BeanUtils.instantiateClass(subclass);
+	}
+	// 有构造方法，获取构造方法并调用构造方法实例化
+	else {
+		try {
+			Constructor<?> enhancedSubclassConstructor = subclass.getConstructor(ctor.getParameterTypes());
+			instance = enhancedSubclassConstructor.newInstance(args);
 		}
-
+		catch (Exception ex) {
+			throw new BeanInstantiationException(this.beanDefinition.getBeanClass(),
+					"Failed to invoke constructor for CGLIB enhanced subclass [" + subclass.getName() + "]", ex);
+		}
+	}
+	// SPR-10785: set callbacks directly on the instance instead of in the
+	// enhanced class (via the Enhancer) in order to avoid memory leaks.
+	Factory factory = (Factory) instance;
+	factory.setCallbacks(new Callback[] {NoOp.INSTANCE,
+			new LookupOverrideMethodInterceptor(this.beanDefinition, this.owner),
+			new ReplaceOverrideMethodInterceptor(this.beanDefinition, this.owner)});
+	return instance;
+}
 ```
 
-&emsp;&emsp;对于动态代理的处理在后面单独介绍，这里先往下看，回到 AbstractAutowireCapableBeanFactory.doCreateBean 方法中，第一步实例化 bean，将 BeanDefinition 转换为 BeanWrapper 已经完成。
+&emsp;&emsp;对于 Cglib 代理的实例化处理，先使用 Cglib 创建出子类 Class，然后使用子类 Class 创建 bean。回到 AbstractAutowireCapableBeanFactory.doCreateBean 方法中，第一步实例化 bean，将 BeanDefinition 转换为 BeanWrapper 已经完成。
 
 ## 4 bean 后置处理器
 

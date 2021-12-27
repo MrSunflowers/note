@@ -870,7 +870,7 @@ private void parseAspect(Element aspectElement, ParserContext parserContext) {
 					}
 					beanReferences.add(new RuntimeBeanReference(aspectName));
 				}
-				// 3. 对遍历到的Advice子标签逐个解析
+				// 3. 对遍历到的Advice子标签逐个解析为BeanDefinition
 				AbstractBeanDefinition advisorDefinition = parseAdvice(
 						aspectName, i, aspectElement, (Element) node, parserContext, beanDefinitions, beanReferences);
 				beanDefinitions.add(advisorDefinition);
@@ -951,7 +951,7 @@ private AbstractBeanDefinition parseAdvice(
 }
 ```
 
-&emsp;&emsp;各种标签对应使用的实现类关系如下：
+&emsp;&emsp;各种增强标签最终都会使用对应的实现类构造并转化为 AspectJPointcutAdvisor ，各种标签对应使用的实现类关系如下：
 
 **ConfigBeanDefinitionParser.getAdviceClass**
 
@@ -984,6 +984,19 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 }
 ```
 
+&emsp;&emsp;上面的过程就是 AOP 标签的解析过程，同样是将信息都转化为 BeanDefinition 等待后续继续处理。
+
+
 ### 4.2 AOP 代理的创建
 
-&emsp;&emsp;
+&emsp;&emsp;结合前面讲的 bean 实例化过程可以看出，在真正进行默认的 bean 创建之前，可以通过应用 InstantiationAwareBeanPostProcessor.postProcessBeforeInstantiation 来实现短路拦截操作，AOP 代理的创建就是在这里，由上面创建的自动代理创建器完成的，类图如下：
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112271528292.png)
+
+&emsp;&emsp;实现了 BeanPostProcessor 接口的 bean 都会在 ApplicationContext 容器启动时被注册，并在其他 bean 实例化过程中通过其对应的接口方法实现对 bean 的额外处理，所以这里创建代理的入口就是 postProcessBeforeInstantiation。
+
+**AbstractAutoProxyCreator.postProcessBeforeInstantiation**
+
+```java
+
+```
