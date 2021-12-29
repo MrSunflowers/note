@@ -1,4 +1,4 @@
-# Spring源码解析九：ApplicationContext 容器启动流程
+# Spring源码笔记九：ApplicationContext 容器启动流程
 
 &emsp;&emsp;除了 XmlBeanFactory 可以用于加载 bean 之外，Spring 中还提供了另一个 ApplicationContext 接口用于拓展 BeanFactory 中现有的功能，ApplicationContext 包含了 BeanFactory 的所有功能，通常建议优先使用，除非在一些有特殊限制的场合，比如字节长度对内存有很大的影响时(Applet)。绝大多数情况下，建议使用 ApplicationContext。
 

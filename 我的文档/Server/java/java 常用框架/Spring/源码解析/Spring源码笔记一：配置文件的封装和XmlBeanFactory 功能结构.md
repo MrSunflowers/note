@@ -1,4 +1,4 @@
-# Spring源码解析一：配置文件的封装和 XmlBeanFactory 结构
+# Spring源码笔记一：配置文件的封装和 XmlBeanFactory 结构
 
 
 ## 1. 配置文件的封装

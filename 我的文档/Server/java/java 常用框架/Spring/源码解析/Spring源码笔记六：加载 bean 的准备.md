@@ -1,4 +1,4 @@
-# Spring源码解析六：加载 bean 的准备
+# Spring源码笔记六：加载 bean 的准备
 
 &emsp;&emsp;前面已经完成了从 xml 到 BeanDefinition 的解析工作，接下来就是 bean 加载和使用。
 

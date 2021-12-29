@@ -1,4 +1,4 @@
-# Spring源码解析八： bean 的初始化
+# Spring源码笔记八： bean 的初始化
 
 &emsp;&emsp;接上文，回到 doCreateBean 中来，前两步看完，下面接着看第三步。
 
@@ -849,7 +849,7 @@ private void invokeAwareMethods(String beanName, Object bean) {
 
 ### 3.2 执行初始化前后的回调方法
 
-&emsp;&emsp;又是增强器 PostProcessors 的应用，用于在执行初始化方法前后的拓展处理。
+&emsp;&emsp;又是增强器的应用，用于在执行初始化方法前后的拓展处理。
 
 ```java
 public Object applyBeanPostProcessorsBeforeInitialization(Object existingBean, String beanName)

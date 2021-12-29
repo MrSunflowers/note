@@ -1,4 +1,4 @@
-# Spring源码解析十：AOP
+# Spring源码笔记十：AOP 的使用
 
 &emsp;&emsp;AOP（Aspect Orient Programming），直译过来就是面向切面编程。AOP 是一种编程思想，是面向对象编程（OOP）的一种补充。面向对象编程将程序抽象成各个层次的对象，而面向切面编程是将程序抽象成各个切面。
 
@@ -666,7 +666,7 @@ public static void main(String[] args) throws Exception {
 
 &emsp;&emsp;在使用时，直接通过 getBean 获得 bean 转换成相应的接口就可以使用了。
 
-## 4 AOP 源码实现
+## 4 AOP 标签解析
 
 ### 4.1 自定义标签解析
 
@@ -723,7 +723,7 @@ public BeanDefinition parse(Element element, ParserContext parserContext) {
 
 #### 4.1.1 升级或创建自动代理创建器
 
-&emsp;&emsp;解析的第一个比较重要的方法就是 configureAutoProxyCreator，在这里完成了自动代理创建器的创建过程，也是关键逻辑的实现。
+&emsp;&emsp;解析的第一个比较重要的方法就是 configureAutoProxyCreator，在这里完成了**自动代理创建器**的创建过程，也是关键逻辑的实现。
 
 **ConfigBeanDefinitionParser.configureAutoProxyCreator**
 
@@ -758,7 +758,7 @@ public static BeanDefinition registerAspectJAutoProxyCreatorIfNecessary(
 }
 ```
 
-&emsp;&emsp;这里涉及到一个优先级问题，如果容器中包含了自动代理创建器 且 存在的自动代理创建器与当前使用的不一致，那么需要根据优先级来判断到底要使用哪一个。
+&emsp;&emsp;这里涉及到一个优先级问题，如果容器中包含了自动代理创建器且存在的自动代理创建器与当前使用的不一致，那么需要根据优先级来判断到底要使用哪一个。下面由于是第一次创建，容器中没有自动代理创建器，所以直接使用 **AspectJAwareAdvisorAutoProxyCreator** 作为实现类。
 
 **AopConfigUtils.registerOrEscalateApcAsRequired**
 
@@ -811,7 +811,7 @@ static {
 &emsp;&emsp;同时在这一步骤中涉及到 config 标签的两个属性 proxy-target-class 和 expose-proxy。
 
 - proxy-target-class：Spring 中使用了 JDK 动态代理和 CGLIB 动态代理两种实现方式，当代理目标实现了至少一个接口时，则会使用 JDK 动态代理，否则使用 CGLIB 动态代理，至于两种方式的区别上文已经说过了，设置 proxy-target-class 为 true 则会强制使用 CGLIB 动态代理。
-- expose-proxy：有时候**对象内部**自我调用将无法实施切面中的增强，设置 expose-proxy 为 true 则可以暴露代理对象，实现增强操作。
+- expose-proxy：有时候**对象内部**自我调用将无法实施切面中的增强，设置 expose-proxy 为 true 则可以暴露代理对象，实现增强操作，例如：
 
 ```java
 public class TestServiceImpl {
@@ -828,7 +828,7 @@ public class TestServiceImpl {
 
 #### 4.1.2 aspect 标签解析
 
-&emsp;&emsp;这里对标签的解析过程比较简单，这里简单关注一下 aspect 标签的解析。
+&emsp;&emsp;简单看一下 aspect 标签的解析。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
@@ -870,7 +870,7 @@ private void parseAspect(Element aspectElement, ParserContext parserContext) {
 					}
 					beanReferences.add(new RuntimeBeanReference(aspectName));
 				}
-				// 3. 对遍历到的Advice子标签逐个解析为BeanDefinition
+				// 3. 对遍历到的子标签逐个解析为BeanDefinition
 				AbstractBeanDefinition advisorDefinition = parseAdvice(
 						aspectName, i, aspectElement, (Element) node, parserContext, beanDefinitions, beanReferences);
 				beanDefinitions.add(advisorDefinition);
@@ -951,7 +951,7 @@ private AbstractBeanDefinition parseAdvice(
 }
 ```
 
-&emsp;&emsp;各种增强标签最终都会使用对应的实现类构造并转化为 AspectJPointcutAdvisor ，各种标签对应使用的实现类关系如下：
+&emsp;&emsp;各种增强标签都会使用对应的实现类构造并转化为 AspectJPointcutAdvisor，各种标签对应使用的实现类关系如下：
 
 **ConfigBeanDefinitionParser.getAdviceClass**
 
@@ -984,7 +984,7 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 }
 ```
 
-&emsp;&emsp;上面的过程就是 AOP 标签的解析过程，同样是将信息都转化为 BeanDefinition 等待后续继续处理。
+&emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
 
 
 ### 4.2 AOP 代理的创建
@@ -1000,3 +1000,5 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 ```java
 
 ```
+
+[](https://blog.csdn.net/f641385712/article/details/89303088)
