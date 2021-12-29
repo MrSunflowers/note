@@ -405,10 +405,10 @@ protected void doParse(Element element, BeanDefinitionBuilder builder) {
 	}
 ```
 
-&emsp;&emsp;至此，自定义标签的处理过程就全部处理完毕了，整个处理过程同样是按照默认标签的处理流程来实现，只不过个性化的解析工作交给了用户实现。到此为止 Spring 的全部解析工作已经完成，也是 Spring 将 bean 从配置文件加载到内存的全部过程，接下来就是如何使用这些 bean。最后再看一下整个解析过程接触的类：
+&emsp;&emsp;至此，自定义标签的处理过程就全部处理完毕了，整个处理过程同样是按照默认标签的处理流程来实现，只不过个性化的解析工作交给了用户实现。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/UserBeanDefinitionParser.png)
 
-&emsp;&emsp;到这里，解析xml文件到注册 BeanDinition 的过程就已经全部介绍完了，回顾一下全部的流程。
+&emsp;&emsp;到此为止 Spring 的全部解析工作已经完成，也就是 Spring 将信息从配置文件加载到内存的全部过程，接下来就是如何使用这些信息。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112241005413.png)

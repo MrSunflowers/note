@@ -686,7 +686,7 @@ public void init() {
 }
 ```
 
-&emsp;&emsp;无论是任何自定义解析器，由于是对 BeanDefinitionParser 接口的统一实现，所以入口都是从 parse 函数开始解析的，这里不再关注 parse 方法是如何调用的，可以翻看以前的笔记内容。
+&emsp;&emsp;无论是任何自定义解析器，由于是对 BeanDefinitionParser 接口的统一实现，所以入口都是从 parse 函数开始解析的。
 
 **ConfigBeanDefinitionParser.parse**
 
@@ -715,7 +715,6 @@ public BeanDefinition parse(Element element, ParserContext parserContext) {
 			parseAspect(elt, parserContext);
 		}
 	}
-
 	parserContext.popAndRegisterContainingComponent();
 	return null;
 }
@@ -825,6 +824,28 @@ public class TestServiceImpl {
 	}
 }
 ```
+
+&emsp;&emsp;这里属性 proxy-target-class 和 expose-proxy 的解析其实也就是一个属性设置的过程。
+
+```java
+public static void forceAutoProxyCreatorToUseClassProxying(BeanDefinitionRegistry registry) {
+	if (registry.containsBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME)) {
+		BeanDefinition definition = registry.getBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME);
+		definition.getPropertyValues().add("proxyTargetClass", Boolean.TRUE);
+	}
+}
+
+public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry registry) {
+	if (registry.containsBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME)) {
+		BeanDefinition definition = registry.getBeanDefinition(AUTO_PROXY_CREATOR_BEAN_NAME);
+		definition.getPropertyValues().add("exposeProxy", Boolean.TRUE);
+	}
+}
+```
+
+&emsp;&emsp;Spring 中 AOP 其实就是通过增强器的形式来干预 bean 的生命周期来实现的，以上过程就是在解析需要使用的增强器实现类。
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112291735945.png)
 
 #### 4.1.2 aspect 标签解析
 
@@ -990,8 +1011,6 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 ### 4.2 AOP 代理的创建
 
 &emsp;&emsp;结合前面讲的 bean 实例化过程可以看出，在真正进行默认的 bean 创建之前，可以通过应用 InstantiationAwareBeanPostProcessor.postProcessBeforeInstantiation 来实现短路拦截操作，AOP 代理的创建就是在这里，由上面创建的自动代理创建器完成的，类图如下：
-
-![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112271528292.png)
 
 &emsp;&emsp;实现了 BeanPostProcessor 接口的 bean 都会在 ApplicationContext 容器启动时被注册，并在其他 bean 实例化过程中通过其对应的接口方法实现对 bean 的额外处理，所以这里创建代理的入口就是 postProcessBeforeInstantiation。
 
