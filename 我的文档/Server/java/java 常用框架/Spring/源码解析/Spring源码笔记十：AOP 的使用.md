@@ -805,7 +805,7 @@ static {
 }
 ```
 
-##### proxy-target-class 和 expose-proxy
+**proxy-target-class 和 expose-proxy**
 
 &emsp;&emsp;同时在这一步骤中涉及到 config 标签的两个属性 proxy-target-class 和 expose-proxy。
 
@@ -843,13 +843,13 @@ public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry reg
 }
 ```
 
-&emsp;&emsp;Spring 中 AOP 其实就是通过增强器的形式来干预 bean 的生命周期来实现的，以上过程就是在解析需要使用的增强器实现类。
+&emsp;&emsp;Spring 中 AOP 就是通过增强器的形式来干预 bean 的生命周期，上述过程就是在解析使用的增强器实现类。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112291735945.png)
 
 #### 4.1.2 aspect 标签解析
 
-&emsp;&emsp;简单看一下 aspect 标签的解析。
+&emsp;&emsp;下面简单看一下 aspect 标签的解析。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
