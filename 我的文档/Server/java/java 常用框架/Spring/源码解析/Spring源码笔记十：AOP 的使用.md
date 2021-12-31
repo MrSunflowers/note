@@ -56,7 +56,7 @@ public class testServiceImpl implements testService  {
 &emsp;&emsp;AOP 要达到的效果是，保证开发者不修改源代码的前提下，去为系统中的业务组件添加某种通用功能。AOP 的本质是由 AOP 框架修改业务组件的多个方法的源代码，AOP 其实就是代理模式的典型应用，按照 AOP 框架修改源代码的时机，可以将其分为两类：
 
 - 静态 AOP 实现， AOP 框架在编译阶段对程序源代码进行修改，生成了静态的 AOP 代理类（生成的 *.class 文件已经被改掉了，需要使用特定的编译器），比如 AspectJ。
-- 动态 AOP 实现， AOP 框架在运行阶段对动态生成代理对象（在内存中以 JDK 动态代理，或 CGlib 动态地生成 AOP 代理类），如 SpringAOP。
+- 动态 AOP 实现， AOP 框架在运行阶段对动态生成代理对象（在内存中以 JDK 动态代理，或 CGlib 动态地生成 AOP 代理类），如 Spring AOP。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112201031807.png)
 
@@ -143,10 +143,10 @@ public static void main(String[] args) {
 
 ### 1.2 动态代理
 
-&emsp;&emsp;动态代理类是在程序运行期间由JVM通过反射等机制动态的生成的，所以不存在代理类的字节码文件。代理对象和真实对象的关系是在程序运行事情才确定的。动态代理的根据实现方式的不同又可以分为 JDK 动态代理和 CGlib 动态代理。
+&emsp;&emsp;动态代理类是在程序运行期间由 JVM 通过反射等机制动态的生成的，代理对象和真实对象的关系是在程序运行时才确定的。动态代理的根据实现方式的不同又可以分为 JDK 动态代理和 CGlib 动态代理。
 
-- JDK 动态代理：利用反射机制生成一个实现代理接口的类，在调用具体方法前调用InvokeHandler来处理。
-- CGlib 动态代理：利用ASM（开源的Java字节码编辑库，操作字节码）开源包，将代理对象类的class文件加载进来，通过修改其字节码生成子类来处理。
+- JDK 动态代理：利用反射机制生成一个实现代理接口的类，在调用具体方法前调用 InvokeHandler 来处理。
+- CGlib 动态代理：利用ASM（开源的Java字节码编辑库，操作字节码）开源包，将代理对象类的 class 文件加载进来，通过修改其字节码生成子类来处理。
 
 &emsp;&emsp;区别：JDK 代理只能对**实现接口**的类生成代理；CGlib是针对类实现代理，对指定的类生成一个子类，并覆盖其中的方法，这种通过继承类的实现方式，不能代理final修饰的类。
 
@@ -199,7 +199,7 @@ public static void main(String[] args) {
 
 #### 1.2.2 CGlib 动态代理
 
-&emsp;&emsp;CGlib 针对类进行代理，因此被代理的类不需要实现接口，使用方法与上面 JDK 代理类似。首先新建一个类 MyMethodInterceptor 实现 MethodInterceptor 接口，这里需要注意的是实际调用是 methodProxy.invokeSuper 如果使用 invoke 方法，则需要传入被代理的类对象，否则出现死循环。
+&emsp;&emsp;CGlib 针对类进行代理，因此被代理的类不需要实现接口，使用方法与上面类似。首先新建一个类 MyMethodInterceptor 实现 MethodInterceptor 接口，这里需要注意的是实际调用是 methodProxy.invokeSuper 如果使用 invoke 方法，则需要传入被代理的类对象，否则出现死循环。
 
 ```java
 public class MyMethodInterceptor implements MethodInterceptor {
@@ -248,20 +248,33 @@ public static void main(String[] args) {
 }
 ```
 
-## 2 Spring 中的 AOP
+## 2 AOP 相关概念
 
-- 通知（Advice）: AOP 框架中的增强处理，通知描述了切面何时执行以及如何执行增强处理，**在方法执行的什么时机（方法前/方法后/方法前后）做什么（增强的功能）**。
-- 连接点（join point）: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
-- 切点（PointCut）: 可以插入增强处理的连接点，**在哪些类，哪些方法上切入**。
-- 切面（Aspect）: 切面是通知和切点的结合，**切面=切入点+通知**。
-- 引入（Introduction）：引入允许向现有的类添加新的方法或者属性。
-- 织入（Weaving）: 将增强处理添加到目标对象中，并创建一个被增强的对象，这个过程就是织入，**把切面加入到对象，并创建出代理对象的过程**。
+- **切面（Aspect）**: 切面是通知和切点的结合，切面=切入点+通知，切面用 spring 的 Advisor 或拦截器实现。
+- **连接点（Joinpoint）**: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
+- **通知（Advice）**: AOP 框架中的增强处理，通知描述了切面何时执行以及如何执行增强处理，在方法执行的什么时机（方法前/方法后/方法前后）做什么（增强的功能），Spring 中定义了四个 advice: BeforeAdvice, AfterAdvice, ThrowAdvice 和 DynamicIntroductionAdvice。
+- **切点（PointCut）**: 可以插入增强处理的连接点，在哪些类，哪些方法上切入，AOP 框架必须允许开发者指定切入点，例如，使用正则表达式。
+- **引入（Introduction）**：引入允许向现有的类添加新的方法或者属性，例如，你可以使用一个引入使任何对象实现 IsModified 接口，来简化缓存。
+- **目标对象（Target Object）**: 包含连接点的对象，也被称作被通知或被代理对象。
+- **AOP代理（AOP Proxy）**: AOP 框架创建的对象，包含通知，在 Spring 中，AOP 代理可以是 JDK 动态代理或者 CGLIB 代理。
+- **织入（Weaving）**: 将增强处理添加到目标对象中，并创建一个被增强的对象，这个过程就是织入，就是把切面加入到对象，并创建出代理对象的过程，这可以在编译时完成（例如使用 AspectJ 编译器），也可以在运行时完成。Spring 和其他纯 Java AOP 框架一样，在运行时完成织入，织入一般可以发生在如下几个时机：
+&emsp;&emsp;- **编译时**：当一个类文件被编译时进行织入，这需要特殊的编译器才可以做的到，例如 AspectJ 的织入编译器
+&emsp;&emsp;- **类加载时**：使用特殊的 ClassLoader 在目标类被加载到程序之前增强类的字节代码
+&emsp;&emsp;- **运行时**：切面在运行的某个时刻被织入, Spring AOP 就是以这种方式织入切面的。
 
-&emsp;&emsp;AOP 框架有很多种，AOP 框架的实现方式有可能不同， Spring 中的 AOP 是通过动态代理实现的。不同的 AOP 框架支持的连接点也有所区别，例如 AspectJ 和 JBoss，除了支持方法切点，它们还支持字段和构造器的连接点。而 Spring AOP 不能拦截对对象字段的修改，也不支持构造器连接点，无法在 Bean 创建时应用通知。
+&emsp;&emsp;AOP 框架有很多种，实现方式有可能有所不同， 主要分为两大类：一是采用动态代理技术（**典型代表为Spring AOP**），利用截取消息的方式（**典型代表为AspectJ-AOP**），对该消息进行装饰，以取代原有对象行为的执行；二是采用静态织入的方式，引入特定的语法创建 “方面” ，从而使得编译器可以在编译期间织入有关 “方面” 的代码。不同的 AOP 框架支持的连接点也有所区别，例如 AspectJ 和 JBoss，除了支持方法切点，它们还支持字段和构造器的连接点。而 Spring AOP 不能拦截对对象字段的修改，也不支持构造器连接点，无法在 Bean 创建时应用通知。
 
-## 3 动态 AOP 的使用
+&emsp;&emsp;Spring AOP 与 ApectJ 的目的一致，都是为了统一处理横切业务，但与 AspectJ 不同的是，Spring AOP 并不尝试提供完整的 AOP 功能，Spring AOP 更注重的是与 Spring IOC 容器的结合，并结合该优势来解决横切业务的问题，因此在 AOP 的功能完善方面，AspectJ 具有更大的优势。
 
-&emsp;&emsp;Spring 提供了 AOP 的实现，在低版本 Spring 中定义一个切面是比较麻烦的，需要实现特定的接口，并进行一些较为复杂的配置，低版本 Spring AOP的配置是被批评最多的地方。Spring 听取这方面的批评声音，并下决心彻底改变这一现状。在 Spring2.0 中，Spring AOP 已经焕然一新，你可以使用 @AspectJ 注解非常容易的定义一个切面，不需要实现任何的接口。
+&emsp;&emsp;同时 Spring 注意到 AspectJ 在 AOP 的实现方式上依赖于特殊编译器( ajc 编译器)，Spring 回避了这点，转向采用动态代理技术的实现原理来构建 Spring AOP 的内部机制（动态织入），这是与 AspectJ（静态织入）最根本的区别。
+
+&emsp;&emsp;在 AspectJ 1.5 后，引入 @Aspect 形式的注解风格的开发，Spring 也非常快地跟进了这种方式，因此 Spring 2.0 后便使用了与 AspectJ 一样的注解。请注意 **Spring 只是使用了与 AspectJ 5 一样的注解**，但仍然没有使用 AspectJ 的编译器，底层依是动态代理技术的实现，因此并不依赖于 AspectJ 的编译器。
+
+&emsp;&emsp;AspectJ 是一个面向切面的框架，它扩展了 Java 语言。AspectJ 定义了 AOP 语法，所以它有一个专门的编译器用来生成遵守 Java 字节编码规范的 Class 文件（只是 Spring 一般只用到它的注解，其余都由 Spring 自己实现）。
+
+## 3 Spring AOP 的使用
+
+&emsp;&emsp;Spring 提供了 AOP 的实现，在低版本 Spring 中定义一个切面是比较麻烦的，需要实现特定的接口，并进行一些较为复杂的配置，低版本 Spring AOP 的配置是被批评最多的地方。Spring 听取这方面的批评声音，并下决心彻底改变这一现状。在 Spring2.0 中，Spring AOP 已经焕然一新，你可以使用 @AspectJ 注解非常容易的定义一个切面，不需要实现任何的接口。
 
 &emsp;&emsp;Spring2.0 采用 @AspectJ 注解对 POJO 进行标注，从而定义一个包含切点信息和增强横切逻辑的切面，Spring 2.0 可以将这个切面织入到匹配的目标 Bean 中。@AspectJ 注解使用 AspectJ 切点表达式语法进行切点定义，可以通过切点函数、运算符、通配符等高级功能进行切点定义，拥有强大的连接点描述能力。
 
@@ -272,7 +285,7 @@ public static void main(String[] args) {
 &emsp;&emsp;首先就要解决一个问题，怎么表示在哪些方法上增强，一些先行者开发了一套语言来支持 AOP ———— AspectJ(语言)。
 
 ```
-execution(modifiers-pattern? ret-type-pattern declaring-type-pattern?name-pattern(param-pattern)throws-pattern?)
+execution(modifiers-pattern? ret-type-pattern declaring-type-pattern?name-pattern(param-pattern) throws-pattern?)
 翻译成中文：
 execution(<访问修饰符>? <返回类型> <声明类型>? <方法名>(<参数>) <异常>?)
 举例：
@@ -287,7 +300,7 @@ public static Class java.lang.Class.forName(String className)throws ClassNotFoun
 - 任意公共方法
 
 ```
-execution(public * * (..))
+execution(public * *(..))
 ```
 
 - 任意以 "set" 开头的方法
@@ -306,12 +319,16 @@ execution(* org.springframework.myTest.aop.demo.TestService.*(..))
 
 ```
 execution(* org.springframework.myTest.*.*(..))
+或
+within(org.springframework.myTest.*)
 ```
 
 - myTest 包**及其子包**中定义的任意方法
 
 ```
 execution(* org.springframework.myTest..*.*(..))
+或
+within(org.springframework.myTest..*)
 ```
 
 - myTest 包及其子包中所有以 Service 结尾的类中的任意方法
@@ -320,10 +337,10 @@ execution(* org.springframework.myTest..*.*(..))
 execution(* org.springframework.myTest..*Service.*(..))
 ```
 
-- myTest 包及其子包中所有以 Service 结尾的类中的任意方法并且 bean 名称为 testServiceImpl 并且在 org.springframework.myTest.aop.demo 包中
+- myTest 包及其子包中所有以 Service 结尾的类中的任意方法并且 bean 名称为 testServiceImpl
 
 ```
-execution(* org.springframework.myTest..*Service.*(..)) and bean(testServiceImpl) and within(org.springframework.myTest.aop.demo.*)
+execution(* org.springframework.myTest..*Service.*(..)) and bean(testServiceImpl)
 ```
 
 ### 3.2 增强的时机
@@ -471,7 +488,7 @@ public static void main(String[] args) throws Exception {
 
 #### 3.3.2 注解使用示例
 
-&emsp;&emsp;当然也可以使用注解配置。
+&emsp;&emsp;借助于 Spring Aop 的命名空间可以将纯 POJO 转换为切面，实际上这些 POJO 只是提供了满足切点的条件时所需要调用的方法，但是，这种技术需要 XML 进行配置，不能支持注解。所以 spring 借鉴了 AspectJ 的切面，以提供注解驱动的 AOP，本质上它依然是 Spring 基于代理的 AOP，只是编程模型与 AspectJ 完全一致，这种风格的好处就是不需要使用 XML 进行配置。
 
 ```java
 @Aspect
@@ -670,7 +687,7 @@ public static void main(String[] args) throws Exception {
 
 ### 4.1 自定义标签解析
 
-&emsp;&emsp;示例中实现了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
+&emsp;&emsp;上述示例展示了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考官方文档，下面看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
 
 **AopNamespaceHandler.init**
 
@@ -849,7 +866,7 @@ public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry reg
 
 #### 4.1.2 aspect 标签解析
 
-&emsp;&emsp;下面简单看一下 aspect 标签的解析。
+&emsp;&emsp;简单看一下 aspect 标签的解析。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
@@ -1006,6 +1023,13 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 ```
 
 &emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
+
+#### 4.1.3 Pointcut
+
+[](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-advice-before)
+
+
+
 
 
 ### 4.2 AOP 代理的创建
