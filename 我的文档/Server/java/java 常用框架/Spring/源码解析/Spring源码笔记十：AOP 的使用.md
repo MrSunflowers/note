@@ -253,7 +253,7 @@ public static void main(String[] args) {
 - **切面（Aspect）**: 切面是通知和切点的结合，切面=切入点+通知，切面用 spring 的 Advisor 或拦截器实现。
 - **连接点（Joinpoint）**: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
 - **通知（Advice）**: AOP 框架中的增强处理，通知描述了切面何时执行以及如何执行增强处理，在方法执行的什么时机（方法前/方法后/方法前后）做什么（增强的功能），Spring 中定义了四个 advice: BeforeAdvice, AfterAdvice, ThrowAdvice 和 DynamicIntroductionAdvice。
-- **切点（PointCut）**: 可以插入增强处理的连接点，在哪些类，哪些方法上切入，AOP 框架必须允许开发者指定切入点，例如，使用正则表达式。
+- **切点（PointCut）**: 可以插入增强处理的连接点，在哪些类，哪些方法上切入，AOP 框架必须允许开发者指定切入点，例如，使用正则表达式，Spring 默认使用 AspectJ 切入点表达式语言。
 - **引入（Introduction）**：引入允许向现有的类添加新的方法或者属性，例如，你可以使用一个引入使任何对象实现 IsModified 接口，来简化缓存。
 - **目标对象（Target Object）**: 包含连接点的对象，也被称作被通知或被代理对象。
 - **AOP代理（AOP Proxy）**: AOP 框架创建的对象，包含通知，在 Spring 中，AOP 代理可以是 JDK 动态代理或者 CGLIB 代理。
@@ -683,11 +683,11 @@ public static void main(String[] args) throws Exception {
 
 &emsp;&emsp;在使用时，直接通过 getBean 获得 bean 转换成相应的接口就可以使用了。
 
+&emsp;&emsp;更多示例及使用方法请参考[官方文档](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-pointcuts)。
+
 ## 4 AOP 标签解析
 
-### 4.1 自定义标签解析
-
-&emsp;&emsp;上述示例展示了对 save 方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考官方文档，下面看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
+&emsp;&emsp;示例展示了对方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考官方文档，下面看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
 
 **AopNamespaceHandler.init**
 
@@ -737,7 +737,7 @@ public BeanDefinition parse(Element element, ParserContext parserContext) {
 }
 ```
 
-#### 4.1.1 升级或创建自动代理创建器
+### 4.1 升级或创建自动代理创建器
 
 &emsp;&emsp;解析的第一个比较重要的方法就是 configureAutoProxyCreator，在这里完成了**自动代理创建器**的创建过程，也是关键逻辑的实现。
 
@@ -864,9 +864,9 @@ public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry reg
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112291735945.png)
 
-#### 4.1.2 aspect 标签解析
+### 4.2 标签解析
 
-&emsp;&emsp;简单看一下 aspect 标签的解析。
+&emsp;&emsp;以 aspect 标签为例，简单看一下标签解析的过程。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
@@ -1024,15 +1024,60 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 
 &emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
 
-#### 4.1.3 Pointcut
+## 5 AOP 体系结构
 
-[](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-advice-before)
+### 5.1 Pointcut
+
+```java
+public interface Pointcut {
+
+    ClassFilter getClassFilter();
+
+    MethodMatcher getMethodMatcher();
+	
+	Pointcut TRUE = TruePointcut.INSTANCE;
+}
+```
+
+&emsp;&emsp;`org.springframework.aop.Pointcut` 接口是 Spring AOP 体系中对切点的顶层抽象，其中提供两个方法，返回结果分别用于在不同的级别上限定 Joinpoint 的匹配范围，满足不同粒度的匹配，还提供了一个 TruePointcut 实例，当 Pointcut 为 TruePointcut 类型时，则会忽略所有的匹配条件，永远返回 true。Spring Aop 主要支持在方法级别上的匹配，所以对类级别的匹配支持相对简单一些。
+
+&emsp;&emsp;ClassFilter 接口用于将切入点限制为一组给定的目标类。
+
+```java
+public interface ClassFilter {
+	
+    boolean matches(Class clazz);
+	
+}
+```
+
+&emsp;&emsp;MethodMatcher 接口用于用于测试此切点是否与目标类上的给定方法匹配。
+
+```java
+public interface MethodMatcher {
+
+    boolean matches(Method m, Class<?> targetClass);
+
+    boolean isRuntime();
+
+    boolean matches(Method m, Class<?> targetClass, Object... args);
+}
+```
+
+&emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，它是用于解析 String 类型的切入点表达式的接口。AOP 自定义标签解析过程将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，AspectJExpressionPointcut 结构类图如下：
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201041546571.png)
+
+&emsp;&emsp;同时，‎Spring 提供了几种方便的切入点实现。
+
+Static Pointcuts
+
+
+#### 4.1.4 Pointcut
 
 
 
-
-
-### 4.2 AOP 代理的创建
+## 4.2 AOP 代理的创建
 
 &emsp;&emsp;结合前面讲的 bean 实例化过程可以看出，在真正进行默认的 bean 创建之前，可以通过应用 InstantiationAwareBeanPostProcessor.postProcessBeforeInstantiation 来实现短路拦截操作，AOP 代理的创建就是在这里，由上面创建的自动代理创建器完成的，类图如下：
 
@@ -1045,3 +1090,5 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 ```
 
 [](https://blog.csdn.net/f641385712/article/details/89303088)
+
+[](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-advice-before)
