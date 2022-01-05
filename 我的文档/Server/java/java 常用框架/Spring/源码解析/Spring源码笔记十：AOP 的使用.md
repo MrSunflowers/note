@@ -293,6 +293,20 @@ public static Class java.lang.Class.forName(String className)throws ClassNotFoun
 [public static](访问修饰符) [Class](返回类型) [java.lang.Class](声明类型).[forName](方法名)[(String className)](参数)[throws ClassNotFoundException](异常)
 ```
 
+&emsp;&emsp;标准的 AspectJ Aop 的 pointcut 的表达式类型是很丰富的，但是 Spring Aop 只支持其中的一部分，外加 Spring Aop 自己扩充的表达式，分别如下：
+
+1. execution：一般用于指定方法的执行。
+2. within：指定某些类型的全部方法，也可用来指定一个包。
+3. this：Spring Aop 是基于动态代理的，生成的 bean 也是一个代理对象，this 就是这个代理对象，当这个对象可以转换为指定的类型时，对应切点生效。
+4. target：当被代理的对象可以转换为指定的类型时，对应的切点生效。
+5. args：当执行的方法的参数为指定类型时生效。
+6. @target：对象**的运行时绑定的方法所属的类上**拥有指定的注解时生效。
+7. @args：当执行的方法参数上拥有指定的注解时生效。
+8. @within：对象**的运行时绑定的方法所属的类或其子类上**拥有指定的注解时生效。
+9. @annotation：当执行的方法上拥有指定的注解时生效。
+10. reference pointcut：表示引用其他切点，只有 @ApectJ 注解风格支持，xml 风格不支持。
+11. bean(idOrNameOfBean)：当调用的方法是指定的 idOrNameOfBean 的方法时生效。(Spring AOP 自己扩展支持的)。
+
 &emsp;&emsp;使用 execution 指示器选择切入点，当方法表达式以 * 号开始，标识不关心方法的返回值类型，对于方法参数列表，使用 .. 标识切点选择任意的方法，多个匹配之间可以使用链接符 &&、||、！来表示 “且”、“或”、“非” 的关系。但是在使用 XML 文件配置时，这些符号有特殊的含义，所以使用 “and”、“or”、“not”来表示。
 
 **几种常用的切入点表达式**
@@ -683,11 +697,9 @@ public static void main(String[] args) throws Exception {
 
 &emsp;&emsp;在使用时，直接通过 getBean 获得 bean 转换成相应的接口就可以使用了。
 
-&emsp;&emsp;更多示例及使用方法请参考[官方文档](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-pointcuts)。
-
 ## 4 AOP 标签解析
 
-&emsp;&emsp;示例展示了对方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考官方文档，下面看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
+&emsp;&emsp;示例中展示了对方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考[官方文档](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop)，然后看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
 
 **AopNamespaceHandler.init**
 
@@ -866,7 +878,7 @@ public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry reg
 
 ### 4.2 标签解析
 
-&emsp;&emsp;以 aspect 标签为例，简单看一下标签解析的过程。
+&emsp;&emsp;然后以 aspect 标签为例，简单看一下标签解析的过程。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
@@ -989,7 +1001,7 @@ private AbstractBeanDefinition parseAdvice(
 }
 ```
 
-&emsp;&emsp;各种增强标签都会使用对应的实现类构造并转化为 AspectJPointcutAdvisor，各种标签对应使用的实现类关系如下：
+&emsp;&emsp;子标签会使用对应的实现类构造并转化为 AspectJPointcutAdvisor，各种标签对应使用的实现类关系如下：
 
 **ConfigBeanDefinitionParser.getAdviceClass**
 
@@ -1039,7 +1051,7 @@ public interface Pointcut {
 }
 ```
 
-&emsp;&emsp;`org.springframework.aop.Pointcut` 接口是 Spring AOP 体系中对切点的顶层抽象，其中提供两个方法，返回结果分别用于在不同的级别上限定 Joinpoint 的匹配范围，满足不同粒度的匹配，还提供了一个 TruePointcut 实例，当 Pointcut 为 TruePointcut 类型时，则会忽略所有的匹配条件，永远返回 true。Spring Aop 主要支持在方法级别上的匹配，所以对类级别的匹配支持相对简单一些。
+&emsp;&emsp;`org.springframework.aop.Pointcut` 接口是 Spring AOP 体系中对切点的顶层抽象，其提供两个方法，返回结果分别用于在不同的级别上限定 Joinpoint 的匹配范围，满足不同粒度的匹配，还提供了一个 TruePointcut 实例，当 Pointcut 为 TruePointcut 类型时，则会忽略所有的匹配条件，永远返回 true。Spring Aop 主要支持在方法级别上的匹配，所以对类级别的匹配支持相对简单一些。
 
 &emsp;&emsp;ClassFilter 接口用于将切入点限制为一组给定的目标类。
 
@@ -1051,29 +1063,126 @@ public interface ClassFilter {
 }
 ```
 
-&emsp;&emsp;MethodMatcher 接口用于用于测试此切点是否与目标类上的给定方法匹配。
+&emsp;&emsp;MethodMatcher 接口用于测试此切点是否与目标类上的给定方法匹配。
 
 ```java
 public interface MethodMatcher {
-
+	
+	//静态匹配：在匹配条件不是太严格时使用，可以满足大部分场景的使用
     boolean matches(Method m, Class<?> targetClass);
-
+	
+	/**
+	 * 是否需要执行动态匹配
+	 *	两个方法的分界线就是boolean isRuntime()方法
+	 *	1、先调用静态匹配，若返回 true 此时就会继续去检查 isRuntime() 的返回值
+	 *	2、若 isRuntime() 也返回 true，那就继续调用动态匹配
+	 *	若静态匹配失败，则动态匹配一定失败
+	 */
     boolean isRuntime();
 
+	// 动态匹配（运行时匹配）: 它是严格的匹配，在运行时动态的对参数的类型进行匹配
     boolean matches(Method m, Class<?> targetClass, Object... args);
 }
 ```
 
-&emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，它是用于解析 String 类型的切入点表达式的接口。AOP 自定义标签解析过程将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，AspectJExpressionPointcut 结构类图如下：
+&emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，用于解析 String 类型的切点表达式。AOP 自定义标签解析将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，结构类图如下：
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201041546571.png)
 
-&emsp;&emsp;同时，‎Spring 提供了几种方便的切入点实现。
+&emsp;&emsp;同时，‎Spring 提供了几种方便的切点实现，不同类型的切点所对应的方法匹配模式也不同，主要包括静态匹配和动态匹配两种。
 
-Static Pointcuts
+#### 5.1.1 静态 Pointcut
+
+```java
+public abstract class StaticMethodMatcher implements MethodMatcher {
+	// 永远返回 false 表示只会去静态匹配
+	@Override
+	public final boolean isRuntime() {
+		return false;
+	}
+
+	@Override
+	public final boolean matches(Method method, Class<?> targetClass, Object... args) {
+		// should never be invoked because isRuntime() returns false
+		throw new UnsupportedOperationException("Illegal MethodMatcher usage");
+	}
+
+}
+```
+
+&emsp;&emsp;静态匹配不会考虑具体方法参数，因为不用每次都检查参数，那么对于同样的类型的方法匹配结果，就可以在框架内部缓存以提高性能。对于大多数用法来说，静态切点已经足够了，而且是最好的实现方式，静态切点的一个典型例子是基于 `java.util.regex` 提供的正则表达式匹配实现的 JdkRegexpMethodPointcut。
+
+&emsp;&emsp;JdkRegexpMethodPointcut 提供两个列表分别存储匹配的正则表达式(patterns)和排除的正则表达式(excludedPatterns)，一个使用的例子如下：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans
+	   http://www.springframework.org/schema/beans/spring-beans.xsd
+	   http://www.springframework.org/schema/aop
+	   https://www.springframework.org/schema/aop/spring-aop.xsd"
+>
+
+	<bean name="testServiceImpl" class="org.springframework.myTest.aop.demo.TestServiceImpl" />
+
+	<bean name="transactionManager" class="org.springframework.myTest.aop.demo.TransactionManager" />
+
+	<bean id="regexPointcut" class="org.springframework.aop.support.JdkRegexpMethodPointcut">
+		<property name="patterns">
+			<list value-type="java.lang.String">
+				<value>.*save.*</value><!-- 拦截所有方法名含有save的方法 -->
+			</list>
+		</property>
+	</bean>
+
+	<aop:config >
+		<aop:advisor advice-ref="transactionManager" pointcut-ref="regexPointcut" />
+	</aop:config>
+
+</beans>
+```
+
+&emsp;&emsp;Spring 中还提供了一个 RegexpMethodPointcutAdvisor 类来简化这个配置过程，RegexpMethodPointcutAdvisor 可以方便的同时指定一个JdkRegexpMethodPointcut 和其需要对应的 Advice，使用示例如下：
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:aop="http://www.springframework.org/schema/aop"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans
+	   http://www.springframework.org/schema/beans/spring-beans.xsd
+	   http://www.springframework.org/schema/aop
+	   https://www.springframework.org/schema/aop/spring-aop.xsd"
+>
+
+	<aop:aspectj-autoproxy/>
+
+	<bean name="testServiceImpl" class="org.springframework.myTest.aop.demo.TestServiceImpl" />
+
+	<bean name="transactionManager" class="org.springframework.myTest.aop.demo.TransactionManager" />
+
+	<bean name="regexpMethodPointcutAdvisor" class="org.springframework.aop.support.RegexpMethodPointcutAdvisor">
+		<property name="advice" ref="transactionManager"/>
+		<property name="patterns">
+			<list value-type="java.lang.String">
+				<value>.*save.*</value><!-- 拦截所有方法名含有save的方法 -->
+			</list>
+		</property>
+ 	</bean>
+
+</beans>
+```
+
+#### 5.1.2 动态 Pointcut
+
+[](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-api-pointcuts-dynamic)
+
+[](https://blog.csdn.net/f641385712/article/details/89178421)
 
 
-#### 4.1.4 Pointcut
+
 
 
 
