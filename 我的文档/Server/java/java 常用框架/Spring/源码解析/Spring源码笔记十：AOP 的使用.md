@@ -276,6 +276,8 @@ public static void main(String[] args) {
 
 &emsp;&emsp;Spring 提供了 AOP 的实现，在低版本 Spring 中定义一个切面是比较麻烦的，需要实现特定的接口，并进行一些较为复杂的配置，低版本 Spring AOP 的配置是被批评最多的地方。Spring 听取这方面的批评声音，并下决心彻底改变这一现状。在 Spring2.0 中，Spring AOP 已经焕然一新，你可以使用 @AspectJ 注解非常容易的定义一个切面，不需要实现任何的接口。
 
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201061046410.png)
+
 &emsp;&emsp;Spring2.0 采用 @AspectJ 注解对 POJO 进行标注，从而定义一个包含切点信息和增强横切逻辑的切面，Spring 2.0 可以将这个切面织入到匹配的目标 Bean 中。@AspectJ 注解使用 AspectJ 切点表达式语法进行切点定义，可以通过切点函数、运算符、通配符等高级功能进行切点定义，拥有强大的连接点描述能力。
 
 &emsp;&emsp;尽管 Spring 一再简化配置，并且大有使用注解取代 XML 之势，但无论如何 XML 还是 Spring 的基石。还是使用上面提到的示例，需要在 TestServiceImpl 的 save 方法前后添加增强的功能。
@@ -1036,7 +1038,7 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 
 &emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
 
-## 5 AOP 体系结构
+## 5 Spring 中的 AOP
 
 ### 5.1 Pointcut
 
@@ -1076,7 +1078,7 @@ public interface MethodMatcher {
 	 *	两个方法的分界线就是boolean isRuntime()方法
 	 *	1、先调用静态匹配，若返回 true 此时就会继续去检查 isRuntime() 的返回值
 	 *	2、若 isRuntime() 也返回 true，那就继续调用动态匹配
-	 *	若静态匹配失败，则动态匹配一定失败
+	 *	若静态匹配失败，则动态匹配一定失败，因为动态匹配比静态匹配要严格
 	 */
     boolean isRuntime();
 
@@ -1085,17 +1087,15 @@ public interface MethodMatcher {
 }
 ```
 
-&emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，用于解析 String 类型的切点表达式。AOP 自定义标签解析将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，结构类图如下：
-
-![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201041546571.png)
-
 &emsp;&emsp;同时，‎Spring 提供了几种方便的切点实现，不同类型的切点所对应的方法匹配模式也不同，主要包括静态匹配和动态匹配两种。
 
 #### 5.1.1 静态 Pointcut
 
+**静态匹配的抽象实现**
+
 ```java
 public abstract class StaticMethodMatcher implements MethodMatcher {
-	// 永远返回 false 表示只会去静态匹配
+	// 永远返回 false 表示只会进行静态匹配
 	@Override
 	public final boolean isRuntime() {
 		return false;
@@ -1177,9 +1177,47 @@ public abstract class StaticMethodMatcher implements MethodMatcher {
 
 #### 5.1.2 动态 Pointcut
 
-[](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-api-pointcuts-dynamic)
+&emsp;&emsp;动态切点的计算相较静态切点成本要高的多，在计算时需要考虑静态信息和参数信息，这就导致每次匹配都需要重新计算，计算结果不能被缓存，因为参数会变化。
 
-[](https://blog.csdn.net/f641385712/article/details/89178421)
+**动态匹配的抽象实现**
+
+```java
+public abstract class DynamicMethodMatcher implements MethodMatcher {
+
+	@Override
+	public final boolean isRuntime() {
+		return true;
+	}
+
+	/**
+	 * Can override to add preconditions for dynamic matching. This implementation
+	 * always returns true.
+	 */
+	@Override
+	public boolean matches(Method method, Class<?> targetClass) {
+		return true;
+	}
+
+}
+```
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201060930945.png)
+
+### 5.2 Advice
+
+&emsp;&emsp;Advice 
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -1201,3 +1239,9 @@ public abstract class StaticMethodMatcher implements MethodMatcher {
 [](https://blog.csdn.net/f641385712/article/details/89303088)
 
 [](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop-advice-before)
+
+&emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，用于解析 String 类型的切点表达式。AOP 自定义标签解析将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，结构类图如下：
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201041546571.png)
+
+[](https://blog.csdn.net/f641385712/article/details/89178421)
