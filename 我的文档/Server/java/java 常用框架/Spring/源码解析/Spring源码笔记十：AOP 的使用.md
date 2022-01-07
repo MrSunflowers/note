@@ -1038,7 +1038,7 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 
 &emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
 
-## 5 Spring 中的 AOP
+## 5 Spring 中的 AOP 体系
 
 ### 5.1 Pointcut
 
@@ -1205,26 +1205,21 @@ public abstract class DynamicMethodMatcher implements MethodMatcher {
 
 ### 5.2 Advice
 
-&emsp;&emsp;Advice 
+&emsp;&emsp;在 Spring 中，每个 Advice 都是一个 bean，通过 Advice 来指定在切点的何处具体做什么事情，Advice 只与方法和参数有关，与代理方式和代理状态无关。根据增强方式和位置大致可以分为前置增强器，后置增强器，拦截器和引介增强器几种，具体关系如下图所示：
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201071016971.png)
+
+### 5.3 Advisor
+
+&emsp;&emsp;在 Spring 中，Advisor 用来管理 Advice 及其对应的 pointcut，它的继承体系主要有两个：PointcutAdvisor 和 IntroductionAdvisor，其中 IntroductionAdvisor 只能应用于类级别的拦截，只能使用 Introduction 类型的 Advice，而 PointcutAdvisor 可以使用几乎任意类型的 Pointcut 和 Advice。
+
+&emsp;&emsp;`org.springframework.aop.support.DefaultPointcutAdvisor` 是 Spring 提供的最常用的 Advisor，可以把任意的两个 Advice 和 Pointcut 组合在一起。
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201071120295.png)
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## 4.2 AOP 代理的创建
+## 4.2 AOP 代理的创建方式
 
 &emsp;&emsp;结合前面讲的 bean 实例化过程可以看出，在真正进行默认的 bean 创建之前，可以通过应用 InstantiationAwareBeanPostProcessor.postProcessBeforeInstantiation 来实现短路拦截操作，AOP 代理的创建就是在这里，由上面创建的自动代理创建器完成的，类图如下：
 
