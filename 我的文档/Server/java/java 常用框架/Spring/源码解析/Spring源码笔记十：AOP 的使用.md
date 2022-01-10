@@ -66,8 +66,8 @@ public class testServiceImpl implements testService  {
 
 &emsp;&emsp;同样的，代理模式也分为两种实现方式：
 
-- 静态代理：在程序运行前就已经存在代理类的字节码文件，代理对象和真实对象的关系在运行前就确定了。
-- 动态代理：动态代理类是在程序运行期间由JVM通过反射等机制动态的生成的，所以不存在代理类的字节码文件。代理对象和真实对象的关系是在程序运行事情才确定的。
+- 静态代理模式：在程序运行前就已经存在代理类的字节码文件，代理对象和真实对象的关系在运行前就确定了。
+- 动态代理模式：动态代理类是在程序运行期间由 JVM 通过反射等机制动态的生成的，代理对象和真实对象的关系是在程序运行事情才确定的。
 
 ### 1.1 静态代理
 
@@ -138,23 +138,23 @@ public static void main(String[] args) {
 **缺点：**
 
 - 代理对象的某个接口只服务于某一种类型的对象，也就是说每一个真实对象都得创建一个代理对象。
-- 如果需要代理的方法很多，则要为每一种方法都进行代理处理。 
-- 如果接口增加一个方法，除了所有实现类需要实现这个方法外，所有代理类也需要实现此方法。增加了代码维护的复杂度。
+- 如果需要代理的方法很多，则要为每一种方法都进行代理。 
+- 如果接口增加一个方法，除了所有实现类需要实现这个方法外，所有代理类也需要实现此方法，增加了代码维护的复杂度。
 
 ### 1.2 动态代理
 
-&emsp;&emsp;动态代理类是在程序运行期间由 JVM 通过反射等机制动态的生成的，代理对象和真实对象的关系是在程序运行时才确定的。动态代理的根据实现方式的不同又可以分为 JDK 动态代理和 CGlib 动态代理。
+&emsp;&emsp;动态代理类是在程序运行期间由 JVM 通过反射等机制动态的生成，动态代理根据实现方式的不同又可以分为 JDK 动态代理和 CGlib 动态代理。
 
 - JDK 动态代理：利用反射机制生成一个实现代理接口的类，在调用具体方法前调用 InvokeHandler 来处理。
-- CGlib 动态代理：利用ASM（开源的Java字节码编辑库，操作字节码）开源包，将代理对象类的 class 文件加载进来，通过修改其字节码生成子类来处理。
+- CGlib 动态代理：利用 ASM（开源的 Java 字节码编辑库，操作字节码）开源包，将代理对象类的 class 文件加载进来，通过修改其字节码生成子类来处理。
 
-&emsp;&emsp;区别：JDK 代理只能对**实现接口**的类生成代理；CGlib是针对类实现代理，对指定的类生成一个子类，并覆盖其中的方法，这种通过继承类的实现方式，不能代理final修饰的类。
+&emsp;&emsp;区别：JDK 代理只能对**实现接口**的类生成代理，CGlib 是针对类实现代理，对指定的类生成一个子类，并覆盖其中的方法，这种通过继承类的实现方式，不能代理 final 修饰的类。
 
 #### 1.2.1 JDK 动态代理
 
-&emsp;&emsp;在使用 JDK 动态代理时，需要用到一个类和一个接口 java.lang.reflect.Proxy 类，它提供了一组静态方法来为一组接口动态地生成代理类及其对象，返回动态生成的代理对象。java.lang.reflect.InvocationHandler 接口，负责集中处理动态代理类上的所有方法调用。
+&emsp;&emsp;JDK 动态代理，它提供了一组静态方法来为一组接口动态地生成代理类及其对象，返回动态生成的代理对象。
 
-&emsp;&emsp;新建 MyInvocationHandler 实现 InvocationHandler 接口，其余类同上。
+&emsp;&emsp;新建 MyInvocationHandler 实现 InvocationHandler 接口，负责集中处理动态代理类上的所有方法调用。
 
 ```java
 public class MyInvocationHandler implements InvocationHandler {
@@ -181,7 +181,7 @@ public class MyInvocationHandler implements InvocationHandler {
 }
 ```
 
-**测试**
+&emsp;&emsp;使用 Proxy 来创建代理类。
 
 ```java
 public static void main(String[] args) {
@@ -195,7 +195,7 @@ public static void main(String[] args) {
 }
 ```
 
-&emsp;&emsp;可以看出，通过 MyInvocationHandler 同样可以实现代理 TestServiceImpl 类的方法实现，实际上实现的是任意类的任意方法的代理，这里只是因为传入的是 TestServiceImpl 类。
+&emsp;&emsp;可以看出，通过 MyInvocationHandler 可以实现代理 TestServiceImpl 类，实际上实现的是任意类的任意方法的代理，这里只是因为传入的是 TestServiceImpl 类。
 
 #### 1.2.2 CGlib 动态代理
 
@@ -226,7 +226,7 @@ public class MyMethodInterceptor implements MethodInterceptor {
 }
 ```
 
-&emsp;&emsp;TestServiceImpl不再需要实现接口。
+&emsp;&emsp;TestServiceImpl 不再需要实现接口。
 
 ```java
 public class TestServiceImpl{
@@ -250,27 +250,25 @@ public static void main(String[] args) {
 
 ## 2 AOP 相关概念
 
-- **切面（Aspect）**: 切面是通知和切点的结合，切面=切入点+通知，切面用 spring 的 Advisor 或拦截器实现。
-- **连接点（Joinpoint）**: 连接点表示应用执行过程中能够插入切面的一个点，这个点可以是方法的调用、异常的抛出。在 Spring AOP 中，连接点总是方法的调用。
-- **通知（Advice）**: AOP 框架中的增强处理，通知描述了切面何时执行以及如何执行增强处理，在方法执行的什么时机（方法前/方法后/方法前后）做什么（增强的功能），Spring 中定义了四个 advice: BeforeAdvice, AfterAdvice, ThrowAdvice 和 DynamicIntroductionAdvice。
-- **切点（PointCut）**: 可以插入增强处理的连接点，在哪些类，哪些方法上切入，AOP 框架必须允许开发者指定切入点，例如，使用正则表达式，Spring 默认使用 AspectJ 切入点表达式语言。
-- **引入（Introduction）**：引入允许向现有的类添加新的方法或者属性，例如，你可以使用一个引入使任何对象实现 IsModified 接口，来简化缓存。
-- **目标对象（Target Object）**: 包含连接点的对象，也被称作被通知或被代理对象。
+- **切面（Aspect）**: 切面是通知和切点的结合，由 Spring 的 Advisor 或拦截器实现。
+- **连接点（Joinpoint）**: 连接点表示应用程序执行过程中能够插入切面的一个位置，这个位置可以是方法的调用、异常的抛出等，在 Spring AOP 中，连接点总是方法的调用。
+- **通知（Advice）**: AOP 框架中具体的增强处理，通知描述了切面应该何时执行以及执行怎样的增强处理，也就是在方法执行的什么时候（方法前/后等）做什么操作（具体增强的功能）。
+- **切点（PointCut）**: 可以插入增强处理的连接点，在哪些类，哪些方法上切入，AOP 框架必须允许开发者指定切入点。例如，使用正则表达式指定，Spring 中默认使用 AspectJ 切入点表达式语言。
+- **引入（Introduction）**：引入允许向现有的类添加新的方法或者属性。例如，你可以使用一个引入使任何对象实现 IsModified 接口，来简化缓存。
+- **目标对象（Target Object）**: 含有连接点的对象，也被称作被通知或被代理对象。
 - **AOP代理（AOP Proxy）**: AOP 框架创建的对象，包含通知，在 Spring 中，AOP 代理可以是 JDK 动态代理或者 CGLIB 代理。
 - **织入（Weaving）**: 将增强处理添加到目标对象中，并创建一个被增强的对象，这个过程就是织入，就是把切面加入到对象，并创建出代理对象的过程，这可以在编译时完成（例如使用 AspectJ 编译器），也可以在运行时完成。Spring 和其他纯 Java AOP 框架一样，在运行时完成织入，织入一般可以发生在如下几个时机：
-&emsp;&emsp;- **编译时**：当一个类文件被编译时进行织入，这需要特殊的编译器才可以做的到，例如 AspectJ 的织入编译器
-&emsp;&emsp;- **类加载时**：使用特殊的 ClassLoader 在目标类被加载到程序之前增强类的字节代码
+&emsp;&emsp;- **编译时**：当一个类文件被编译时进行织入，这需要特殊的编译器才可以做的到，例如 AspectJ 的织入编译器。
+&emsp;&emsp;- **类加载时**：使用特殊的 ClassLoader 在目标类被加载到程序之前增强类的字节码。
 &emsp;&emsp;- **运行时**：切面在运行的某个时刻被织入, Spring AOP 就是以这种方式织入切面的。
 
 &emsp;&emsp;AOP 框架有很多种，实现方式有可能有所不同， 主要分为两大类：一是采用动态代理技术（**典型代表为Spring AOP**），利用截取消息的方式（**典型代表为AspectJ-AOP**），对该消息进行装饰，以取代原有对象行为的执行；二是采用静态织入的方式，引入特定的语法创建 “方面” ，从而使得编译器可以在编译期间织入有关 “方面” 的代码。不同的 AOP 框架支持的连接点也有所区别，例如 AspectJ 和 JBoss，除了支持方法切点，它们还支持字段和构造器的连接点。而 Spring AOP 不能拦截对对象字段的修改，也不支持构造器连接点，无法在 Bean 创建时应用通知。
 
 &emsp;&emsp;Spring AOP 与 ApectJ 的目的一致，都是为了统一处理横切业务，但与 AspectJ 不同的是，Spring AOP 并不尝试提供完整的 AOP 功能，Spring AOP 更注重的是与 Spring IOC 容器的结合，并结合该优势来解决横切业务的问题，因此在 AOP 的功能完善方面，AspectJ 具有更大的优势。
 
-&emsp;&emsp;同时 Spring 注意到 AspectJ 在 AOP 的实现方式上依赖于特殊编译器( ajc 编译器)，Spring 回避了这点，转向采用动态代理技术的实现原理来构建 Spring AOP 的内部机制（动态织入），这是与 AspectJ（静态织入）最根本的区别。
+&emsp;&emsp;同时 Spring 注意到 AspectJ 在 AOP 的实现方式上依赖于特殊编译器( ajc 编译器)，Spring 回避了这点，转向采用动态代理技术来构建 Spring AOP 的内部机制（动态织入），这是与 AspectJ（静态织入）最根本的区别。
 
-&emsp;&emsp;在 AspectJ 1.5 后，引入 @Aspect 形式的注解风格的开发，Spring 也非常快地跟进了这种方式，因此 Spring 2.0 后便使用了与 AspectJ 一样的注解。请注意 **Spring 只是使用了与 AspectJ 5 一样的注解**，但仍然没有使用 AspectJ 的编译器，底层依是动态代理技术的实现，因此并不依赖于 AspectJ 的编译器。
-
-&emsp;&emsp;AspectJ 是一个面向切面的框架，它扩展了 Java 语言。AspectJ 定义了 AOP 语法，所以它有一个专门的编译器用来生成遵守 Java 字节编码规范的 Class 文件（只是 Spring 一般只用到它的注解，其余都由 Spring 自己实现）。
+&emsp;&emsp;在 AspectJ 1.5 后，引入了 @Aspect 形式的注解方式的开发，Spring 也非常快地跟进了这种方式，因此 Spring 2.0 后便使用了与 AspectJ 一样风格的注解。请注意 **Spring 只是使用了与 AspectJ 5 一样风格的注解**，但仍然没有使用 AspectJ 的编译器，底层使用的依旧是动态代理技术，因此并不依赖于 AspectJ 的编译器。
 
 ## 3 Spring AOP 的使用
 
@@ -280,7 +278,7 @@ public static void main(String[] args) {
 
 &emsp;&emsp;Spring2.0 采用 @AspectJ 注解对 POJO 进行标注，从而定义一个包含切点信息和增强横切逻辑的切面，Spring 2.0 可以将这个切面织入到匹配的目标 Bean 中。@AspectJ 注解使用 AspectJ 切点表达式语法进行切点定义，可以通过切点函数、运算符、通配符等高级功能进行切点定义，拥有强大的连接点描述能力。
 
-&emsp;&emsp;尽管 Spring 一再简化配置，并且大有使用注解取代 XML 之势，但无论如何 XML 还是 Spring 的基石。还是使用上面提到的示例，需要在 TestServiceImpl 的 save 方法前后添加增强的功能。
+&emsp;&emsp;尽管 Spring 一再简化配置，并且大有使用注解取代 XML 之势，但无论如何 XML 还是 Spring 的基石。这里依旧使用前面的示例，需要在 TestServiceImpl 的 save 方法前后添加增强的功能。
 
 ### 3.1 AspectJ 切入点语法
 
@@ -309,9 +307,9 @@ public static Class java.lang.Class.forName(String className)throws ClassNotFoun
 10. reference pointcut：表示引用其他切点，只有 @ApectJ 注解风格支持，xml 风格不支持。
 11. bean(idOrNameOfBean)：当调用的方法是指定的 idOrNameOfBean 的方法时生效。(Spring AOP 自己扩展支持的)。
 
-&emsp;&emsp;使用 execution 指示器选择切入点，当方法表达式以 * 号开始，标识不关心方法的返回值类型，对于方法参数列表，使用 .. 标识切点选择任意的方法，多个匹配之间可以使用链接符 &&、||、！来表示 “且”、“或”、“非” 的关系。但是在使用 XML 文件配置时，这些符号有特殊的含义，所以使用 “and”、“or”、“not”来表示。
+&emsp;&emsp;使用 execution 指示器选择切入点，当方法表达式以 * 号开始，表示不关心方法的返回值类型，对于方法参数列表，使用 .. 表示切点选择任意的方法，多个匹配之间可以使用连接符 &&、||、！来表示 “且”、“或”、“非” 的关系。但是在使用 XML 文件配置时，这些符号有特殊的含义，所以使用 “and”、“or”、“not” 来表示。
 
-**几种常用的切入点表达式**
+**几种常用的切入点表达式示例**
 
 - 任意公共方法
 
@@ -359,7 +357,7 @@ execution(* org.springframework.myTest..*Service.*(..))
 execution(* org.springframework.myTest..*Service.*(..)) and bean(testServiceImpl)
 ```
 
-### 3.2 增强的时机
+### 3.2 Spring AOP 增强的时机
 
 - aop:before（前置增强）：在方法执行之前执行增强；
 - aop:after-returning（后置增强）：在方法正常执行完成之后执行增强；
@@ -581,7 +579,7 @@ public class TransactionManager {
 
 #### 3.3.3 advisor 标签
 
-&emsp;&emsp;上面都是使用 aspect 标签来实现 aop 的增强配置的，Spring 中还有一个标签 advisor 也可以用于配置。
+&emsp;&emsp;Spring 中还有一个标签 advisor 也可以用于配置。
 
 - `<aop:aspect>`：定义切面（切面包括通知和切点）
 - `<aop:advisor>`：定义通知器（通知器跟切面一样，也包括通知和切点）
@@ -701,7 +699,7 @@ public static void main(String[] args) throws Exception {
 
 ## 4 AOP 标签解析
 
-&emsp;&emsp;示例中展示了对方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考[官方文档](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop)，然后看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终发现 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
+&emsp;&emsp;示例中展示了对方法的增强处理，使辅助功能可以独立于核心业务之外，方便于程序的扩展和解耦，更详细的使用这里就不深入研究了，可以参考[官方文档](https://docs.spring.io/spring-framework/docs/current/reference/html/core.html#aop)，然后看一下 AOP 标签的解析过程。根据 Spring 自定义标签的解析过程，如果声明了自定义标签，那么就一定在程序中注册了对应的解析器。根据自定义标签的流程分析寻找，最终找到 AopNamespaceHandler 类中注册了 AOP 相关的解析器。
 
 **AopNamespaceHandler.init**
 
@@ -838,9 +836,9 @@ static {
 
 **proxy-target-class 和 expose-proxy**
 
-&emsp;&emsp;同时在这一步骤中涉及到 config 标签的两个属性 proxy-target-class 和 expose-proxy。
+&emsp;&emsp;在这一步骤中涉及到 config 标签的两个属性 proxy-target-class 和 expose-proxy。
 
-- proxy-target-class：Spring 中使用了 JDK 动态代理和 CGLIB 动态代理两种实现方式，当代理目标实现了至少一个接口时，则会使用 JDK 动态代理，否则使用 CGLIB 动态代理，至于两种方式的区别上文已经说过了，设置 proxy-target-class 为 true 则会强制使用 CGLIB 动态代理。
+- proxy-target-class：Spring 中使用了 JDK 动态代理和 CGLIB 动态代理两种实现方式，当代理目标实现了至少一个接口时，则会使用 JDK 动态代理，否则使用 CGLIB 动态代理，设置 proxy-target-class 为 true 则会强制使用 CGLIB 动态代理。
 - expose-proxy：有时候**对象内部**自我调用将无法实施切面中的增强，设置 expose-proxy 为 true 则可以暴露代理对象，实现增强操作，例如：
 
 ```java
@@ -874,13 +872,13 @@ public static void forceAutoProxyCreatorToExposeProxy(BeanDefinitionRegistry reg
 }
 ```
 
-&emsp;&emsp;Spring 中 AOP 就是通过增强器的形式来干预 bean 的生命周期，上述过程就是在解析使用的增强器实现类。
+&emsp;&emsp;Spring 中 AOP 就是通过增强器（BeanPostProcessor）的形式来添加代理功能的，上述过程就是在解析使用的增强器实现类。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112291735945.png)
 
 ### 4.2 标签解析
 
-&emsp;&emsp;然后以 aspect 标签为例，简单看一下标签解析的过程。
+&emsp;&emsp;然后以 aspect 标签为例，简单看一下 AOP 标签解析的过程。
 
 **ConfigBeanDefinitionParser.parseAspect**
 
@@ -1003,7 +1001,7 @@ private AbstractBeanDefinition parseAdvice(
 }
 ```
 
-&emsp;&emsp;子标签会使用对应的实现类构造并转化为 AspectJPointcutAdvisor，各种标签对应使用的实现类关系如下：
+&emsp;&emsp;子标签会使用对应的**实现类构造并转化为 AspectJPointcutAdvisor**，各种标签对应使用的实现类关系如下：
 
 **ConfigBeanDefinitionParser.getAdviceClass**
 
@@ -1036,9 +1034,9 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 }
 ```
 
-&emsp;&emsp;其余标签的解析过程与 aspect 标签解析大同小异，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
+&emsp;&emsp;其余标签的解析过程与 aspect 标签解析类似，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
 
-## 5 Spring 中的 AOP 体系
+## 5 Spring 中的 AOP 结构
 
 ### 5.1 Pointcut
 
@@ -1216,6 +1214,20 @@ public abstract class DynamicMethodMatcher implements MethodMatcher {
 &emsp;&emsp;`org.springframework.aop.support.DefaultPointcutAdvisor` 是 Spring 提供的最常用的 Advisor，可以把任意的两个 Advice 和 Pointcut 组合在一起。
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201071120295.png)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

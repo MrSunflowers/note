@@ -1,10 +1,10 @@
 # Spring源码笔记十：AOP 的使用
 
-&emsp;&emsp;上篇文中简单介绍了 AOP 的相关概念和标签解析过程，并完成了对自动代理创建器 AspectJAwareAdvisorAutoProxyCreator 的配置和注册过程。
+&emsp;&emsp;上篇文中简单介绍了 AOP 的相关概念和标签解析过程，并完成了对自动代理创建器 AspectJAwareAdvisorAutoProxyCreator 的配置和注册过程，然后来看一下 AspectJAwareAdvisorAutoProxyCreator 所做的工作。
 
 ## 1 创建代理的准备工作
 
-&emsp;&emsp;实现了 BeanPostProcessor 接口的 bean 都会在 ApplicationContext 容器启动时被注册，并在其他 bean 实例化过程中通过其对应的接口方法实现对 bean 的额外处理，所以这里的入口就是 postProcessBeforeInstantiation。
+&emsp;&emsp;实现了 BeanPostProcessor 接口的 bean 都会在 ApplicationContext 容器启动时被注册，并在其他 bean 实例化过程中通过其对应的接口方法实现对 bean 的附加处理，所以处理的第一步的入口就是 postProcessBeforeInstantiation。
 
 **AbstractAutoProxyCreator.postProcessBeforeInstantiation**
 
@@ -45,6 +45,8 @@ public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName
 }
 ```
 
+### 1.1 shouldSkip
+
 **AspectJAwareAdvisorAutoProxyCreator.shouldSkip**
 
 ```java
@@ -61,6 +63,39 @@ protected boolean shouldSkip(Class<?> beanClass, String beanName) {
 	}
 	// 如果 beanName 使用 bean 的全限定名称 + .ORIGINAL 表示当前类跳过代理
 	return super.shouldSkip(beanClass, beanName);
+}
+```
+
+**AbstractAutoProxyCreator.shouldSkip**
+
+```java
+protected boolean shouldSkip(Class<?> beanClass, String beanName) {
+	return AutoProxyUtils.isOriginalInstance(beanName, beanClass);
+}
+```
+
+**AutoProxyUtils.isOriginalInstance**
+
+```java
+static boolean isOriginalInstance(String beanName, Class<?> beanClass) {
+	if (!StringUtils.hasLength(beanName) || beanName.length() !=
+			beanClass.getName().length() + AutowireCapableBeanFactory.ORIGINAL_INSTANCE_SUFFIX.length()) {
+		return false;
+	}
+	// beanName = 全限定名 + .ORIGINAL
+	return (beanName.startsWith(beanClass.getName()) &&
+			beanName.endsWith(AutowireCapableBeanFactory.ORIGINAL_INSTANCE_SUFFIX));
+}
+```
+
+### 1.2 实例化 Advisor bean
+
+**AbstractAdvisorAutoProxyCreator.findCandidateAdvisors**
+
+```java
+protected List<Advisor> findCandidateAdvisors() {
+	Assert.state(this.advisorRetrievalHelper != null, "No BeanFactoryAdvisorRetrievalHelper available");
+	return this.advisorRetrievalHelper.findAdvisorBeans();
 }
 ```
 
@@ -122,9 +157,7 @@ public List<Advisor> findAdvisorBeans() {
 }
 ```
 
-&emsp;&emsp;首先在 shouldSkip 方法中加载了所有解析到的 Advisor。
-
-## 2 静态代理和动态代理
+## 2 创建代理
 
 **AbstractAutoProxyCreator.postProcessAfterInitialization**
 
@@ -144,8 +177,112 @@ public Object postProcessAfterInitialization(@Nullable Object bean, String beanN
 **AbstractAutoProxyCreator.wrapIfNecessary**
 
 ```java
+protected Object wrapIfNecessary(Object bean, String beanName, Object cacheKey) {
+	// 如果已经处理过
+	if (StringUtils.hasLength(beanName) && this.targetSourcedBeans.contains(beanName)) {
+		return bean;
+	}
+	// 不需要代理
+	if (Boolean.FALSE.equals(this.advisedBeans.get(cacheKey))) {
+		return bean;
+	}
+	// 不需要代理或跳过
+	if (isInfrastructureClass(bean.getClass()) || shouldSkip(bean.getClass(), beanName)) {
+		this.advisedBeans.put(cacheKey, Boolean.FALSE);
+		return bean;
+	}
+
+	// Create proxy if we have advice.
+	// 给当前 bean 寻找匹配的 Advice 和 Advisor
+	Object[] specificInterceptors = getAdvicesAndAdvisorsForBean(bean.getClass(), beanName, null);
+	if (specificInterceptors != DO_NOT_PROXY) {
+		this.advisedBeans.put(cacheKey, Boolean.TRUE);
+		// 创建代理对象
+		Object proxy = createProxy(
+				bean.getClass(), beanName, specificInterceptors, new SingletonTargetSource(bean));
+		this.proxyTypes.put(cacheKey, proxy.getClass());
+		return proxy;
+	}
+
+	this.advisedBeans.put(cacheKey, Boolean.FALSE);
+	return bean;
+}
+```
+
+&emsp;&emsp;可以看到，在真正开始创建代理之前还需要经过一些判断条件，比如是否已经处理过或者是否是需要跳过的 bean。
+
+### 2.1 获取 Advisor
+
+**AbstractAdvisorAutoProxyCreator.getAdvicesAndAdvisorsForBean**
+
+```java
+protected Object[] getAdvicesAndAdvisorsForBean(
+		Class<?> beanClass, String beanName, @Nullable TargetSource targetSource) {
+	// 匹配可以应用于该类的 Advisor
+	List<Advisor> advisors = findEligibleAdvisors(beanClass, beanName);
+	if (advisors.isEmpty()) {
+		return DO_NOT_PROXY;
+	}
+	return advisors.toArray();
+}
+```
+
+**AbstractAdvisorAutoProxyCreator.findEligibleAdvisors**
+
+```java
+protected List<Advisor> findEligibleAdvisors(Class<?> beanClass, String beanName) {
+	// 1. 查找所有的 Advisor 以用于自动代理
+	List<Advisor> candidateAdvisors = findCandidateAdvisors();
+	// 2. 匹配可以应用于该类的 Advisor
+	List<Advisor> eligibleAdvisors = findAdvisorsThatCanApply(candidateAdvisors, beanClass, beanName);
+	extendAdvisors(eligibleAdvisors);
+	if (!eligibleAdvisors.isEmpty()) {
+		eligibleAdvisors = sortAdvisors(eligibleAdvisors);
+	}
+	return eligibleAdvisors;
+}
+```
+
+&emsp;&emsp;对于查找所有符合条件的 Advisor 包含两个步骤，首先获取所有的 Advisor，然后从中匹配可以应用于当前 bean 的 Advisor。
+
+#### 2.1.1 查找所有的 Advisor
+
+
+
+
+
+
+
+
+
+#### 2.1.2 匹配可以应用于该类的 Advisor
+
+**AbstractAdvisorAutoProxyCreator.findAdvisorsThatCanApply**
+
+```java
+protected List<Advisor> findAdvisorsThatCanApply(
+		List<Advisor> candidateAdvisors, Class<?> beanClass, String beanName) {
+
+	ProxyCreationContext.setCurrentProxiedBeanName(beanName);
+	try {
+		// 匹配可以应用于该类的 Advisor
+		return AopUtils.findAdvisorsThatCanApply(candidateAdvisors, beanClass);
+	}
+	finally {
+		ProxyCreationContext.setCurrentProxiedBeanName(null);
+	}
+}
+```
+
+**AopUtils.findAdvisorsThatCanApply**
+
+```java
 
 ```
+
+
+
+
 
 
 &emsp;&emsp;Pointcut 还有一个子接口 ExpressionPointcut，用于解析 String 类型的切点表达式。AOP 自定义标签解析将 pointcut 标签解析为 AspectJExpressionPointcut 类，它使用 AspectJ 提供的库来解析 AspectJ 切入点表达式字符串，结构类图如下：

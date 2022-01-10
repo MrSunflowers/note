@@ -1030,4 +1030,4 @@ public class UserA {
 5. 将获取到的 UserA 填充至 UserB 中，UserB 完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时将 UserB 从三级缓存 `singletonFactories` 中移除，现在三级缓存 `singletonFactories` 中没有缓存的 bean 了。
 6. 获取到 UserB 的 UserA 随后完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时从二级缓存 `earlySingletonObjects` 中移除，现在二级缓存 `earlySingletonObjects` 中也没有缓存的 bean 了，循环引用处理完成。
 
-![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202112271428706.png)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201101031279.png)
