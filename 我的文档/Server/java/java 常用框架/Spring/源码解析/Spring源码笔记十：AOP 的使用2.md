@@ -1,8 +1,8 @@
 # Spring源码笔记十：AOP 的使用
 
-&emsp;&emsp;上篇文中简单介绍了 AOP 的相关概念和标签解析过程，并完成了对自动代理创建器 AspectJAwareAdvisorAutoProxyCreator 的配置和注册过程，然后来看一下 AspectJAwareAdvisorAutoProxyCreator 所做的工作。
+&emsp;&emsp;上篇文中简单介绍了 AOP 的相关概念和标签解析过程，并完成了对自动代理创建器 AspectJAwareAdvisorAutoProxyCreator 的配置和注册过程，AnnotationAwareAspectJAutoProxyCreator 在 AspectJAwareAdvisorAutoProxyCreator 的基础上进行了拓展实现 ，AnnotationAwareAspectJAutoProxyCreator 的注册过程与 AspectJAwareAdvisorAutoProxyCreator 基本一致，这里不再赘述，所以这里直接从 AnnotationAwareAspectJAutoProxyCreator 的工作开始分析。
 
-## 1 创建代理的准备工作
+## 1 创建代理前的准备工作
 
 &emsp;&emsp;实现了 BeanPostProcessor 接口的 bean 都会在 ApplicationContext 容器启动时被注册，并在其他 bean 实例化过程中通过其对应的接口方法实现对 bean 的附加处理，所以处理的第一步的入口就是 postProcessBeforeInstantiation。
 
@@ -14,6 +14,7 @@ public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName
 	Object cacheKey = getCacheKey(beanClass, beanName);
 	// 没有被处理过
 	if (!StringUtils.hasLength(beanName) || !this.targetSourcedBeans.contains(beanName)) {
+        // advisedBeans 保存所有需要被增强的 bean
 		if (this.advisedBeans.containsKey(cacheKey)) {
 			return null;
 		}
@@ -45,7 +46,30 @@ public Object postProcessBeforeInstantiation(Class<?> beanClass, String beanName
 }
 ```
 
-### 1.1 shouldSkip
+### 1.1 判断是否为基础结构类
+
+**AnnotationAwareAspectJAutoProxyCreator.isInfrastructureClass**
+
+```java
+protected boolean isInfrastructureClass(Class<?> beanClass) {
+	// Previously we setProxyTargetClass(true) in the constructor, but that has too
+	// broad an impact. Instead we now override isInfrastructureClass to avoid proxying
+	// aspects. I'm not entirely happy with that as there is no good reason not
+	// to advise aspects, except that it causes advice invocation to go through a
+	// proxy, and if the aspect implements e.g the Ordered interface it will be
+	// proxied by that interface and fail at runtime as the advice method is not
+	// defined on the interface. We could potentially relax the restriction about
+	// not advising aspects in the future.
+	return (super.isInfrastructureClass(beanClass) ||
+			(this.aspectJAdvisorFactory != null && this.aspectJAdvisorFactory.isAspect(beanClass)));
+}
+```
+
+isInfrastructureClass 方法做了两件事：
+1. 调用父类的 isInfrastructureClass 方法，看是不是基础类：Advice，Pointcut，Advisor 或 AopInfrastructureBean 的子类。
+2. 调用 isAspect 方法看是不是有可处理的 @Aspect 注解，是否可处理主要查看 Class 是不是由 ajc 编译。
+
+### 1.2 shouldSkip
 
 **AspectJAwareAdvisorAutoProxyCreator.shouldSkip**
 
@@ -66,29 +90,29 @@ protected boolean shouldSkip(Class<?> beanClass, String beanName) {
 }
 ```
 
-**AbstractAutoProxyCreator.shouldSkip**
+&emsp;&emsp;在当前工厂中查找并实例化所有的 Advisor，然后跳过 Advice bean。
+
+#### 1.2.1 加载 Advisor
+
+&emsp;&emsp;这里的 findCandidateAdvisors 方法由 AnnotationAwareAspectJAutoProxyCreator 实现。
+
+**AnnotationAwareAspectJAutoProxyCreator.findCandidateAdvisors**
 
 ```java
-protected boolean shouldSkip(Class<?> beanClass, String beanName) {
-	return AutoProxyUtils.isOriginalInstance(beanName, beanClass);
-}
-```
-
-**AutoProxyUtils.isOriginalInstance**
-
-```java
-static boolean isOriginalInstance(String beanName, Class<?> beanClass) {
-	if (!StringUtils.hasLength(beanName) || beanName.length() !=
-			beanClass.getName().length() + AutowireCapableBeanFactory.ORIGINAL_INSTANCE_SUFFIX.length()) {
-		return false;
+protected List<Advisor> findCandidateAdvisors() {
+	// Add all the Spring advisors found according to superclass rules.
+	// 1.调用父类方法加载配置文件中的 AOP 声明
+	List<Advisor> advisors = super.findCandidateAdvisors();
+	// Build Advisors for all AspectJ aspects in the bean factory.
+	if (this.aspectJAdvisorsBuilder != null) {
+		// 2.加载注解中的 Advisor
+		advisors.addAll(this.aspectJAdvisorsBuilder.buildAspectJAdvisors());
 	}
-	// beanName = 全限定名 + .ORIGINAL
-	return (beanName.startsWith(beanClass.getName()) &&
-			beanName.endsWith(AutowireCapableBeanFactory.ORIGINAL_INSTANCE_SUFFIX));
+	return advisors;
 }
 ```
 
-### 1.2 实例化 Advisor bean
+#### 1.2.2 加载配置文件中的声明
 
 **AbstractAdvisorAutoProxyCreator.findCandidateAdvisors**
 
@@ -156,6 +180,34 @@ public List<Advisor> findAdvisorBeans() {
 	return advisors;
 }
 ```
+
+#### 1.2.3 加载注解中的 Advisor
+
+**BeanFactoryAspectJAdvisorsBuilder.buildAspectJAdvisors**
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## 2 创建代理
 

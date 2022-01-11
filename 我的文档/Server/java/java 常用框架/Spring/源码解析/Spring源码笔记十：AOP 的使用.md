@@ -786,7 +786,7 @@ public static BeanDefinition registerAspectJAutoProxyCreatorIfNecessary(
 }
 ```
 
-&emsp;&emsp;这里涉及到一个优先级问题，如果容器中包含了自动代理创建器且存在的自动代理创建器与当前使用的不一致，那么需要根据优先级来判断到底要使用哪一个。下面由于是第一次创建，容器中没有自动代理创建器，所以直接使用 **AspectJAwareAdvisorAutoProxyCreator** 作为实现类。
+&emsp;&emsp;这里涉及到一个优先级问题，如果容器中包含了自动代理创建器且存在的自动代理创建器与当前使用的不一致，那么需要根据优先级来判断到底要使用哪一个。下面由于是第一次创建，容器中没有自动代理创建器，所以这里直接使用 **AspectJAwareAdvisorAutoProxyCreator** 作为实现类。
 
 **AopConfigUtils.registerOrEscalateApcAsRequired**
 
@@ -958,7 +958,6 @@ private AbstractBeanDefinition parseAdvice(
 		this.parseState.push(new AdviceEntry(parserContext.getDelegate().getLocalName(adviceElement)));
 
 		// create the method factory bean
-		// 1. 构建 MethodLocatingFactoryBean BeanDefinition
 		RootBeanDefinition methodDefinition = new RootBeanDefinition(MethodLocatingFactoryBean.class);
 		// 通知 beanName
 		methodDefinition.getPropertyValues().add("targetBeanName", aspectName);
@@ -967,14 +966,13 @@ private AbstractBeanDefinition parseAdvice(
 		methodDefinition.setSynthetic(true);
 
 		// create instance factory definition
-		// 2. 构建 SimpleBeanFactoryAwareAspectInstanceFactory BeanDefinition
 		RootBeanDefinition aspectFactoryDef =
 				new RootBeanDefinition(SimpleBeanFactoryAwareAspectInstanceFactory.class);
 		aspectFactoryDef.getPropertyValues().add("aspectBeanName", aspectName);
 		aspectFactoryDef.setSynthetic(true);
 
 		// register the pointcut
-		// 3. 将标签解析为 BeanDefinition
+		// 将标签解析为 BeanDefinition
 		AbstractBeanDefinition adviceDef = createAdviceDefinition(
 				adviceElement, parserContext, aspectName, order, methodDefinition, aspectFactoryDef,
 				beanDefinitions, beanReferences);
@@ -1034,7 +1032,7 @@ private Class<?> getAdviceClass(Element adviceElement, ParserContext parserConte
 }
 ```
 
-&emsp;&emsp;其余标签的解析过程与 aspect 标签解析类似，同样是将信息都转化为 BeanDefinition 等待后续继续处理，不同的是 pointcut 标签使用 AspectJExpressionPointcut 作为实现类，而 advisor 标签使用 DefaultBeanFactoryPointcutAdvisor 作为实现类。
+&emsp;&emsp;其他标签的解析过程与 aspect 标签类似。
 
 ## 5 Spring 中的 AOP 结构
 
