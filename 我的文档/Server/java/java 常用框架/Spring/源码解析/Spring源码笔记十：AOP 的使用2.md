@@ -90,9 +90,9 @@ protected boolean shouldSkip(Class<?> beanClass, String beanName) {
 }
 ```
 
-&emsp;&emsp;在当前工厂中查找并实例化所有的 Advisor，然后跳过 Advice bean。
+&emsp;&emsp;shouldSkip 方法负责，在当前工厂中查找并实例化所有的 Advisor，然后找出不需要处理的 bean。
 
-#### 1.2.1 加载 Advisor
+
 
 &emsp;&emsp;这里的 findCandidateAdvisors 方法由 AnnotationAwareAspectJAutoProxyCreator 实现。
 
@@ -112,7 +112,7 @@ protected List<Advisor> findCandidateAdvisors() {
 }
 ```
 
-#### 1.2.2 加载配置文件中的声明
+#### 1.2.1 从配置文件中加载 Advisor
 
 **AbstractAdvisorAutoProxyCreator.findCandidateAdvisors**
 
@@ -181,7 +181,7 @@ public List<Advisor> findAdvisorBeans() {
 }
 ```
 
-#### 1.2.3 加载注解中的 Advisor
+#### 1.2.2 从注解中加载 Advisor
 
 **BeanFactoryAspectJAdvisorsBuilder.buildAspectJAdvisors**
 
