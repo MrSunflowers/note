@@ -17,9 +17,10 @@
 ```
 node -v 查看 node 版本
 node test.js 运行 test.js 文件
+npm init -y 初始化项目
 ```
 
-## 1.文件操作
+## 1 文件操作
 
 ### 1.1 文件读写
 
@@ -68,7 +69,7 @@ console.log(__dirname);
 console.log(__filename);
 ```
 
-## 2. path 文件路径模块
+## 2  path 文件路径模块
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202202262234109.png)
 
@@ -76,11 +77,11 @@ console.log(__filename);
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202202262247481.png)
 
-## 3. Http 模块
+## 3  Http 模块
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202271405068.png)
 
-## 4 .模块化
+## 4  模块化
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202271602368.png)
 
@@ -116,7 +117,7 @@ console.log(__filename);
 
 
 
-## 5.npm 与包
+## 5  npm 与包
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202272026918.png)
 
@@ -168,7 +169,7 @@ console.log(__filename);
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203012124606.png)
 
-## 6. 模块的加载顺序
+## 6  模块的加载顺序
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202272200487.png)
 
@@ -180,7 +181,7 @@ console.log(__filename);
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202272237596.png)
 
-## 7. Express web 开发框架
+## 7  Express web 开发框架
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202202272239303.png)
 
@@ -234,7 +235,7 @@ npm i express@4.17.1
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203012106434.png)
 
-## 8. Express 路由
+## 8  Express 路由
 
 路由就是映射关系
 
@@ -381,6 +382,10 @@ npm i express@4.17.1
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203022123324.png)
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203022124394.png)
+
+```shell
+npm i cors@2.8.5
+```
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203022126906.png)
 
@@ -566,7 +571,19 @@ npm i jsonwebtoken@8.5.1 express-jwt@5.3.3
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203060057206.png)
 
-13.10  还原 JWT 字符串
+### 13.10  还原 JWT 字符串
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203060059509.png)
+
+### 13.11  从 req.user 获取用户信息
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061412652.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061413062.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061503096.png)
+
+## 14 项目开发
+
+[Headline - api_server_ev (escook.cn)](http://www.escook.cn:8088/#/)
 
