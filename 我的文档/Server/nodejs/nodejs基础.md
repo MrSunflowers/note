@@ -571,7 +571,13 @@ npm i jsonwebtoken@8.5.1 express-jwt@5.3.3
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203060057206.png)
 
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061956466.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203062000983.png)
+
 ### 13.10  还原 JWT 字符串
+
+前端使用时需要添加 `Authorization：Bearer+空格+token`
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203060059509.png)
 
@@ -586,4 +592,26 @@ npm i jsonwebtoken@8.5.1 express-jwt@5.3.3
 ## 14 项目开发
 
 [Headline - api_server_ev (escook.cn)](http://www.escook.cn:8088/#/)
+
+### 14.1 密码加密
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061553585.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061953796.png)
+
+修改密码
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203062010556.png)
+
+### 14.2 数据验证
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061930017.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061931903.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061931676.png)
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203061932865.png)
+
+
 

@@ -5,18 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
-      <change afterPath="$PROJECT_DIR$/我的文档/Server/nodejs/基础使用手册.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/我的文档/datebase/mySql/mysql-connector-java-8.0.27.jar" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/我的文档/datebase/mySql/mysql基础.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/我的文档/datebase/概述.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/我的文档/总结/面试.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dataSources.local.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dataSources.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/dataSources/55262c52-6f94-40c2-b310-c9e9a3fa7aa2.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/dataSources/55262c52-6f94-40c2-b310-c9e9a3fa7aa2.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/Server/java/面试/面试.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/client/开发工具及环境/node.js/基础使用手册.md" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/datebase/mySql/安装.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/datebase/mySql/安装.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/Server/nodejs/nodejs基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Server/nodejs/nodejs基础.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -110,6 +100,7 @@
       <workItem from="1646474888676" duration="9926000" />
       <workItem from="1646492972212" duration="17000" />
       <workItem from="1646493005276" duration="17000" />
+      <workItem from="1646552066717" duration="862000" />
     </task>
     <servers />
   </component>
