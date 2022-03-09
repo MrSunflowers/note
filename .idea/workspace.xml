@@ -6,7 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/Server/nodejs/nodejs基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Server/nodejs/nodejs基础.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/client/vue/vue 基础" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/client/vue/vue 基础" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/client/webpack/webpack.md" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,7 +47,7 @@
     <property name="WebServerToolWindowPanel.toolwindow.show.permissions" value="false" />
     <property name="WebServerToolWindowPanel.toolwindow.show.size" value="false" />
     <property name="aspect.path.notification.shown" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/我的文档/datebase/mySql" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="nodejs_package_manager_path" value="npm" />
     <property name="project.structure.last.edited" value="项目" />
     <property name="project.structure.proportion" value="0.0" />
@@ -101,6 +102,8 @@
       <workItem from="1646492972212" duration="17000" />
       <workItem from="1646493005276" duration="17000" />
       <workItem from="1646552066717" duration="862000" />
+      <workItem from="1646829593423" duration="22000" />
+      <workItem from="1646830019122" duration="7000" />
     </task>
     <servers />
   </component>
