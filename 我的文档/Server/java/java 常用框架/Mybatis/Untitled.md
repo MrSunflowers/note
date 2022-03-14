@@ -116,3 +116,7 @@ MyBatis 中默认的事务管理器为 JDBC 默认的数据源策略为 POOLED �
 
 # 缓存
 
+# 使用过程中 oracle 与 mysql 的区别
+
+1. mybatis 默认将 null 值映射为 JDBC_TYPE.ORTHER 类型，oracle 不认，而 mysql 可以。显示设置映射关系为 JDBC_TYPE.NULL : 全局 or 放值时
+2. mysql 有主键自增，oracle 使用序列实现，配置select key标签
