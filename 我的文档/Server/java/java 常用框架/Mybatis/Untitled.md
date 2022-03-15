@@ -178,3 +178,12 @@ MyBatis 中默认的事务管理器为 JDBC 默认的数据源策略为 POOLED �
    2. 传入参数本身![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202203142153996.png)
 
 # 整合第三方缓存
+
+原理：三方缓存通过实现 mybatis 的 Cache 接口来实现整合
+
+[MyBatis 与各种环境的整合实现的中间包与文档](https://github.com/mybatis)
+
+整合 EHcache
+
+[mybatis-ehcache – MyBatis Ehcache | Reference Documentation](http://mybatis.org/ehcache-cache/)
+
