@@ -114,9 +114,13 @@ MyBatis 中默认的事务管理器为 JDBC 默认的数据源策略为 POOLED �
 
 # mybatis 中的代理
 
+在 mybatis 中，Mapper 接口和插件的实现都是使用 **JDK** 代理
 
+Mybatis 仅支持 association 关联对象和 collection 关联集合对象的**延迟加载**，association 指的就是一对一，collection 指的就是一对多查询。在 Mybatis 配置文件中，可以配置是否启用延迟加载lazyLoadingEnabled=true|false。
 
+**延迟加载**的原理是，使用 **CGLIB** 创建目标对象的代理对象，当调用目标方法时，进入拦截器方法，比如调用 a.getB().getName()，拦截器 invoke() 方法发现 a.getB() 是 null 值，那么就会单独发送事先保存好的查询关联B对象的sql，把B查询上来，然后调用a.setB(b)，于是a的对象b属性就有值了，接着完成a.getB().getName()方法的调用。这就是延迟加载的基本原理。
 
+当然了，不光是Mybatis，几乎所有的包括Hibernate，支持延迟加载的原理都是一样的。
 
 # 缓存
 
@@ -186,4 +190,6 @@ MyBatis 中默认的事务管理器为 JDBC 默认的数据源策略为 POOLED �
 整合 EHcache
 
 [mybatis-ehcache – MyBatis Ehcache | Reference Documentation](http://mybatis.org/ehcache-cache/)
+
+# mybatis 逆向工程
 
