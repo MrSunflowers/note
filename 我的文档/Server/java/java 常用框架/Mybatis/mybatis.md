@@ -158,6 +158,10 @@ Mybatis 仅支持 association 关联对象和 collection 关联集合对象的**
 
 **查找顺序：先查找二级缓存，再查找一级缓存，这样是为了解决一级缓存存在的脏读问题，但是当访问两个不同的Mapper时也会存在脏读，解决方法可以把两个Mapper放到一个nameSpace下**
 
+# Mybatis的循环引用
+
+URL:  [https://blog.csdn.net/landywu1985/article/details/106963778?utm_medium=distribute.pc_aggpage_search_result.none-task-blog-2~aggregatepage~first_rank_ecpm_v1~rank_v31_ecpm-1-106963778.pc_agg_new_rank&utm_term=mybatis%E5%BE%AA%E7%8E%AF%E5%BC%95%E7%94%A8&spm=1000.2123.3001.4430](https://blog.csdn.net/landywu1985/article/details/106963778?utm_medium=distribute.pc_aggpage_search_result.none-task-blog-2~aggregatepage~first_rank_ecpm_v1~rank_v31_ecpm-1-106963778.pc_agg_new_rank&utm_term=mybatis循环引用&spm=1000.2123.3001.4430)
+
 # 使用过程中 oracle 与 mysql 的区别
 
 1. mybatis 默认将 null 值映射为 JDBC_TYPE.ORTHER 类型，oracle 不认，而 mysql 可以。显示设置映射关系为 JDBC_TYPE.NULL : 全局 or 放值时
@@ -191,5 +195,112 @@ Mybatis 仅支持 association 关联对象和 collection 关联集合对象的**
 
 [mybatis-ehcache – MyBatis Ehcache | Reference Documentation](http://mybatis.org/ehcache-cache/)
 
-# mybatis 逆向工程
+# Spring 整合
+
+applicationContext.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:mybatis-spring="http://mybatis.org/schema/mybatis-spring"
+	xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://mybatis.org/schema/mybatis-spring http://mybatis.org/schema/mybatis-spring-1.2.xsd
+		http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-4.0.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.0.xsd">
+
+	<!-- Spring希望管理所有的业务逻辑组件，等。。。 -->
+	<context:component-scan base-package="com.atguigu.mybatis">
+		<context:exclude-filter type="annotation"
+			expression="org.springframework.stereotype.Controller" />
+	</context:component-scan>
+
+	<!-- 引入数据库的配置文件 -->
+	<context:property-placeholder location="classpath:dbconfig.properties" />
+	<!-- Spring用来控制业务逻辑。数据源、事务控制、aop -->
+	<bean id="dataSource" class="com.mchange.v2.c3p0.ComboPooledDataSource">
+		<property name="jdbcUrl" value="${jdbc.url}"></property>
+		<property name="driverClass" value="${jdbc.driver}"></property>
+		<property name="user" value="${jdbc.username}"></property>
+		<property name="password" value="${jdbc.password}"></property>
+	</bean>
+	<!-- spring事务管理 -->
+	<bean id="dataSourceTransactionManager" class="org.springframework.jdbc.datasource.DataSourceTransactionManager">
+		<property name="dataSource" ref="dataSource"></property>
+	</bean>
+
+	<!-- 开启基于注解的事务 -->
+	<tx:annotation-driven transaction-manager="dataSourceTransactionManager"/>
+	
+	<!-- 
+	整合mybatis 
+		目的：1、spring管理所有组件。mapper的实现类。
+				service==>Dao   @Autowired:自动注入mapper；
+			2、spring用来管理事务，spring声明式事务
+	-->
+	<!--创建出SqlSessionFactory对象  -->
+	<bean id="sqlSessionFactoryBean" class="org.mybatis.spring.SqlSessionFactoryBean">
+		<property name="dataSource" ref="dataSource"></property>
+		<!-- configLocation指定全局配置文件的位置 -->
+		<property name="configLocation" value="classpath:mybatis-config.xml"></property>
+		<!--mapperLocations: 指定mapper文件的位置-->
+		<property name="mapperLocations" value="classpath:mybatis/mapper/*.xml"></property>
+	</bean>
+	
+	<!--配置一个可以进行批量执行的sqlSession  -->
+	<bean id="sqlSession" class="org.mybatis.spring.SqlSessionTemplate">
+		<constructor-arg name="sqlSessionFactory" ref="sqlSessionFactoryBean"></constructor-arg>
+		<constructor-arg name="executorType" value="BATCH"></constructor-arg>
+	</bean>
+	
+	<!-- 扫描所有的mapper接口的实现，让这些mapper能够自动注入；
+	base-package：指定mapper接口的包名
+	 -->
+	<mybatis-spring:scan base-package="com.atguigu.mybatis.dao"/>
+	<!-- <bean class="org.mybatis.spring.mapper.MapperScannerConfigurer">
+		<property name="basePackage" value="com.atguigu.mybatis.dao"></property>
+	</bean> -->
+</beans>
+```
+
+mybatis-config.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE configuration
+ PUBLIC "-//mybatis.org//DTD Config 3.0//EN"
+ "http://mybatis.org/dtd/mybatis-3-config.dtd">
+<configuration>
+	<settings>
+		<setting name="mapUnderscoreToCamelCase" value="true"/>
+		<setting name="jdbcTypeForNull" value="NULL"/>
+		
+		<!--显式的指定每个我们需要更改的配置的值，即使他是默认的。防止版本更新带来的问题  -->
+		<setting name="cacheEnabled" value="true"/>
+		<setting name="lazyLoadingEnabled" value="true"/>
+		<setting name="aggressiveLazyLoading" value="false"/>
+	</settings>
+	
+	<databaseIdProvider type="DB_VENDOR">
+		<property name="MySQL" value="mysql"/>
+		<property name="Oracle" value="oracle"/>
+		<property name="SQL Server" value="sqlserver"/>
+	</databaseIdProvider>
+	
+</configuration>
+```
+
+# 拓展
+
+## MyBatis-Plus
+
+安装   MyBatis-Plus
+
+URL:  https://baomidou.com/pages/bab2db/#release
+
+## MyBatis 分页插件 PageHelper
+
+URL:  https://pagehelper.github.io/
 
