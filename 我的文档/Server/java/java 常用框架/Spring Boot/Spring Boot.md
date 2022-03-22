@@ -173,7 +173,7 @@ server.port=8888
 
 在 pom 文件添加 maven 插件，此时 pom 文件不再需要指示项目打包方式。
 
-```
+```xml
 <build>
     <plugins>
       <plugin>
@@ -185,3 +185,5 @@ server.port=8888
 ```
 
 &emsp;&emsp;通过 `maven package` 打包 `java -jar` 运行即可。
+
+自动配置依赖
