@@ -186,4 +186,21 @@ server.port=8888
 
 &emsp;&emsp;通过 `maven package` 打包 `java -jar` 运行即可。
 
-自动配置依赖
+# 更改默认 jar 包版本
+
+查看父项目中pom文件的jar包版本，在`<properties></properties>`中覆盖即可。
+
+```xml
+ 1、查看spring-boot-dependencies里面规定当前依赖的版本 用的 key。
+ 2、在当前项目里面重写配置
+ <properties>
+ <mysql.version>5.1.43</mysql.version>
+ </properties>
+```
+
+1、见到很多 spring-boot-starter-* ： *就某种场景
+ 2、只要引入starter，这个场景的所有常规需要的依赖我们都自动引入
+ 3、SpringBoot所有支持的场景
+ https://docs.spring.io/spring-boot/docs/current/reference/html/using-spring-boot.html#using-boot-starter
+ 4、见到的 *-spring-boot-starter： 第三方为我们提供的简化开发的场景启动器。
+ 5、所有场景启动器最底层的依赖
