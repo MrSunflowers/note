@@ -200,3 +200,31 @@ The Java thread stack size specified is too small. Specify at least 228k
 &emsp;&emsp;出现StackOverflowError异常时，会有明确错误堆栈可供分析，相对而言比较容易定位到问题所在。如果使用HotSpot虚拟机默认参数，栈深度在大多数情况下（因为每个方法压入栈的帧大小并不是一样的，所以只能说大多数情况下）到达1000~2000是完全没有问题，对于正常的方法调用（包括不能做尾递归优化的递归调用），这个深度应该完全够用了。但是，如果是建立过多线程导致的内存溢出，在不能减少线程数量或者更换64位虚拟机的情况下，就只能通过减少最大堆和减少栈容量来换取更多的线程。这种通过“减少内存”的手段来解决内存溢出的方式，如果没有这方面处理经验，一般比较难以想到，这一点读者需要在开发32位系统的多线程应用时注意。也是由于这种问题较为隐蔽，从 JDK 7起，以上提示信息中“unable to create native thread”后面，虚拟机会特别注明原因可能是“possibly out of memory or process/resource limits reached”。
 
 ## 方法区和运行时常量池溢出
+
+&emsp;&emsp;由于运行时常量池是方法区的一部分，所以这两个区域的溢出测试可以放到一起进行。由于 HotSpot 从 JDK 7 开始逐步“去永久代”的计划，并在 JDK 8 中完全使用元空间来代替永久代,使用“永久代”还是“元空间”来实现方法区对程序的影响不大
+
+&emsp;&emsp;`String::intern()` 是一个本地方法，它的作用是如果字符串常量池中已经包含一个等于此String对象的字符串，则返回代表池中这个字符串的String对象的引用；否则，会将此String对象包含的字符串添加到常量池中，并且返回此 String 对象的引用。在 JDK 6 或更早之前的 HotSpot 虚拟机中，常量池都是分配在永久代中，我们可以通过 `-XX:PermSize` 和 `-XX:MaxPermSize` 限制永久代的大小，即可间接限制其中常量池的容量
+
+&emsp;&emsp;在以 JDK 6 来运行代码时,运行时常量池溢出时，在 OutOfMemoryError 异常后面跟随的提示信息是**`PermGen space`**，说明运行时常量池的确是属于方法区（即JDK 6的HotSpot虚拟机中的永久代）的一部分
+
+&emsp;&emsp;而使用JDK 7或更高版本的JDK来运行这段程序并不会得到相同的结果，无论是在JDK 7中继续使用`-XX:MaxPermSize`参数或者在JDK 8及以上版本使用`-XX:MaxMeta-spaceSize`参数把方法区容量同样限制在6MB，也都不会重现JDK 6中的溢出异常，循环将一直进行下去，永不停歇,出现这种变化，是因为自JDK 7起，原本存放在永久代的字符串常量池被移至Java堆之中，所以在JDK 7及以上版本，限制方法区的容量对该测试用例来说是毫无意义的。这时候使用`-Xmx`参数限制最大堆到6MB就能够看到`OutOfMemoryError: Java heap space`
+
+```java
+public class RuntimeConstantPoolOOM {
+    public static void main(String[] args) {
+        String str1 = new StringBuilder("计算机").append("软件").toString();
+        System.out.println(str1.intern() == str1);
+        String str2 = new StringBuilder("ja").append("va").toString();
+        System.out.println(str2.intern() == str2);
+    }
+}
+```
+
+&emsp;&emsp;这段代码在JDK 6中运行，会得到两个false，而在JDK 7中运行，会得到一个true和一个false。产生差异的原因是，在JDK 6中，intern()方法会把首次遇到的字符串实例复制到永久代的字符串常量池中存储，返回的也是永久代里面这个字符串实例的引用，而由StringBuilder创建的字符串对象实例在Java堆上，所以必然不可能是同一个引用，结果将返回false。
+
+&emsp;&emsp;而JDK 7（以及部分其他虚拟机，例如JRockit）的intern()方法实现就不需要再拷贝字符串的实例到永久代了，既然字符串常量池已经移到Java堆中，那只需要在常量池里记录一下首次出现的实例引用即可，因此intern()返回的引用和由StringBuilder创建的那个字符串实例就是同一个。
+
+&emsp;&emsp;而对str2比较返回false，这是因为“java”这个字符串在执行String-Builder.toString()之前就已经出现过了，字符串常量池中已经有它的引用，不符合intern()方法要求“首次遇到”的原则，“计算机软件”这个字符串则是首次出现的，因此结果返回true。
+
+&emsp;&emsp;方法区的主要职责是用于存放类型的相关信息，如类名、访问修饰符、常量池、字段描述、方法描述等。值得特别注意的是,当前的很多主流框架，如Spring、Hibernate对类进行增强时，都会使用到CGLib这类字节码技术，当增强的类越多，就需要越大的方法区以保证动态生成的新类型可以载入内存,否则就将出现`OutOfMemoryError: PermGen space`。
+
