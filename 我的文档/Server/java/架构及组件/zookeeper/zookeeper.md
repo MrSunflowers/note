@@ -2,9 +2,9 @@
 
 # zookeeper
 
-&emsp;&emsp;是一个基于观察者模式设计的分布式服务管理框架，它负责存储和管理客户端关心的数据(例如哪台服务器存储了我需要调用的接口)，然后接受服务端的注册，一旦服务端数据或状态发生变化，Zookeeper就将负责通知在 Zookeeper 上注册的客户端，客户端可以利用这些信息来做出反应。
+&emsp;&emsp;是一个基于观察者模式设计的分布式服务管理框架，它负责存储和管理客户端关心的数据(例如哪台服务器存储了我需要调用的接口)，然后接受服务端的注册，一旦服务端数据或状态发生变化，Zookeeper就将负责通知在 Zookeeper 上注册的客户端，客户端可以利用这些信息来做出反应。服务器上下线就是在 Zookeeper 中创建和删除节点的动作。对于 Zookeeper 集群来说，服务器与客户端都是客户端，只不过服务器是创建节点，而客户端是负责监听。
 
-![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202204062115204.png)
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202204072248175.png)
 
 # zookeeper 集群
 
@@ -73,3 +73,4 @@
 1. EPOCH 大的直接胜出
 2. EPOCH 相同，事务 id 大的胜出
 3. 事务 id 相同，服务器 id 大的胜出
+
