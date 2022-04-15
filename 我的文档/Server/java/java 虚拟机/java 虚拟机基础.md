@@ -557,7 +557,7 @@ public class T1 {
 
 &emsp;&emsp;当用户线程停顿下来之后，其实并不需要一个不漏地检查完所有执行上下文和全局的引用位置，虚拟机应当是有办法直接得到哪些地方存放着对象的引用的。在 HotSpot 的解决方案里，是使用一组称为 OopMap 的数据结构来达到这个目的，在即时编译的过程中会在**特定的位置**记录下栈里和寄存器里的哪些位置是引用。这样收集器在扫描时就可以直接得知这些信息了，并不需要真正一个不漏地从方法区等 GC Roots 开始查找。
 
-&emsp;&emsp;下面代码是 HotSpot 虚拟机客户端模式下生成的一段 String::hashCode() 方法的本地代码，可以看到在 0x026eb7a9 处的 call 指令有 OopMap 记录，它指明了 EBX 寄存器和栈中偏移量为 16 的内存区域中各有一个普通对象指针（Ordinary Object Pointer，OOP）的引用，OopMap 中数据的有效范围为从 call 指令开始直到 0x026eb730（指令流的起始位置）+142（OopMap记录的偏移量）=0x026eb7be，即 hlt 指令为止。
+&emsp;&emsp;下面代码是 HotSpot 虚拟机客户端模式下生成的一段 String::hashCode() 方法的本地代码，可以看到在 0x026eb7a9 处的 call 指令有 OopMap 记录，它指明了 EBX 寄存器和栈中偏移量为 16 的内存区域中各有一个普通对象指针（Ordinary Object Pointer，OOP）的引用，OopMap 中存储的数据的有效范围为从 call 指令开始直到 0x026eb730（指令流的起始位置）+142（OopMap记录的偏移量）=0x026eb7be，即 hlt 指令为止。
 
 ```ASM
 [Verified Entry Point]
