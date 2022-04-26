@@ -120,7 +120,7 @@ yum makecache fast
 4. 安装 Docker
 
 ```shell
-yum -y install docker-ce docker-ce-cli containerd.io
+sudo yum install docker-ce docker-ce-cli containerd.io
 ```
 
 5. Start & stop Docker
@@ -419,7 +419,7 @@ docker inspect 容器ID
 ### 进入正在运行的容器并以命令行交互
 
 ```
-docker exec -it 容器ID bashShell
+docker exec -it 容器ID bash
 ```
 
 重新进入
