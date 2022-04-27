@@ -72,9 +72,9 @@
 &emsp;&emsp;配置项目文件 `application.properties` 中 `zookeeper` 的服务器
 
 ```properties
-admin.registry.address=zookeeper://192.168.1.127:2181
-admin.config-center=zookeeper://192.168.1.127:2181
-admin.metadata-report.address=zookeeper://192.168.1.127:2181
+admin.registry.address=zookeeper://192.168.1.110:2181
+admin.config-center=zookeeper://192.168.1.111:2181
+admin.metadata-report.address=zookeeper://192.168.1.112:2181
 #防止连接超时导致的连接不上
 dubbo.registry.timeout=15000
 ```
@@ -95,28 +95,11 @@ dubbo.registry.timeout=15000
 
 ## 启动 dubbo-admin-ui
 
-&emsp;&emsp;这个模块就是 dubbo-admin 的页面代码，使用了 vue 框架，依赖的数据都是通过 http 请求 dubbo-admin-server 来获取；
+&emsp;&emsp;这个模块就是 dubbo-admin 的页面代码，使用了 vue 框架，依赖的数据都是通过 http 请求 dubbo-admin-server 来获取
 
 &emsp;&emsp;修改 `vue.config.js` 请求的服务器端口
 
 ```js
-/*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 const path = require('path');
 
 module.exports = {
@@ -174,10 +157,8 @@ module.exports = {
 
 ```shell
 # 进入到dubbo-admin-ui目录下
-
 # 安装相关依赖
 npm install
- 
 # 启动vue项目
 npm run dev
 ```
@@ -187,4 +168,221 @@ npm run dev
 # 使用
 
 &emsp;&emsp;为了使项目更加立体，将所有规定的接口和实体类封装为 `core.jar` 包，来供所有的模块依赖和使用，这样也就解决了应用分开但还需要依赖其他模块的接口的问题。
+
+pom文件配置
+
+```xml
+<properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>1.8</maven.compiler.source>
+    <maven.compiler.target>1.8</maven.compiler.target>
+    <curator.version>5.2.1</curator.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.apache.dubbo</groupId>
+      <artifactId>dubbo</artifactId>
+      <version>3.0.7</version>
+    </dependency>
+    <dependency>
+      <groupId>org.example</groupId>
+      <artifactId>core</artifactId>
+      <version>1.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-framework</artifactId>
+      <version>${curator.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-recipes</artifactId>
+      <version>${curator.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.curator</groupId>
+      <artifactId>curator-x-discovery</artifactId>
+      <version>${curator.version}</version>
+    </dependency>
+  </dependencies>
+```
+
+由于使用 zookeeper 作为注册中心，所以需要操作 zookeeper
+
+- dubbo 2.6 以前的版本引入 zkclient 操作 zookeeper 
+
+- dubbo 2.6 及以后的版本引入 curator 操作 zookeeper
+
+zk 客户端根据 dubbo 版本2选1即可
+
+## 普通使用
+
+服务提供者配置
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://code.alibabatech.com/schema/dubbo http://code.alibabatech.com/schema/dubbo/dubbo.xsd">
+
+    <!--1.应用名称-->
+    <dubbo:application name="dao" />
+    <!--2.注册中心-->
+    <dubbo:registry address="zookeeper://192.168.1.110:2181?backup=192.168.1.111:2181,192.168.1.112:2181" timeout="15000" />
+    <!--3.通信协议以及端口-->
+    <dubbo:protocol name="dubbo" port="20080" />
+    <!--4.暴露服务-->
+    <dubbo:service interface="org.example.interfaces.dao.UserDao" ref="userDao" />
+    <!--服务的实现-->
+    <bean id="userDao" class="org.example.daoImpl.UserDaoImpl" />
+</beans>
+
+```
+
+服务消费者配置
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:dubbo="http://code.alibabatech.com/schema/dubbo"
+       xmlns:content="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd http://code.alibabatech.com/schema/dubbo http://code.alibabatech.com/schema/dubbo/dubbo.xsd http://www.springframework.org/schema/context https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <!--<content:component-scan base-package="org.example.serviceImpl" />-->
+
+    <!--1.应用名称-->
+    <dubbo:application name="service" />
+    <!--2.注册中心-->
+    <dubbo:registry address="zookeeper://192.168.1.110:2181?backup=192.168.1.111:2181,192.168.1.112:2181" timeout="15000" />
+    <!--3.通信协议以及端口-->
+    <dubbo:protocol name="dubbo" port="20080" />
+    <!--4.引用服务-->
+    <dubbo:reference  interface="org.example.interfaces.dao.UserDao" id="userDao" />
+
+    <bean name="userServiceImpl" class="org.example.serviceImpl.UserServiceImpl" >
+        <property name="userDao" ref="userDao" />
+    </bean>
+</beans>
+```
+
+## 使用注解
+
+**坑坑坑！！！注意 xml 头命名空间**
+
+服务提供者配置
+
+```java
+package org.example.daoImpl;
+import com.alibaba.dubbo.config.annotation.Service;
+import org.example.interfaces.dao.UserDao;
+import org.example.interfaces.pojo.User;
+
+@Service
+public class UserDaoImpl implements UserDao {
+    @Override
+    public User getUser() {
+        return new User("user",12);
+    }
+}
+```
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:content="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo
+       http://dubbo.apache.org/schema/dubbo/dubbo.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <content:component-scan base-package="org.example.daoImpl" />
+    <dubbo:annotation package="org.example.daoImpl"/>
+    <!--1.应用名称-->
+    <dubbo:application name="dao" />
+    <!--2.注册中心-->
+    <dubbo:registry address="zookeeper://192.168.1.110:2181?backup=192.168.1.111:2181,192.168.1.112:2181" timeout="15000" />
+    <!--3.通信协议以及端口-->
+    <dubbo:protocol name="dubbo" port="20080" />
+
+    <!--4.暴露服务-->
+    <!--<dubbo:service interface="org.example.interfaces.dao.UserDao" ref="userDao" />-->
+    <!--服务的实现-->
+    <!--<bean id="userDao" class="org.example.daoImpl.UserDaoImpl" />-->
+</beans>
+```
+
+服务消费者配置
+
+```java
+package org.example.serviceImpl;
+
+import com.alibaba.dubbo.config.annotation.Reference;
+import org.example.interfaces.dao.UserDao;
+import org.example.interfaces.pojo.User;
+import org.example.interfaces.service.UserService;
+import org.springframework.stereotype.Service;
+
+import java.io.Serializable;
+
+@Service
+public class UserServiceImpl implements UserService, Serializable {
+
+    public void setUserDao(UserDao userDao) {
+        this.userDao = userDao;
+    }
+
+    @Reference
+    UserDao userDao;
+
+    @Override
+    public User getUser() {
+        return userDao.getUser();
+    }
+}
+
+```
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:dubbo="http://dubbo.apache.org/schema/dubbo"
+       xmlns:content="http://www.springframework.org/schema/context"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://dubbo.apache.org/schema/dubbo
+       http://dubbo.apache.org/schema/dubbo/dubbo.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd">
+
+    <content:component-scan base-package="org.example.serviceImpl" />
+    <dubbo:annotation package="org.example.serviceImpl"/>
+
+    <!--1.应用名称-->
+    <dubbo:application name="service" />
+    <!--2.注册中心-->
+    <dubbo:registry address="zookeeper://192.168.1.110:2181?backup=192.168.1.111:2181,192.168.1.112:2181" timeout="15000" />
+    <!--3.通信协议以及端口-->
+    <dubbo:protocol name="dubbo" port="20080" />
+    <!--4.引用服务-->
+   <!-- <dubbo:reference  interface="org.example.interfaces.dao.UserDao" id="userDao" />
+
+    <bean name="userServiceImpl" class="org.example.serviceImpl.UserServiceImpl" >
+        <property name="userDao" ref="userDao" />
+    </bean>-->
+</beans>
+```
+
+## 完全使用注解方式
+
+[官方示例](https://github.com/apache/dubbo-samples/tree/master/dubbo-samples-annotation/src/main/java/org/apache/dubbo/samples/annotation)
+
+## 整合 SpringBoot
+
+[Apache Dubbo Spring Boot Project](https://github.com/apache/dubbo-spring-boot-project)
 
