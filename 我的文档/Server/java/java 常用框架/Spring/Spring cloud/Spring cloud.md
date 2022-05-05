@@ -984,7 +984,7 @@ Ribbon在工作时分成两步：
 
 #### Ribbon默认自带的负载规则
 
-lRule：根据特定算法中从服务列表中选取一个要访问的服务
+lRule 接口：根据特定算法中从服务列表中选取一个要访问的服务
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202205042229434.png)
 
@@ -997,4 +997,75 @@ lRule：根据特定算法中从服务列表中选取一个要访问的服务
 - BestAvailableRule 会先过滤掉由于多次访问故障而处于断路器跳闸状态的服务，然后选择一个并发量最小的服务
 - AvailabilityFilteringRule 先过滤掉故障实例，再选择并发较小的实例
 - ZoneAvoidanceRule 默认规则,复合判断server所在区域的性能和server的可用性选择服务器
+
+#### Ribbon负载规则替换
+
+官方文档明确给出了警告：Ribbon 自定义配置类不能放在 @ComponentScan 所扫描的当前包下以及子包下，也就是不能被 @ComponentScan 扫描到，否则自定义的这个 Ribbon  配置类就会被所有的 Ribbon 客户端所共享，达不到特殊化定制的目的了
+
+改造 cloud-consumer-eureka-order80 
+
+新建一个包，独立于 @ComponentScan ，ribbonRule
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202205052213208.png)
+
+```java
+import com.netflix.loadbalancer.IRule;
+import com.netflix.loadbalancer.RandomRule;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class RibbonRule {
+
+    @Bean
+    public IRule myRule(){
+        return new RandomRule();
+    }
+
+}
+```
+
+启动类：
+
+```java
+import com.ribbonRule.RibbonRule;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.netflix.eureka.EnableEurekaClient;
+import org.springframework.cloud.netflix.ribbon.RibbonClient;
+
+@SpringBootApplication
+@EnableEurekaClient
+// 添加Ribbon配置，对于叫 cloud-provider-eureka-payment 的服务，采用 RibbonRule 规定的规则
+@RibbonClient(name = "cloud-provider-eureka-payment",configuration = RibbonRule.class)
+public class ConsumerEurekaOrderMain80 {
+    public static void main(String[] args) {
+        SpringApplication.run(ConsumerEurekaOrderMain80.class,args);
+    }
+}
+```
+
+#### Ribbon默认负载轮询算法原理
+
+**默认负载轮训算法: 接口第几次请求数 % 服务器集群总数量 = 实际调用服务器位置下标，每次服务重启动后 rest 接口计数从1开始**
+
+```java
+List<Servicelnstance> instances = discoveryClient.getInstances("CLOUD-PAYMENT-SERVICE");
+```
+
+如:
+
+List [0] instances = 127.0.0.1:8002
+
+List [1] instances = 127.0.0.1:8001
+
+8001+ 8002组合成为集群，它们共计2台机器，集群总数为2，按照轮询算法原理：
+
+- 当第1次请求时: 1%2=1对应下标位置为1，则获得服务地址为127.0.0.1:8001
+- 当第2次请求时: 2%2=О对应下标位置为0，则获得服务地址为127.0.0.1:8002
+- 当第3次请求时: 3%2=1对应下标位置为1，则获得服务地址为127.0.0.1:8001
+- 当第4次请求时: 4%2=О对应下标位置为0，则获得服务地址为127.0.0.1:8002
+- 如此类推…
+
+
 
