@@ -229,7 +229,7 @@ RestTemplate 中定义了 36 个与 REST 资源交互的方法，其中的大多
 
 - put() PUT 资源到特定的URL
 
-实际上,由于Post 操作的非幂等性,它几乎可以代替其他的CRUD操作。
+实际上,由于Post 操作的**非幂等性**,它几乎可以代替其他的CRUD操作。
 
 RestTemplate 的 get 方法有以上几个,可以分为两类: getForEntity() 和 getForObject()，首先看 getForEntity() 的返回值类型 ResponseEntity
 
@@ -442,21 +442,19 @@ public String save(UserEntity userEntity) {
 
 ```
 
-## OpenFeign
+## Feign
 
 Feign是一个声明式WebService客户端。使用Feign能让编写Web Service客户端更加简单。它的使用方法是定义一个服务接口然后在上面添加注解。Feign也支持可拔插式的编码器和解码器。Spring Cloud对Feign进行了封装，使其支持了Spring MVC标准注解和 HttpMessageConverters。Feign可以与 Eureka 和 Ribbon 组合使用以支持负载均衡。
 
-Feign旨在使编写Java Http客户端变得更容易。
+**Feign旨在使用接口调用的方式来实现HTTP远程调用**。
 
-前面在使用Ribbon+RestTemplate时，利用RestTemplate对http请求的封装处理，形成了一套模版化的调用方法。但是在实际开发中，由于对服务依赖的调用可能不止一处，往往一个接口会被多处调用，所以通常都会针对每个微服务自行封装一些客户端类来包装这些依赖服务的调用。所以，Feign在此基础上做了进一步封装，由他来帮助我们定义和实现依赖服务接口的定义。在Feign的实现下，我们只需创建一个接口并使用注解的方式来配置它(以前是Dao接口上面标注Mapper注解,现在是一个微服务接口上面标注一个Feign注解即可)，即可完成对服务提供方的接口绑定，简化了使用Spring cloud Ribbon时，自动封装服务调用客户端的开发量。
+前面在使用Ribbon+RestTemplate时，利用RestTemplate对http请求的封装处理，形成了一套模版化的调用方法。但是在实际开发中，由于对服务依赖的调用可能不止一处，往往一个接口会被多处调用，所以通常都会针对每个微服务自行封装一些客户端类来包装这些依赖服务的调用。所以，Feign在此基础上做了进一步封装，由他来帮助我们定义和实现依赖服务接口的定义。
+
+在Feign的实现下，我们只需创建一个**接口**并**使用注解的方式来配置**它(以前是Dao接口上面标注Mapper注解,现在是一个微服务接口上面标注一个Feign注解即可)，即可完成对服务提供方的接口绑定，简化了使用Spring cloud Ribbon 时，**自动封装服务调用客户端**的开发量。
 
 **Feign集成了Ribbon**
 
-利用Ribbon维护了Payment的服务列表信息，并且通过轮询实现了客户端的负载均衡。而与Ribbon不同的是，**通过feign只需要定义服务绑定接口且以声明式的方法**，优雅而简单的实现了服务调用。
-
-**Feign和OpenFeign两者区别**
-
-**Feign**是Spring Cloud组件中的一个轻量级RESTful的HTTP服务客户端Feign内置了Ribbon，用来做客户端负载均衡，去调用服务注册中心的服务。Feign的使用方式是:使用Feign的注解定义接口，调用这个接口，就可以调用服务注册中心的服务。
+利用Ribbon维护服务提供者的服务列表信息，并且通过轮询实现了客户端的负载均衡。而与Ribbon不同的是，**通过feign只需要定义服务并绑定到接口且以声明式的方法**，优雅而简单的实现了服务调用。
 
 ```xml
 <dependency>
@@ -464,6 +462,12 @@ Feign旨在使编写Java Http客户端变得更容易。
     <artifactId>spring-cloud-starter-feign</artifactId>
 </dependency>
 ```
+
+## OpenFeign
+
+**Feign和OpenFeign两者区别**
+
+**Feign**是Spring Cloud组件中的一个轻量级RESTful的HTTP服务客户端Feign内置了Ribbon，用来做客户端负载均衡，去调用服务注册中心的服务。Feign的使用方式是:使用Feign的注解定义接口，调用这个接口，就可以调用服务注册中心的服务。
 
 OpenFeign是Spring Cloud在Feign的基础上支持了SpringMVC的注解，如@RequesMapping等等。OpenFeign的@Feignclient可以解析SpringMVc的@RequestMapping注解下的接口，并通过动态代理的方式产生实现类，实现类中做负载均衡并调用其他服务。
 
@@ -474,7 +478,72 @@ OpenFeign是Spring Cloud在Feign的基础上支持了SpringMVC的注解，如@Re
 </dependency>
 ```
 
+### 示例
 
+```
+cloud-consumer-eureka-openFeign-order80
+cloud-eureka-server7001
+cloud-eureka-server7002
+cloud-provider-eureka-payment8001
+cloud-provider-eureka-payment8002
+```
+
+![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202206201929735.png)
+
+### 超时控制
+
+OpenFeign 默认等待 1 秒钟，超时即报错
+
+```yml
+#设置feign客户端超时时间(OpenFeign默认支持ribbon)(单位：毫秒)
+ribbon:
+  #指的是建立连接后从服务器读取到可用资源所用的时间
+  ReadTimeout: 5000
+  #指的是建立连接所用的时间，适用于网络状况正常的情况下,两端连接所用的时间
+  ConnectTimeout: 5000
+```
+
+### 日志打印
+
+日志打印功能
+
+Feign提供了日志打印功能，我们可以通过配置来调整日恙级别，从而了解Feign 中 Http请求的细节。
+
+说白了就是对Feign接口的调用情况进行监控和输出
+
+日志级别
+
+- NONE：默认的，不显示任何日志;
+- BASIC：仅记录请求方法、URL、响应状态码及执行时间;
+- HEADERS：除了BASIC中定义的信息之外，还有请求和响应的头信息;
+- FULL：除了HEADERS中定义的信息之外，还有请求和响应的正文及元数据。
+
+配置日志bean
+
+```java
+import feign.Logger;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class FeignConfig
+{
+    @Bean
+    Logger.Level feignLoggerLevel()
+    {
+        return Logger.Level.FULL;
+    }
+}
+```
+
+**YML文件里配置需要开启日志的Feign客户端**
+
+```yml
+logging:
+  level:
+    # feign日志以什么级别监控哪个接口
+    com.order80.service.PaymentFeignService: debug
+```
 
 # 服务注册中心
 
@@ -988,11 +1057,17 @@ mybatis:
 
 ### Ribbon
 
+Spring Cloud Ribbon是基于Netflix Ribbon实现的一套**客户端负载均衡的工具**。
+
+简单的说，Ribbon是Netflix发布的开源项目，主要功能是提供**客户端的软件负载均衡算法和服务调用**。Ribbon客户端组件提供一系列完善的配置项如连接超时，重试等。
+
+就是在配置文件中列出 Load Balancer (简称LB)后面所有的机器，Ribbon会自动的帮助你基于某种规则(如简单轮询，随机连接等）去连接这些机器。我们很容易使用Ribbon实现自定义的负载均衡算法。
+
 Ribbon目前也进入维护模式，未来可能被Spring Cloud LoadBalacer 替代
 
 Ribbon 负载均衡实现方式：
 
-将逻辑集成到消费方，消费方从服务注册中心获知有哪些地址可用，然后自己再从这些地址中选择出一个合适的服务器，Ribbon = 负载均衡 + RestTemplate 调用。
+将逻辑集成到消费方，消费方从服务注册中心获知有哪些地址可用，然后自己再从这些地址中选择出一个合适的服务器，**Ribbon = 负载均衡算法 + RestTemplate 调用**。
 
 Ribbon其实就是一个软负载均衡的客户端组件，它可以和其他所需请求的客户端结合使用，和 Eureka 结合只是其中的一个实例。
 
@@ -1100,6 +1175,16 @@ List [1] instances = 127.0.0.1:8001
 - 当第3次请求时: 3%2=1对应下标位置为1，则获得服务地址为127.0.0.1:8001
 - 当第4次请求时: 4%2=О对应下标位置为0，则获得服务地址为127.0.0.1:8002
 - 如此类推…
+
+#### 示例
+
+```
+cloud-consumer-eureka-order80
+cloud-eureka-server7001
+cloud-eureka-server7002
+cloud-provider-eureka-payment8001
+cloud-provider-eureka-payment8002
+```
 
 
 
