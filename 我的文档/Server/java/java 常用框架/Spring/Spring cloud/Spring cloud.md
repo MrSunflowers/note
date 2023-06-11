@@ -1206,5 +1206,315 @@ cloud-provider-eureka-payment8002
 
 官网 ：[How To Use · Netflix/Hystrix Wiki (github.com)](https://github.com/Netflix/Hystrix/wiki/How-To-Use)
 
+### 服务降级（fallback）
+
+服务器忙或异常，请稍后再试，不让客户端等待并立刻返回一个友好提示，fallback
+既可以**由服务提供者处理**也**可由调用者自行处理**
+一般由调用者自行处理
+
+#### 由服务提供者处理
+
+服务提供者 cloud-provider-eureka-hystrix-payment8001
+
+ProviderEurekaHystrixPaymentMain8001.java
+
+```java
+@SpringBootApplication
+@EnableEurekaClient
+@EnableCircuitBreaker // 新增启用 Hystrix
+public class ProviderEurekaHystrixPaymentMain8001 {
+    public static void main(String[] args) {
+        SpringApplication.run(ProviderEurekaHystrixPaymentMain8001.class,args);
+    }
+}
+```
+
+更改服务提供者 Service PaymentServiceImpl.java
+
+```java
+@Service
+public class PaymentServiceImpl implements PaymentService {
+
+    @Override
+    public String paymentInfo_OK(Integer id) {
+        return "线程池:  " + Thread.currentThread().getName() + "  paymentInfo_OK,id:  " + id + "\t" + "O(∩_∩)O哈哈~";
+    }
+
+    @HystrixCommand(fallbackMethod = "paymentInfo_TimeOutHandler"/*指定善后方法名*/,commandProperties = {
+            @HystrixProperty(name="execution.isolation.thread.timeoutInMilliseconds"/*超时时间*/,value="3000")
+    })
+    @Override
+    public String paymentInfo_TimeOut(Integer id) {
+        try {
+            TimeUnit.MILLISECONDS.sleep(5000);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        return "线程池:  " + Thread.currentThread().getName() + " id:  " + id + "\t" + "O(∩_∩)O哈哈~" + "  耗时(秒): 3";
+    }
+
+    //用来善后的方法
+    public String paymentInfo_TimeOutHandler(Integer id)
+    {
+        return "线程池:  "+Thread.currentThread().getName()+"  8001系统繁忙或者运行报错，请稍后再试,id:  "+id+"\t"+"o(╥﹏╥)o";
+    }
 
 
+}
+```
+
+#### 由调用者自行处理
+
+服务调用者 cloud-consumer-feign-hystrix-order80
+
+更改调用者 ConsumerFeignHystrixOrder80.java
+
+```java
+@SpringBootApplication
+@EnableFeignClients
+@EnableCircuitBreaker
+public class ConsumerFeignHystrixOrder80
+{
+    public static void main(String[] args)
+    {
+        SpringApplication.run(ConsumerFeignHystrixOrder80.class,args);
+    }
+}
+```
+
+更改调用者 Controller OrderHystirxController.java
+
+```java
+@RestController
+@Slf4j
+public class OrderHystirxController {
+    @Resource
+    private ConsumerFeignHystrixService consumerFeignHystrixService;
+
+    @GetMapping("/consumer/payment/hystrix/ok/{id}")
+    public String paymentInfo_OK(@PathVariable("id") Integer id)
+    {
+        return consumerFeignHystrixService.paymentInfo_OK(id);
+    }
+
+	// 走独立配置
+    @HystrixCommand(fallbackMethod = "paymentInfo_TimeOutHandler"/*指定善后方法名*/,commandProperties = {
+            @HystrixProperty(name="execution.isolation.thread.timeoutInMilliseconds",value="2000")
+    })
+    @GetMapping("/consumer/payment/hystrix/timeout/{id}")
+    public String paymentInfo_TimeOut(@PathVariable("id") Integer id) {
+        return consumerFeignHystrixService.paymentInfo_TimeOut(id);
+    }
+
+    //用来善后的方法
+    public String paymentInfo_TimeOutHandler(Integer id)
+    {
+        return "线程池:  "+Thread.currentThread().getName()+"  8001系统繁忙或者运行报错，OrderHystirxController 请稍后再试,id:  "+id+"\t"+"o(╥﹏╥)o";
+    }
+}
+```
+
+#### 配置全局通用的服务降级方法 fallback DefaultProperties
+
+目前问题1 每个业务方法对应一个兜底的方法，代码膨胀
+
+解决方法
+
+除了个别重要核心业务有专属，其它普通的可以通过@DefaultProperties(defaultFallback = “”)统一跳转到统一处理结果页面
+
+以调用者为例，可简单改造其 Controller 即可
+
+```java
+@RestController
+@Slf4j
+// 全局默认的处理
+@DefaultProperties(defaultFallback = "payment_Global_FallbackMethod")
+public class OrderHystirxController {
+    @Resource
+    private ConsumerFeignHystrixService consumerFeignHystrixService;
+
+    @GetMapping("/consumer/payment/hystrix/ok/{id}")
+    public String paymentInfo_OK(@PathVariable("id") Integer id)
+    {
+        return consumerFeignHystrixService.paymentInfo_OK(id);
+    }
+
+	//走全局
+    @HystrixCommand
+    @GetMapping("/consumer/payment/hystrix/timeout/{id}")
+    public String paymentInfo_TimeOut(@PathVariable("id") Integer id) {
+        return consumerFeignHystrixService.paymentInfo_TimeOut(id);
+    }
+
+    //用来善后的方法
+    public String paymentInfo_TimeOutHandler(Integer id)
+    {
+        return "线程池:  "+Thread.currentThread().getName()+"  8001系统繁忙或者运行报错，OrderHystirxController 请稍后再试,id:  "+id+"\t"+"o(╥﹏╥)o";
+    }
+
+    // 下面是全局fallback方法
+    public String payment_Global_FallbackMethod()
+    {
+        return "Global异常处理信息，请稍后再试，/(ㄒoㄒ)/~~";
+    }
+}
+```
+
+本次案例服务降级处理是在客户端80实现完成的，与服务端8001没有关系。
+
+另外可以通过为 Feign 客户端定义的接口添加一个服务降级处理的实现类即可实现代码解耦。
+
+如下 ：
+
+新增一个 ConsumerFeignHystrixService 接口的实现类
+
+```java
+@Component
+public class ConsumerFeignHystrixServiceImpl implements ConsumerFeignHystrixService {
+    @Override
+    public String paymentInfo_OK(Integer id) {
+        return "ConsumerFeignHystrixServiceImpl";
+    }
+
+    @Override
+    public String paymentInfo_TimeOut(Integer id) {
+        return "ConsumerFeignHystrixServiceImpl";
+    }
+}
+```
+
+并在接口配置超时处理类 @FeignClient 的 fallback
+
+```java
+@Component
+@FeignClient(value = "CLOUD-PROVIDER-EUREKA-HYSTRIX-PAYMENT",
+            /*配置超时处理类*/
+            fallback = ConsumerFeignHystrixServiceImpl.class)
+public interface ConsumerFeignHystrixService {
+
+    @GetMapping("/payment/hystrix/ok/{id}")
+    String paymentInfo_OK(@PathVariable("id") Integer id);
+
+    @GetMapping("/payment/hystrix/timeout/{id}")
+    String paymentInfo_TimeOut(@PathVariable("id") Integer id);
+
+}
+```
+
+新增配置命令 feign 开启 hystrix
+
+```yml
+server:
+  port: 80
+
+spring:
+  application:
+    name: cloud-consumer-eureka-order80
+
+eureka:
+  instance:
+    instance-id: cloud-consumer-order # eureka 界面显示用
+    prefer-ip-address: true # eureka 界面显示实例的 IP 地址
+    #lease-renewal-interval-in-seconds: 1 # 心跳间隔 1s 默认 30s
+    #lease-expiration-duration-in-seconds: 2 # 服务端在收到最后一次心跳后等待时间上限 默认90s
+  client:
+    register-with-eureka: true #表示是否将自己注册进Eurekaserver默认为true。
+    fetch-registry: true #是否从EurekaServer抓取已有的注册信息，默认为true。单节点无所谓，集群必须设置为true才能配合ribbon使用负载均衡
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+
+# 新增命令 feign 开启 hystrix
+feign:
+  hystrix:
+    enabled: true
+
+```
+
+故意关闭微服务8001
+
+客户端自己调用提示 - 此时服务端provider已经down了，但是我们做了服务降级处理，让客户端在服务端不可用时也会获得提示信息。
+
+### 服务熔断（break）
+
+熔断机制是应对雪崩效应的一种微服务链路保护机制。当扇出链路的某个微服务出错不可用或者响应时间太长时，会进行服务的降级，进而熔断该节点微服务的调用，快速返回错误的响应信息。**当检测到该节点微服务调用响应正常后，恢复调用链路。**
+
+在Spring Cloud框架里，熔断机制通过 Hystrix 实现。Hystrix 会监控微服务间调用的状况，当失败的调用到一定阈值，**缺省是 5 秒内 20 次调用失败**，就会启动熔断机制。熔断机制的注解是 @HystrixCommand。
+
+[Martin Fowler的相关论文](https://martinfowler.com/bliki/CircuitBreaker.html)
+
+#### 由服务提供者处理
+
+改造服务提供者 Service
+
+```java
+@Service
+public class PaymentServiceBreakImpl implements PaymentServiceBreak {
+
+    @Override
+    public String paymentInfo_OK(Integer id) {
+        return "线程池:  " + Thread.currentThread().getName() + "  paymentInfo_OK,id:  " + id + "\t" + "O(∩_∩)O哈哈~";
+    }
+
+    //=====服务熔断
+    @HystrixCommand(fallbackMethod = "paymentCircuitBreaker_fallback",commandProperties = {
+            @HystrixProperty(name = "circuitBreaker.enabled",value = "true"),// 是否开启断路器
+            @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold",value = "10"),// 请求次数
+            @HystrixProperty(name = "circuitBreaker.sleepWindowInMilliseconds",value = "10000"), // 时间窗口期
+            @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage",value = "60"),// 失败率达到多少后跳闸
+    })
+    @Override
+    public String paymentInfo_TimeOut(Integer id) {
+        if(id < 0) {
+            throw new RuntimeException("******id 不能负数");
+        }
+        return "线程池:  " + Thread.currentThread().getName() + " id:  " + id + "\t" + "O(∩_∩)O哈哈~" + "  耗时(秒): 3";
+    }
+
+    //用来善后的方法
+    public String paymentCircuitBreaker_fallback(Integer id)
+    {
+        return "线程池:  "+Thread.currentThread().getName()+"  8001系统繁忙或者运行报错，请稍后再试,id:  "+id+"\t"+"o(╥﹏╥)o";
+    }
+}
+```
+
+测试
+
+自测cloud-provider-hystrix-payment8001
+
+正确 - http://localhost:8001/payment/circuit/1
+
+错误 - http://localhost:8001/payment/circuit/-1
+
+多次错误，再来次正确，但错误得显示
+
+重点测试 - 多次错误，然后慢慢正确，发现刚开始不满足条件，就算是正确的访问地址也不能进行
+
+
+
+
+
+
+服务限流（flowlimit）
+
+秒杀高并发等操作，严禁一窝蜂的过来拥挤，大家排队，一秒钟N个，有序进行。
+
+示例
+
+```
+cloud-eureka-server7001
+cloud-eureka-server7002
+cloud-provider-eureka-hystrix-payment8001
+cloud-consumer-feign-hystrix-order80
+```
+
+
+
+服务提供者 cloud-provider-eureka-hystrix-payment8001
+
+ConsumerFeignHystrixService.class
+
+```
+```
+
+服务消费者 cloud-consumer-feign-hystrix-order80
