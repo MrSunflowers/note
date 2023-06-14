@@ -1490,16 +1490,155 @@ public class PaymentServiceBreakImpl implements PaymentServiceBreak {
 
 重点测试 - 多次错误，然后慢慢正确，发现刚开始不满足条件，就算是正确的访问地址也不能进行
 
+一些 Hystrix 的配置信息以及参数名称：
 
+`com.netflix.hystrix.HystrixCommandProperties.java`
 
+```java
+@HystrixCommand(fallbackMethod = "fallbackMethod", 
+                groupKey = "strGroupCommand", 
+                commandKey = "strCommand", 
+                threadPoolKey = "strThreadPool",
+                
+                commandProperties = {
+                    // 设置隔离策略，THREAD 表示线程池 SEMAPHORE：信号池隔离
+                    @HystrixProperty(name = "execution.isolation.strategy", value = "THREAD"),
+                    // 当隔离策略选择信号池隔离的时候，用来设置信号池的大小（最大并发数）
+                    @HystrixProperty(name = "execution.isolation.semaphore.maxConcurrentRequests", value = "10"),
+                    // 配置命令执行的超时时间
+                    @HystrixProperty(name = "execution.isolation.thread.timeoutinMilliseconds", value = "10"),
+                    // 是否启用超时时间
+                    @HystrixProperty(name = "execution.timeout.enabled", value = "true"),
+                    // 执行超时的时候是否中断
+                    @HystrixProperty(name = "execution.isolation.thread.interruptOnTimeout", value = "true"),
+                    
+                    // 执行被取消的时候是否中断
+                    @HystrixProperty(name = "execution.isolation.thread.interruptOnCancel", value = "true"),
+                    // 允许回调方法执行的最大并发数
+                    @HystrixProperty(name = "fallback.isolation.semaphore.maxConcurrentRequests", value = "10"),
+                    // 服务降级是否启用，是否执行回调函数
+                    @HystrixProperty(name = "fallback.enabled", value = "true"),
+                    // 是否启用断路器
+                    @HystrixProperty(name = "circuitBreaker.enabled", value = "true"),
+                    // 该属性用来设置在滚动时间窗中，断路器熔断的最小请求数。例如，默认该值为 20 的时候，如果滚动时间窗（默认10秒）内仅收到了19个请求， 即使这19个请求都失败了，断路器也不会打开。
+                    @HystrixProperty(name = "circuitBreaker.requestVolumeThreshold", value = "20"),
+                    
+                    // 该属性用来设置在滚动时间窗中，表示在滚动时间窗中，在请求数量超过 circuitBreaker.requestVolumeThreshold 的情况下，如果错误请求数的百分比超过50, 就把断路器设置为 "打开" 状态，否则就设置为 "关闭" 状态。
+                    @HystrixProperty(name = "circuitBreaker.errorThresholdPercentage", value = "50"),
+                    // 该属性用来设置当断路器打开之后的休眠时间窗。 休眠时间窗结束之后，会将断路器置为 "半开" 状态，尝试熔断的请求命令，如果依然失败就将断路器继续设置为 "打开" 状态，如果成功就设置为 "关闭" 状态。
+                    @HystrixProperty(name = "circuitBreaker.sleepWindowinMilliseconds", value = "5000"),
+                    // 断路器强制打开
+                    @HystrixProperty(name = "circuitBreaker.forceOpen", value = "false"),
+                    // 断路器强制关闭
+                    @HystrixProperty(name = "circuitBreaker.forceClosed", value = "false"),
+                    // 滚动时间窗设置，该时间用于断路器判断健康度时需要收集信息的持续时间
+                    @HystrixProperty(name = "metrics.rollingStats.timeinMilliseconds", value = "10000"),
+                    
+                    // 该属性用来设置滚动时间窗统计指标信息时划分"桶"的数量，断路器在收集指标信息的时候会根据设置的时间窗长度拆分成多个 "桶" 来累计各度量值，每个"桶"记录了一段时间内的采集指标。
+                    // 比如 10 秒内拆分成 10 个"桶"收集这样，所以 timeinMilliseconds 必须能被 numBuckets 整除。否则会抛异常
+                    @HystrixProperty(name = "metrics.rollingStats.numBuckets", value = "10"),
+                    // 该属性用来设置对命令执行的延迟是否使用百分位数来跟踪和计算。如果设置为 false, 那么所有的概要统计都将返回 -1。
+                    @HystrixProperty(name = "metrics.rollingPercentile.enabled", value = "false"),
+                    // 该属性用来设置百分位统计的滚动窗口的持续时间，单位为毫秒。
+                    @HystrixProperty(name = "metrics.rollingPercentile.timeInMilliseconds", value = "60000"),
+                    // 该属性用来设置百分位统计滚动窗口中使用 “ 桶 ”的数量。
+                    @HystrixProperty(name = "metrics.rollingPercentile.numBuckets", value = "60000"),
+                    // 该属性用来设置在执行过程中每个 “桶” 中保留的最大执行次数。如果在滚动时间窗内发生超过该设定值的执行次数，
+                    // 就从最初的位置开始重写。例如，将该值设置为100, 滚动窗口为10秒，若在10秒内一个 “桶 ”中发生了500次执行，
+                    // 那么该 “桶” 中只保留 最后的100次执行的统计。另外，增加该值的大小将会增加内存量的消耗，并增加排序百分位数所需的计算时间。
+                    @HystrixProperty(name = "metrics.rollingPercentile.bucketSize", value = "100"),
+                    
+                    // 该属性用来设置采集影响断路器状态的健康快照（请求的成功、 错误百分比）的间隔等待时间。
+                    @HystrixProperty(name = "metrics.healthSnapshot.intervalinMilliseconds", value = "500"),
+                    // 是否开启请求缓存
+                    @HystrixProperty(name = "requestCache.enabled", value = "true"),
+                    // HystrixCommand的执行和事件是否打印日志到 HystrixRequestLog 中
+                    @HystrixProperty(name = "requestLog.enabled", value = "true"),
 
+                },
+                threadPoolProperties = {
+                    // 该参数用来设置执行命令线程池的核心线程数，该值也就是命令执行的最大并发量
+                    @HystrixProperty(name = "coreSize", value = "10"),
+                    // 该参数用来设置线程池的最大队列大小。当设置为 -1 时，线程池将使用 SynchronousQueue 实现的队列，否则将使用 LinkedBlockingQueue 实现的队列。
+                    @HystrixProperty(name = "maxQueueSize", value = "-1"),
+                    // 该参数用来为队列设置拒绝阈值。 通过该参数， 即使队列没有达到最大值也能拒绝请求。
+                    // 该参数主要是对 LinkedBlockingQueue 队列的补充,因为 LinkedBlockingQueue 队列不能动态修改它的对象大小，而通过该属性就可以调整拒绝请求的队列大小了。
+                    @HystrixProperty(name = "queueSizeRejectionThreshold", value = "5"),
+                }
+               )
+public String doSomething() {
+	...
+}
 
+```
 
-服务限流（flowlimit）
+[Hystrix 官网](https://github.com/Netflix/Hystrix/issues/674)
+
+#### 熔断状态
+
+- 熔断打开：请求不再进行调用当前服务，内部设置时钟一般为MTTR(平均故障处理时间)，当打开时长达到所设时钟则进入半熔断状态。
+- 熔断关闭：熔断关闭不会对服务进行熔断。
+- 熔断半开：部分请求根据规则调用当前服务，如果请求成功且符合规则则认为当前服务恢复正常，关闭熔断。
+
+#### 断路器在什么情况下开始起作用
+
+涉及到断路器的三个重要参数：
+
+1. 快照时间窗：断路器确定是否打开需要统计一些请求和错误数据，而统计的时间范围就是快照时间窗，默认为最近的10秒。
+2. 请求总数阀值：在快照时间窗内，必须满足请求总数阀值才有资格熔断。默认为20，意味着在10秒内，**如果该 hystrix 命令的调用次数不足 20 次,即使所有的请求都超时或其他原因失败，断路器都不会打开**。
+3. 错误百分比阀值：**当请求总数在快照时间窗内超过了阀值**，比如发生了30次调用，如果在这30次调用中，有15次发生了超时异常，也就是超过50%的错误百分比，在默认设定50%阀值情况下，这时候就会将断路器打开。
+
+#### 断路器开启或者关闭的条件
+
+- 到达以下阀值，断路器将会开启：
+	- 当满足一定的阀值的时候（默认10秒内超过20个请求次数)
+	- 当失败率达到一定的时候（默认10秒内超过50%的请求失败)
+- 当开启的时候，所有请求都不会进行转发
+- 一段时间之后（默认是5秒)，这个时候断路器是半开状态，会让其中一个请求进行转发。如果成功，断路器会关闭，若失败，继续开启。
+
+断路器打开之后
+
+- 再有请求调用的时候，将不会调用主逻辑，而是直接调用降级 fallback。通过断路器，实现了自动地发现错误并将降级逻辑切换为主逻辑，减少响应延迟的效果。
+
+- 原来的主逻辑要如何恢复呢？
+
+对于这一问题，hystrix也为我们实现了自动恢复功能。
+
+当断路器打开，对主逻辑进行熔断之后，hystrix会启动一个休眠时间窗，在这个时间窗内，降级逻辑是临时的成为主逻辑，当休眠时间窗到期，断路器将进入半开状态，释放一次请求到原来的主逻辑上，如果此次请求正常返回，那么断路器将继续闭合，主逻辑恢复，如果这次请求依然有问题，断路器继续进入打开状态，休眠时间窗重新计时。
+
+#### 工作流程
+
+[工作流程](https://github.com/Netflix/Hystrix/wiki/How-it-Works)
+
+1. 创建HystrixCommand （用在依赖的服务返回单个操作结果的时候）或HystrixObserableCommand（用在依赖的服务返回多个操作结果的时候）对象。
+2. 命令执行。
+3. 其中 HystrixCommand实现了下面前两种执行方式
+	- execute()：同步执行，从依赖的服务返回一个单一的结果对象或是在发生错误的时候抛出异常。
+	- queue()：异步执行，直接返回一个Future对象，其中包含了服务执行结束时要返回的单一结果对象。
+4. 而 HystrixObservableCommand实现了后两种执行方式：
+	- obseve()：返回Observable对象，它代表了操作的多个结果，它是一个 Hot Observable （不论“事件源”是否有“订阅者”，都会在创建后对事件进行发布，所以对于Hot Observable的每一个“订阅者”都有可能是从“事件源”的中途开始的，并可能只是看到了整个操作的局部过程）。
+	- toObservable()：同样会返回Observable对象，也代表了操作的多个结果，但它返回的是一个Cold Observable（没有“订阅者”的时候并不会发布事件，而是进行等待，直到有“订阅者"之后才发布事件，所以对于Cold Observable 的订阅者，它可以保证从一开始看到整个操作的全部过程）。
+5. 若当前命令的请求缓存功能是被启用的，并且该命令缓存命中，那么缓存的结果会立即以Observable对象的形式返回。
+6. 检查断路器是否为打开状态。如果断路器是打开的，那么Hystrix不会执行命令，而是转接到fallback处理逻辑(第8步)；如果断路器是关闭的，检查是否有可用资源来执行命令(第5步)。
+7. 线程池/请求队列信号量是否占满。如果命令依赖服务的专有线程地和请求队列，或者信号量（不使用线程的时候）已经被占满，那么Hystrix也不会执行命令，而是转接到fallback处理理辑(第8步) 。
+8. Hystrix会根据我们编写的方法来决定采取什么样的方式去请求依赖服务。
+	- HystrixCommand.run()：返回一个单一的结果，或者抛出异常。
+	- HystrixObservableCommand.construct()：返回一个Observable对象来发射多个结果，或通过onError发送错误通知。
+9. Hystix会将“成功”、“失败”、“拒绝”、“超时” 等信息报告给断路器，而断路器会维护一组计数器来统计这些数据。断路器会使用这些统计数据来决定是否要将断路器打开，来对某个依赖服务的请求进行"熔断/短路"。
+10. 当命令执行失败的时候，Hystix会进入fallback尝试回退处理，我们通常也称波操作为“服务降级”。而能够引起服务降级处理的情况有下面几种：
+	- 第4步∶当前命令处于“熔断/短路”状态，断洛器是打开的时候。
+	- 第5步∶当前命令的钱程池、请求队列或者信号量被占满的时候。
+	- 第6步∶HystrixObsevableCommand.construct()或HytrixCommand.run()抛出异常的时候。
+11. 当Hystrix命令执行成功之后，它会将处理结果直接返回或是以Observable的形式返回。
+tips：如果我们没有为命令实现降级逻辑或者在降级处理逻辑中抛出了异常，Hystrix依然会运回一个Obsevable对象，但是它不会发布任结果数惯，而是通过onError方法通知命令立即中断请求，并通过onError方法将引起命令失败的异常发送给调用者。
+
+### 服务限流（flowlimit）
 
 秒杀高并发等操作，严禁一窝蜂的过来拥挤，大家排队，一秒钟N个，有序进行。
 
-示例
+见 alibaba 的 Sentinel
+
+示例代码
 
 ```
 cloud-eureka-server7001
@@ -1508,13 +1647,234 @@ cloud-provider-eureka-hystrix-payment8001
 cloud-consumer-feign-hystrix-order80
 ```
 
+### Hystrix图形化Dashboard搭建
+
+除了隔离依赖服务的调用以外，Hystrix还提供了准实时的调用监控(Hystrix Dashboard)，Hystrix会持续地记录所有通过Hystrix发起的请求的执行信息，并以统计报表和图形的形式展示给用户，包括每秒执行多少请求多少成功，多少失败等。
+
+Netflix通过hystrix-metrics-event-stream项目实现了对以上指标的监控。Spring Cloud也提供了Hystrix Dashboard的整合，对监控内容转化成可视化界面。
+
+略
+
+[(78条消息) Spring Cloud 学习笔记（2 / 3）_spring cloud笔记 巨轮_巨輪的博客-CSDN博客](https://blog.csdn.net/u011863024/article/details/114298282)
+
+# 网关
+
+在 Spring Cloud 生态中有个很重要的组件就是网关，在 1.x 版本中都是采用的Zuul网关;
+但在 2.x 版本中，zuul 的升级一直跳票，SpringCloud 最后自己研发了一个网关替代 Zuul，那就是 SpringCloud Gateway —句话：gateway是原zuul1.x版的替代
+
+## Zuul
+
+基于 Servlet 2.5 阻塞式 IO 请求实现，在高压环境下表现一般，且已淘汰
+
+Springcloud中所集成的Zuul版本，采用的是Tomcat容器，使用的是传统的Serviet IO处理模型。
+
+servlet由 servlet容器进行生命周期管理。
+
+- servlet容器启动时构造servlet对象并调用servlet init()进行初始化；
+- servlet容器运行时接受请求，并为每个请求分配一个线程（一般从线程池中获取空闲线程）然后调用service)；
+- container关闭时调用servlet destory()销毁servlet。
+
+上述模式的缺点：
+
+Servlet是一个简单的网络IO模型，当请求进入Servlet 容器时，Servlet 容器就会为其绑定一个线程，在并发不高的场景下这种模型是适用的。但是一旦高并发(如抽风用Jmeter压)，线程数量就会上涨，而线程资源代价是昂贵的（上线文切换，内存消耗大）严重影响请求的处理时间。在一些简单业务场景下，不希望为每个request分配一个线程，只需要1个或几个线程就能应对极大并发的请求，这种业务场景下 servlet 模型没有优势。
+
+所以Zuul 1.X是基于servlet之上的一个阻塞式处理模型，即Spring实现了处理所有request请求的一个servlet (DispatcherServlet)并由该servlet阻塞式处理处理。所以SpringCloud Zuul无法摆脱servlet模型的弊端。
 
 
-服务提供者 cloud-provider-eureka-hystrix-payment8001
+## Zuul 2
 
-ConsumerFeignHystrixService.class
+基于非阻塞式 IO 请求实现，跳票或技术未成熟
+
+## SpringCloud GateWay
+
+由 Spring Cloud 官方组织自身研发，与 Spring Cloud 生态兼容性更强。
+
+netflix不太靠谱，zuul2.0一直跳票，迟迟不发布。
+
+- 一方面因为Zuul1.0已经进入了维护阶段，而且Gateway是SpringCloud团队研发的，是亲儿子产品，值得信赖。而且很多功能Zuul都没有用起来也非常的简单便捷。
+- Gateway是基于异步非阻塞模型上进行开发的，性能方面不需要担心。虽然Netflix早就发布了最新的Zuul 2.x，但Spring Cloud貌似没有整合计划。而且Netflix相关组件都宣布进入维护期；不知前景如何?
+- 多方面综合考虑Gateway是很理想的网关选择。
+
+SpringCloud Gateway 具有如下特性
+
+- 基于Spring Framework 5，Project Reactor和Spring Boot 2.0进行构建；
+- 动态路由：能够匹配任何请求属性；
+- 可以对路由指定Predicate (断言)和Filter(过滤器)；
+- 集成Hystrix的断路器功能；
+- 集成Spring Cloud 服务发现功能；
+- 易于编写的Predicate (断言)和Filter (过滤器)；
+- 请求限流功能；
+- 支持路径重写。
+
+SpringCloud Gateway 与 Zuul 的区别
+
+- 在SpringCloud Finchley正式版之前，Spring Cloud推荐的网关是Netflix提供的Zuul。
+- Zuul 1.x，是一个基于阻塞I/O的API Gateway。
+- Zuul 1.x基于Servlet 2.5使用阻塞架构它不支持任何长连接(如WebSocket)Zuul的设计模式和Nginx较像，每次I/О操作都是从工作线程中选择一个执行，请求线程被阻塞到工作线程完成，但是差别是Nginx用C++实现，Zuul用Java实现，而JVM本身会有第-次加载较慢的情况，使得Zuul的性能相对较差。
+- Zuul 2.x理念更先进，想基于Netty非阻塞和支持长连接，但SpringCloud目前还没有整合。Zuul2.x的性能较Zuul 1.x有较大提升。在性能方面，根据官方提供的基准测试,Spring Cloud Gateway的RPS(每秒请求数)是Zuul的1.6倍。
+- Spring Cloud Gateway建立在Spring Framework 5、Project Reactor和Spring Boot2之上，使用非阻塞API。
+- Spring Cloud Gateway还支持WebSocket，并且与Spring紧密集成拥有更好的开发体验
+
+
+SpringCloud GateWay 旨在提供一种简单而有效的方式来对 API 进行路由，以及提供一些强大的过滤器功能，例如 : 熔断、限流、重试等。
+
+SpringCloud Gateway 作为Spring Cloud 生态系统中的网关，目标是替代 Zuul，在 Spring Cloud 2.0 以上版本中，没有对新版本的 Zuul 2.0 以上最新高性能版本进行集成，仍然还是使用的 Zuul 1.x 非 Reactor 模式的老版本。而为了提升网关的性能，SpringCloud Gateway 是基于 WebFlux 框架实现的，而 WebFlux 框架底层则使用了高性能的 Reactor 模式通信框架 Netty。
+
+SpringCloud Gateway 的目标提供统一的路由方式且基于 Filter 链的方式提供了网关基本的功能，例如:安全，监控/指标，和限流。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306132329151.png)
+
+**WebFlux**
+
+[WebFlux 官网](https://docs.spring.io/spring-framework/reference/)
+
+传统的Web框架，比如说: Struts2，SpringMVC等都是基于Servlet APl与Servlet容器基础之上运行的。
+
+但是在Servlet3.1之后有了异步非阻塞的支持。而WebFlux是一个典型非阻塞异步的框架，它的核心是基于Reactor的相关API实现的。相对于传统的web框架来说，它可以运行在诸如Netty，Undertow及支持Servlet3.1的容器上。非阻塞式+函数式编程(Spring 5必须让你使用Java 8)。
+
+Spring WebFlux是Spring 5.0 引入的新的响应式框架，区别于Spring MVC，它不需要依赖Servlet APl，它是完全异步非阻塞的，并且基于Reactor来实现响应式流规范。
+
+### SpringCloud GateWay 三大核心概念
+
+- Route(路由) - 路由是构建网关的基本模块,它由ID,目标URI,一系列的断言和过滤器组成,如断言为true则匹配该路由；
+- Predicate(断言) - 参考的是Java8的java.util.function.Predicate，开发人员可以匹配HTTP请求中的所有内容(例如请求头或请求参数),如果请求与断言相匹配则进行路由；
+- Filter(过滤) - 指的是Spring框架中GatewayFilter的实例,使用过滤器,允许在请求被路由前或者之后对请求进行修改。
+
+web请求，通过一些匹配条件，定位到真正的服务节点。并在这个转发过程的前后，进行一些精细化控制。
+
+predicate就是我们的匹配条件，类似于 SQL 中的 where 条件；而 fliter，就可以理解为一个无所不能的拦截器。有了这两个元素，再加上目标uri，就可以实现一个具体的路由了
+
+[SpringCloud GateWay](https://cloud.spring.io/spring-cloud-static/spring-cloud-gateway/2.2.1.RELEASE/reference/html/#gateway-how-it-works)
+
+客户端向Spring Cloud Gateway发出请求。然后在Gateway Handler Mapping 中找到与请求相匹配的路由，将其发送到GatewayWeb Handler。
+
+Handler再通过指定的过滤器链来将请求发送到我们实际的服务执行业务逻辑，然后返回。
+
+过滤器之间用虚线分开是因为过滤器可能会在发送代理请求之前(“pre”)或之后(“post"）执行业务逻辑。
+
+Filter在“pre”类型的过滤器可以做参数校验、权限校验、流量监控、日志输出、协议转换等，在“post”类型的过滤器中可以做响应内容、响应头的修改，日志的输出，流量监控等有着非常重要的作用。
+
+**核心逻辑**：路由转发 + 执行过滤器链。
+
+Route(路由) 的核心逻辑为：
+
+**根据条件（由 predicate实现，可以是已注册的服务名称或真实url地址）匹配对应的转发地址 uri 进行请求转发和自定义处理（由 Filter 实现）**
+
+predicate 类似于从数据库(注册中心)中
+
+`select url from 注册中心 where url like '%123%'`
+
+### 示例
+
+#### yml 网关路由配置
+
+```yml
+server:
+  port: 9527
+
+spring:
+  application:
+    name: cloud-gateway
+  #############################新增网关配置###########################
+  cloud:
+    gateway:
+      routes: # 路由 由 id + uri + predicates 组成
+        - id: payment_routh #payment_route    #路由的ID，没有固定规则但要求唯一，建议配合服务名
+          #uri: http://localhost:8001          #匹配后提供服务的路由地址：静态匹配，填写具体的网址
+          uri: lb://CLOUD-PROVIDER-EUREKA-PAYMENT #匹配后提供服务的路由地址：动态匹配，填写服务中心注册的微服务名，lb://serviceName lb 是spring cloud gateway 在微服务中自动为我们创建的负载均衡uri。
+          predicates: # 断言，相当于 sql 后的 where 条件 多个条件间为 AND 关系
+            - Path=/payment/serverPort/**         # 匹配具体的路由路径，就是 http://localhost:9527/payment/serverPort 9527 后面的
+            - After=2023-01-20T17:42:47.789-07:00[America/Denver] # 匹配在此时间之后生效 还有很多 例如匹配在某个时间之间、请求头、请求参数等等关系，参考官网
+
+        - id: payment_routh2 #payment_route    #路由的ID，没有固定规则但要求唯一，建议配合服务名
+          #uri: http://localhost:8002          #匹配后提供服务的路由地址：动态匹配，填写服务中心注册的微服务名
+          uri: http://news.baidu.com/guonei #匹配后提供服务的路由地址
+          predicates: # 断言，相当于 sql 后的 where 条件
+            - Path=/guonei         # 匹配具体的路由路径
+  ####################################################################
+
+eureka:
+  instance:
+    hostname: cloud-gateway-service
+  client: #服务提供者provider注册进eureka服务列表内
+    service-url:
+      register-with-eureka: true
+      fetch-registry: true
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
 
 ```
+
+[predicates 匹配类型参考官网](https://cloud.spring.io/spring-cloud-static/spring-cloud-gateway/2.2.1.RELEASE/reference/html/#gateway-request-predicates-factories)
+
+其中时间类型的字符串来源于
+
+```java
+import java.time.ZonedDateTime;
+
+
+public class T2
+{
+    public static void main(String[] args)
+    {
+        ZonedDateTime zbj = ZonedDateTime.now(); // 默认时区
+        System.out.println(zbj);
+
+       //2021-02-22T15:51:37.485+08:00[Asia/Shanghai]
+    }
+}
 ```
 
-服务消费者 cloud-consumer-feign-hystrix-order80
+Predicate就是为了实现一组匹配规则，让请求过来找到对应的Route进行处理。
+
+#### 网关 Filter
+
+路由过滤器可用于**修改**进入的HTTP请求和返回的HTTP响应，路由过滤器只能指定路由进行使用。Spring Cloud Gateway内置了多种路由过滤器，他们都由GatewayFilter的工厂类来产生。
+
+示例如下
+
+```java
+package org.example;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.GlobalFilter;
+import org.springframework.core.Ordered;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Component;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.util.Date;
+
+@Component
+@Slf4j
+public class MyLogGateWayFilter implements GlobalFilter,Ordered
+{
+
+    @Override
+    public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain)
+    {
+        log.info("***********come in MyLogGateWayFilter:  "+new Date());
+
+        String uname = exchange.getRequest().getQueryParams().getFirst("uname");
+
+        if(uname == null)
+        {
+            log.info("*******用户名为null，非法用户，o(╥﹏╥)o");
+            exchange.getResponse().setStatusCode(HttpStatus.NOT_ACCEPTABLE);
+            return exchange.getResponse().setComplete();
+        }
+
+        return chain.filter(exchange);
+    }
+
+    @Override
+    public int getOrder()
+    {
+        return 0;
+    }
+}
+```
+
+其中 Filter 分为 GatewayFilter 和 GlobalFilter 常用的 GatewayFilter：AddRequestParameter GatewayFilter，上述示例为全局 Filter GlobalFilter
+
