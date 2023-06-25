@@ -2070,6 +2070,30 @@ config:
 
 读取成功
 
+### 使用本地配置测试开发
+
+在 Spring Cloud Config 中，可以使用本地文件作为 Git 的替代来实现配置中心的功能。这样可以避免依赖外部的 Git 仓库，而是直接使用本地文件系统来存储和管理配置。
+
+要使用本地文件作为 Git 的替代，可以通过配置 spring.cloud.config.server.native.searchLocations 属性来指定本地文件的路径。该属性可以接受一个或多个逗号分隔的路径，用于指定配置文件的存储位置。
+
+以下是一个示例配置文件的内容，演示了如何配置使用本地文件作为 Git 的替代：
+
+```properties
+spring.profiles.active=native
+spring.cloud.config.server.native.searchLocations=file:/path/to/config/files/
+```
+
+在上述示例中，spring.profiles.active 属性被设置为 native，表示要使用本地文件作为配置源。spring.cloud.config.server.native.searchLocations 属性指定了本地文件的路径，使用 file:/path/to/config/files/ 表示配置文件存储在 /path/to/config/files/ 目录中。
+
+配置中心在启动时会扫描指定路径下的配置文件，并将其作为可用的配置源。然后可以通过访问配置中心的端点获取配置信息，就像使用 Git 仓库一样。
+
+需要注意的是，使用本地文件作为配置中心的替代并不具备 Git 的版本控制和分支管理等特性。因此，适用于一些简单的应用场景，或者在开发和测试环境中进行快速的本地配置管理。
+
+如果需要更强大的配置管理功能，包括版本控制、分支管理和协作特性，建议使用真正的 Git 仓库作为配置中心。
+
+具体实现可参考项目
+
+
 ### github client 客户端配置与测试
 
 新建cloud-config-client-3355
@@ -2299,7 +2323,7 @@ ConfigClient 实例都监听 MQ 中同一个 topic (默认是 Spring Cloud Bus )
 
 ## SpringCloud Bus 消息总线
 
-Spring Cloud Bus 配合Spring Cloud Config 使用可以实现配置的动态刷新。
+Spring Cloud Bus 配合 Spring Cloud Config 使用可以实现配置的动态刷新。
 
 Spring Cloud Bus 是用来将分布式系统的节点与轻量级消息系统链接起来的框架，它整合了 Java 的事件处理机制和消息中间件的功能。Spring Clud Bus 目前支持 **RabbitMQ** 和 **Kafka** 。
 
@@ -2464,5 +2488,843 @@ http://localhost:3344/actuator/bus-refresh/{destination}
 curl -X POST "http://localhost:3344/actuator/bus-refresh/config-client:3355
 ```
 
-# Stream
+# 消息驱动
 
+- ActiveMQ
+- RabbitMQ
+- RocketMQ
+- Kafka（多用于大数据）
+
+市面上存在多种 MQ 消息中间件，学习成本较高，消息驱动作为一种新的技术将其封装，使开发人员不再关注具体的底层消息中间件的差异，降低切换成本，实现统一消息的编程模型。类比于持久化框架 Hibernate ，在实际使用过程中可以不需要关注底层数据库是否是由 oracle 或 mysql 等其他数据库实现，以达到统一管理统一编程模型的目的。
+
+## Spring Cloud Stream
+
+[文档](https://spring.io/projects/spring-cloud-stream#overview)
+
+[文档](https://m.wang1314.com/doc/webapp/topic/20971999.html)
+
+Spring Cloud Stream 是一个构建消息驱动微服务的框架，由于消息中间件的架构上的不同，像 RabbitMQ 有 exchange，kafka 有 Topic 和 Partitions 分区。这些中间件的差异性导致我们实际项目开发给我们造成了一定的困扰，我们如果用了两个消息队列的其中一种，后面的业务需求，我想往另外一种消息队列进行迁移，这时候无疑就是一个灾难性的，一大堆东西都要重新推倒重新做，因为它跟我们的系统耦合了，这时候 Spring Cloud Stream 给我们提供了—种解耦合的方式。
+
+Spring Cloud Stream 目前仅支持 RabbitMQ、 Kafka。
+
+### 常见概念介绍
+
+#### Spring Integration
+
+Spring Integration 是一个基于 Spring 框架的企业集成解决方案，用于构建消息驱动的应用程序和企业应用集成。它提供了一组强大的抽象和工具，使得在分布式系统中进行消息传递和系统集成变得更加容易。
+
+Spring Integration 的核心理念是通过消息在应用程序的不同部分之间进行通信和协调。它提供了一种轻量级、灵活且可扩展的方式来处理消息的发送、接收、转换和路由。Spring Integration 基于管道和过滤器模式，其中消息在不同的处理器之间流动，每个处理器负责特定的任务。
+
+Spring Integration 提供了多种组件来支持不同的集成模式和通信协议，例如消息队列、JMS（Java Message Service）、AMQP（高级消息队列协议）、RabbitMQ、Apache Kafka、Web Services、FTP（文件传输协议）等。它还支持消息转换器，可以在不同的数据格式之间进行转换，以便实现不同系统之间的互操作性。
+
+Spring Integration 的核心组件包括：
+
+- 通道（Channel）：用于在不同的消息处理器之间传递消息的管道。Spring Integration 提供了多种类型的通道，如直接通道、发布-订阅通道和队列通道。
+
+- 适配器（Adapter）：用于连接不同的系统和协议。适配器可以将外部系统的消息转换为 Spring Integration 内部的消息格式，并将内部消息转换为外部系统所需的格式。
+
+- 消息处理器（Message Handler）：用于处理消息的组件，可以执行各种操作，如消息转换、路由、过滤、转发等。Spring Integration 提供了多种内置的消息处理器，并且还可以自定义消息处理器来满足特定需求。
+
+- 网关（Gateway）：提供了应用程序与消息通道之间的双向通信接口，用于将外部请求转换为消息发送到通道，并将通道的响应转换为外部响应。
+
+通过使用 Spring Integration，开发人员可以将不同的应用程序和系统无缝地集成到一个统一的整体中，实现高度可扩展的、松耦合的架构。它提供了丰富的功能和灵活的配置选项，使得构建复杂的企业应用集成变得更加简单和可靠。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306190016956.png)
+
+- 生产者/消费者之间靠消息媒介传递信息内容
+- 消息必须走特定的通道 - 消息通道 Message Channel
+- 消息通道里的消息如何被消费呢，谁负责收发处理 - 消息通道 MessageChannel 的子接口 SubscribableChannel，由 MessageHandler 消息处理器所订阅
+
+#### Message Channel
+
+Message Channel（消息通道）是 Spring Cloud Stream 框架中的一个核心概念，用于实现消息在应用程序内部的传递和交换。
+
+在Spring Cloud Stream中，消息通道是消息的来源和目的地。它代表了消息的流动路径，消息可以从一个通道发送到另一个通道，以实现不同组件之间的消息传递。
+
+消息通道可以被认为是一种抽象概念，可以与具体的消息代理（如Kafka、RabbitMQ等）进行绑定。通过这种方式，Spring Cloud Stream将能够与底层的消息代理进行交互，并在通道上进行消息的发布和订阅。
+
+在应用程序中，可以定义多个输入通道和输出通道。输入通道用于接收外部消息，并将其传递给应用程序的消息处理器进行处理。输出通道用于将应用程序处理的结果发送到其他组件或外部系统。
+
+通过使用注解（如@Input和@Output），可以在应用程序中标识出输入和输出通道，并进行配置。这样，Spring Cloud Stream 将根据配置与消息代理进行通信，并将消息在通道之间进行转发。
+
+通过将消息交互抽象成消息通道，Spring Cloud Stream 提供了一种统一的编程模型，使得开发者可以专注于业务逻辑的实现，而无需关注底层消息传递的细节。这样可以简化应用程序的开发和维护，同时提供了灵活性和可扩展性。
+
+在没有绑定器这个概念的情况下， SpringBoot 应用要直接与消息中间件进行信息交互的时候，由于各消息中间件构建的初衷不同，它们的实现细节上会有较大的差异性，通过定义绑定器作为中间层，完美地实现了应用程序与消息中间件细节之间的隔离。通过向应用程序暴露统一的 Channel 通道，使得应用程序不需要再考虑各种不同的消息中间件实现。
+
+应用程序通过定义绑定器 Binder 作为中间层，实现了应用程序与消息中间件细节之间的隔离。 **inputs(消息生产者)** 或者 **outputs(消息消费者)** 来与 Spring Cloud Stream 中 **binder对象(消息绑定器)** 交互，通过配置来 binding(绑定)，而 Spring Cloud Stream 的 **binder对象** 负责与消息中间件交互。所以，只需要搞清楚如何与 Spring Cloud Stream 交互就可以很方便的使用消息驱动。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306192209492.png)
+
+### 编码模型
+
+Stream 中的消息通信方式遵循了发布-订阅模式
+
+Topic主题进行广播
+
+- 在 RabbitMQ 中就是 Exchange
+- 在 Kakfa 中就是 Topic
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306192216228.png)
+
+参考上图的模型
+- Binder - 很方便的连接中间件，屏蔽差异。
+- Channel - 通道，是队列 Queue 的一种抽象，在消息通讯系统中就是实现存储和转发的媒介，通过 Channel 对队列进行配置。
+- Source（消息源） 和 Sink（消费） - 简单的可理解为参照对象是 Spring Cloud Stream 自身，从 Stream 发布消息就是输出，接受消息就是输入。
+
+### 编码API和常用注解
+
+
+
+|组成|说明|
+|:-:	|:-:	|
+|Middleware|中间件，目前只支持RabbitMQ和Kafka|
+|Binder|Binder是应用与消息中间件之间的封装，目前实行了Kafka和RabbitMQ的Binder，通过Binder可以很方便的连接中间件，可以动态的改变消息类型(对应于Kafka的topic,RabbitMQ的exchange)，这些都可以通过配置文件来实现|
+|@Input|标识输入通道，通过该输乎通道接收到的消息进入应用程序|
+|@Output|标识输出通道，发布的消息将通过该通道离开应用程序|
+|@StreamListener|监听队列，用于消费者的队列的消息接收|
+|@EnableBinding|指信道channel和exchange绑定在一起|
+
+工程中新建三个子模块
+
+cloud-stream-rabbitmq-provider8801，作为生产者进行发消息模块
+
+cloud-stream-rabbitmq-consumer8802，作为消息接收模块
+
+cloud-stream-rabbitmq-consumer8803，作为消息接收模块
+
+
+#### cloud-stream-rabbitmq-provider8801
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <artifactId>SpringCloudDemo</artifactId>
+    <groupId>org.example</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>cloud-stream-rabbitmq-provider8801</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <name>cloud-stream-rabbitmq-provider8801</name>
+
+  <dependencies>
+    <!--添加 spring cloud stream 支持-->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-stream-rabbit</artifactId>
+    </dependency>
+    <!--添加 spring cloud stream 支持-->
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+    </dependency>
+    <!--基础配置-->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+</project>
+```
+
+```yml
+server:
+  port: 8801
+
+spring:
+  application:
+    name: cloud-stream-provider
+  cloud:
+    stream:
+      binders: # 在此处配置要绑定的rabbitmq的服务信息；
+        defaultRabbit: # 表示定义的名称，用于于binding整合
+          type: rabbit # 消息组件类型
+          environment: # 设置rabbitmq的相关的环境配置
+            spring:
+              rabbitmq:
+                host: localhost
+                port: 5672
+                username: guest
+                password: guest
+      bindings: # 服务的整合处理
+        output: # 这个名字是一个通道的名称
+          destination: studyExchange # 表示要使用的Exchange名称定义
+          content-type: application/json # 设置消息类型，本次为json，文本则设置“text/plain”
+          binder: defaultRabbit # 设置要绑定的消息服务的具体设置
+
+eureka:
+  client: # 客户端进行Eureka注册的配置
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 2 # 设置心跳的时间间隔（默认是30秒）
+    lease-expiration-duration-in-seconds: 5 # 如果现在超过了5秒的间隔（默认是90秒）
+    instance-id: send-8801.com  # 在信息列表时显示主机名称
+    prefer-ip-address: true     # 访问的路径变为IP地址
+```
+
+主启动类
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class StreamMQMain8801 {
+    public static void main(String[] args) {
+        SpringApplication.run(StreamMQMain8801.class,args);
+    }
+}
+```
+
+发送消息接口
+
+```java
+package org.example.message;
+
+public interface IMessageProvider {
+    String send();
+}
+```
+
+发送消息接口实现类
+
+```java
+package org.example.message.impl;
+
+import org.example.message.IMessageProvider;
+import org.springframework.cloud.stream.annotation.EnableBinding;
+import org.springframework.cloud.stream.messaging.Source;
+import org.springframework.integration.support.MessageBuilder;
+import org.springframework.messaging.MessageChannel;
+
+import javax.annotation.Resource;
+import java.util.UUID;
+@SuppressWarnings("all")
+/**
+ * @EnableBinding 是 Spring Cloud Stream 提供的一个注解，
+ * 用于将应用程序与消息中间件之间的绑定关系建立起来。
+ * 它的作用是告诉 Spring Cloud Stream 将当前应用程序与指定的消息代理
+ * （如 Apache Kafka、RabbitMQ 等）进行绑定，以便在应用程序中使用消息驱动的方式进行开发。
+ *
+ * 通过使用 @EnableBinding 注解，开发人员可以将消息代理作为一个抽象层，
+ * 将业务逻辑与具体的消息中间件解耦。
+ * 在应用程序中，可以定义输入通道（Input Channel）和输出通道（Output Channel），
+ * 用于接收和发送消息。输入通道用于监听消息，并将消息传递给应用程序进行处理，
+ * 而输出通道用于将应用程序处理的结果发送到消息中间件。
+ *
+ * @EnableBinding 注解需要指定一个或多个接口作为参数，
+ * 这些接口定义了应用程序与消息中间件之间的通道（Channels）。
+ * 通常，这些接口会使用 Spring Cloud Stream 提供的 @Input 和 @Output 注解进行标记，
+ * 以定义输入通道和输出通道的名称和属性。
+ *
+ * 在下面的示例中，@EnableBinding(Source.class) 将应用程序与 Source 接口中定义的通道进行绑定。
+ * 通过 @Output 注解标记的 output() 方法定义了一个输出通道，名称为 "output"，用于发送消息。
+ *
+ * 通过 @EnableBinding 注解，应用程序就可以通过使用 output() 方法接收消息，
+ * 使用 output() 方法发送消息，而无需关心底层的消息中间件的具体实现细节。
+ * 这种方式使得应用程序更加灵活、可移植，并且方便进行单元测试和模块化开发。
+ *
+ */
+@EnableBinding(Source.class) //定义消息的推送管道
+public class MessageProviderImpl implements IMessageProvider
+{
+    @Resource
+    private MessageChannel output; // 消息发送管道
+
+    @Override
+    public String send()
+    {
+        String message = UUID.randomUUID().toString();
+        output.send(MessageBuilder.withPayload(message).build());
+        System.out.println("*****message: "+message);
+        return null;
+    }
+}
+```
+
+Controller
+
+```java
+package org.example.controller;
+
+import org.example.message.IMessageProvider;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import javax.annotation.Resource;
+
+@RestController
+public class SendMessageController
+{
+    @Resource
+    private IMessageProvider messageProvider;
+
+    @GetMapping(value = "/sendMessage")
+    public String sendMessage() {
+        return messageProvider.send();
+    }
+
+}
+```
+
+- 启动 eureka
+- 启动 RabpitMQ
+- 启动 8801
+- 访问 - http://localhost:8801/sendMessage
+- 后台将打印 message: UUID字符串
+
+#### cloud-stream-rabbitmq-consumer8802
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>SpringCloudDemo</artifactId>
+    <groupId>org.example</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>cloud-stream-rabbitmq-consumer8802</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <name>cloud-stream-rabbitmq-consumer8802</name>
+
+  <dependencies>
+    <!--添加 spring cloud stream 支持-->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-stream-rabbit</artifactId>
+    </dependency>
+    <!--添加 spring cloud stream 支持-->
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+    </dependency>
+    <!--基础配置-->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+</project>
+```
+
+```yml
+server:
+  port: 8802
+
+spring:
+  application:
+    name: cloud-stream-consumer
+  cloud:
+    stream:
+      binders: # 在此处配置要绑定的rabbitmq的服务信息；
+        defaultRabbit: # 表示定义的名称，用于于binding整合
+          type: rabbit # 消息组件类型
+          environment: # 设置rabbitmq的相关的环境配置
+            spring:
+              rabbitmq:
+                host: localhost
+                port: 5672
+                username: guest
+                password: guest
+      bindings: # 服务的整合处理
+        ### 注意此配置 接收和发送不一样
+        input: # 这个名字是一个通道的名称
+          destination: studyExchange # 表示要使用的Exchange名称定义
+          content-type: application/json # 设置消息类型，本次为对象json，如果是文本则设置“text/plain”
+          binder: defaultRabbit # 设置要绑定的消息服务的具体设置
+
+eureka:
+  client: # 客户端进行Eureka注册的配置
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 2 # 设置心跳的时间间隔（默认是30秒）
+    lease-expiration-duration-in-seconds: 5 # 如果现在超过了5秒的间隔（默认是90秒）
+    instance-id: receive-8802.com  # 在信息列表时显示主机名称
+    prefer-ip-address: true     # 访问的路径变为IP地址
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class StreamMQMain8802 {
+    public static void main(String[] args) {
+        SpringApplication.run(StreamMQMain8802.class,args);
+    }
+}
+```
+
+```java
+package org.example.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.stream.annotation.EnableBinding;
+import org.springframework.cloud.stream.annotation.StreamListener;
+import org.springframework.cloud.stream.messaging.Sink;
+import org.springframework.messaging.Message;
+import org.springframework.stereotype.Component;
+
+
+@Component
+@EnableBinding(Sink.class)
+public class ReceiveMessageListenerController
+{
+    @Value("${server.port}")
+    private String serverPort;
+
+    @SuppressWarnings("all")
+    /**
+     * @StreamListener 是 Spring Cloud Stream 提供的注解，
+     * 用于将方法标记为消息监听器，以便从绑定的消息通道接收消息并进行处理。
+     * 它的作用是简化消息驱动的应用程序的开发，使得消息的消费变得更加方便和直观。
+     *
+     * 通过使用 @StreamListener 注解，开发人员可以定义一个或多个方法，
+     * 这些方法将会自动注册为消息监听器，用于接收消息并进行相应的处理。
+     * 被 @StreamListener 注解标记的方法需要具有特定的参数和返回类型，以与消息进行匹配和交互。
+     *
+     * 下面是一个使用 @StreamListener 注解的示例
+     *
+     * 在下面的示例中，@StreamListener("input") 将 input()
+     * 方法注册为对 "input" 输入通道的消息监听器。
+     * 当消息到达该通道时，input() 方法将被调用，
+     * 并且消息将作为方法的参数传递进来。在这个例子中，消息的类型是 Message。
+     *
+     * 除了接收消息作为方法参数之外，@StreamListener 还支持其他的参数类型和注解，
+     * 例如 Message 类型、Header 注解和 Payload 注解，以便在方法中获取消息的更多信息。
+     *
+     * 通过使用 @StreamListener 注解，开发人员可以方便地定义消息的消费逻辑，
+     * 并且与消息通道的绑定是自动进行的，无需显式编写消息的接收代码。
+     * 这样的方式简化了消息驱动应用程序的开发过程，使得应用程序更加专注于业务逻辑的实现。
+     *
+     */
+    @StreamListener(Sink.INPUT)
+    public void input(Message<String> message)
+    {
+        System.out.println("消费者1号,----->接受到的消息: "+message.getPayload()+"\t  port: "+serverPort);
+    }
+}
+
+```
+
+启动Eureka
+
+启动StreamMQMain8801
+
+启动StreamMQMain8802
+
+8801发送8802接收消息
+
+### Stream 之消息重复消费
+
+在 Spring Cloud Stream 中，消息重复消费指的是消费者在某种情况下可能会多次接收并处理同一条消息。
+
+消息重复消费是由于分布式系统中的一些不确定因素或故障引起的，例如网络问题、消息中间件的重试机制、消费者应用程序的错误处理等。以下是一些常见的情况导致消息重复消费的示例：
+
+1. 消息中间件重试机制：当消费者在处理消息时发生异常或超时，消息中间件可能会将消息重新投递给消费者，以确保消息的可靠传递。然而，由于某些原因（例如网络问题），消息中间件的重试机制可能会导致同一条消息被重复消费。
+2. 消费者应用程序的错误处理：如果消费者应用程序在处理消息时发生错误，并且没有正确地处理异常或回滚操作，可能会导致消息被重复消费。
+
+为了解决消息重复消费的问题，可以在消费者应用程序中引入一些机制来处理重复消息，例如：
+
+1. 幂等性：消费者应用程序可以设计为具有幂等性，即无论接收到相同的消息多少次，其处理结果都是相同的。通过确保幂等性，即使同一条消息被重复消费，也不会对系统的状态产生额外的影响。
+2. 消息去重：消费者应用程序可以维护一个记录已处理消息的状态（如数据库或缓存），在接收到消息时先检查是否已经处理过该消息，如果是，则忽略该消息。这样可以避免重复消费已处理的消息。
+3. 消息确认机制：某些消息中间件（如 Apache Kafka）提供了消息确认机制，消费者可以在成功处理消息后手动提交消息的确认，以确保消息被正确处理。通过消息确认机制，可以避免在处理消息期间发生故障时导致消息的重复消费。
+
+以上是一些常见的应对消息重复消费的方法，具体的实施方式取决于应用程序的需求和所使用的消息中间件的特性。
+
+Spring Cloud Stream 中提供的分组属性可以帮助解决消息重复消费的问题。
+
+通过使用分组属性，可以将具有相同分组名称的多个消费者实例组织在一起，以协调消息的消费。每个消费者实例在同一个分组中只能消费消息的一个副本，这样可以确保同一条消息只会被分组中的一个消费者实例处理。
+
+当消息中间件传递消息给分组中的消费者时，它会尝试将消息均匀地分配给可用的消费者实例。如果其中一个消费者实例发生故障或不可用，消息会被重新分配给其他可用的消费者实例。这种机制确保了消息在分组中的消费者实例之间的负载均衡和故障容错。
+
+通过配置相同的分组名称，多个消费者实例可以共同消费消息，并且同一条消息不会被重复消费。即使某个消费者实例发生故障或重启，消息中间件会将未确认的消息重新分配给其他消费者实例进行处理。
+
+因此，通过使用 Spring Cloud Stream 提供的分组属性，可以有效地解决消息重复消费的问题，并提供负载均衡和故障容错的能力。
+
+依照8802，克隆出来一份 cloud-stream-rabbitmq-consumer8803
+
+#### cloud-stream-rabbitmq-consumer8803
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>SpringCloudDemo</artifactId>
+    <groupId>org.example</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>cloud-stream-rabbitmq-consumer8803</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <name>cloud-stream-rabbitmq-consumer8803</name>
+
+
+  <dependencies>
+    <!--添加 spring cloud stream 支持-->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-stream-rabbit</artifactId>
+    </dependency>
+    <!--添加 spring cloud stream 支持-->
+
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
+    </dependency>
+    <!--基础配置-->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+</project>
+
+```
+
+```yml
+server:
+  port: 8803
+
+spring:
+  application:
+    name: cloud-stream-consumer
+  cloud:
+    stream:
+      binders: # 在此处配置要绑定的rabbitmq的服务信息；
+        defaultRabbit: # 表示定义的名称，用于于binding整合
+          type: rabbit # 消息组件类型
+          environment: # 设置rabbitmq的相关的环境配置
+            spring:
+              rabbitmq:
+                host: localhost
+                port: 5672
+                username: guest
+                password: guest
+      bindings: # 服务的整合处理
+        ### 注意此配置 接收和发送不一样
+        input: # 这个名字是一个通道的名称
+          destination: studyExchange # 表示要使用的Exchange名称定义
+          content-type: application/json # 设置消息类型，本次为对象json，如果是文本则设置“text/plain”
+          binder: defaultRabbit # 设置要绑定的消息服务的具体设置
+
+eureka:
+  client: # 客户端进行Eureka注册的配置
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 2 # 设置心跳的时间间隔（默认是30秒）
+    lease-expiration-duration-in-seconds: 5 # 如果现在超过了5秒的间隔（默认是90秒）
+    instance-id: receive-8803.com  # 在信息列表时显示主机名称
+    prefer-ip-address: true     # 访问的路径变为IP地址
+
+
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class StreamMQMain8803 {
+    public static void main(String[] args) {
+        SpringApplication.run(StreamMQMain8803.class,args);
+    }
+}
+
+```
+
+```java
+package org.example.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.stream.annotation.EnableBinding;
+import org.springframework.cloud.stream.annotation.StreamListener;
+import org.springframework.cloud.stream.messaging.Sink;
+import org.springframework.messaging.Message;
+import org.springframework.stereotype.Component;
+
+
+@Component
+@EnableBinding(Sink.class)
+public class ReceiveMessageListenerController
+{
+    @Value("${server.port}")
+    private String serverPort;
+
+    /*
+     * @StreamListener 是 Spring Cloud Stream 提供的注解，
+     * 用于将方法标记为消息监听器，以便从绑定的消息通道接收消息并进行处理。
+     * 它的作用是简化消息驱动的应用程序的开发，使得消息的消费变得更加方便和直观。
+     *
+     * 通过使用 @StreamListener 注解，开发人员可以定义一个或多个方法，
+     * 这些方法将会自动注册为消息监听器，用于接收消息并进行相应的处理。
+     * 被 @StreamListener 注解标记的方法需要具有特定的参数和返回类型，以与消息进行匹配和交互。
+     *
+     * 下面是一个使用 @StreamListener 注解的示例
+     *
+     * 在下面的示例中，@StreamListener("input") 将 input()
+     * 方法注册为对 "input" 输入通道的消息监听器。
+     * 当消息到达该通道时，input() 方法将被调用，
+     * 并且消息将作为方法的参数传递进来。在这个例子中，消息的类型是 Message。
+     *
+     * 除了接收消息作为方法参数之外，@StreamListener 还支持其他的参数类型和注解，
+     * 例如 Message 类型、Header 注解和 Payload 注解，以便在方法中获取消息的更多信息。
+     *
+     * 通过使用 @StreamListener 注解，开发人员可以方便地定义消息的消费逻辑，
+     * 并且与消息通道的绑定是自动进行的，无需显式编写消息的接收代码。
+     * 这样的方式简化了消息驱动应用程序的开发过程，使得应用程序更加专注于业务逻辑的实现。
+     *
+     */
+    @StreamListener(Sink.INPUT)
+    public void input(Message<String> message)
+    {
+        System.out.println("消费者2号,----->接受到的消息: "+message.getPayload()+"\t  port: "+serverPort);
+    }
+}
+
+```
+
+启动并使用 cloud-stream-rabbitmq-provider8801 发送消息，发现 8802/8803 同时都收到了，存在重复消费问题。
+
+比如在如下场景中，订单系统我们做集群部署，都会从RabbitMQ中获取订单信息，那如果一个订单同时被两个服务获取到，那么就会造成数据错误，我们得避免这种情况。这时我们就可以使用 Stream 中的消息分组来解决。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306252208972.png)
+
+使用分组和持久化属性 group 来解决该问题，在 Stream 中处于同一个 group 中的多个消费者是竞争关系，就能够保证消息只会被其中一个应用消费一次。不同组是可以全面消费的(重复消费)。将微服务应用放置于同一个 group中，就能够保证消息只会被其中一个应用消费一次，不同的组是可以重复消费的，同一个组内会发生竞争关系，只有其中一个可以消费。**默认情况下的 8002 和 8003 会生成一个随机字符串作为组号，所以它们默认不是一个组，即可以重复消费**
+
+修改 yml 将 8802/8803 都变成不同组，group 两个不同
+
+8802
+
+```yml
+server:
+  port: 8802
+
+spring:
+  application:
+    name: cloud-stream-consumer
+  cloud:
+    stream:
+      binders: # 在此处配置要绑定的rabbitmq的服务信息；
+        defaultRabbit: # 表示定义的名称，用于于binding整合
+          type: rabbit # 消息组件类型
+          environment: # 设置rabbitmq的相关的环境配置
+            spring:
+              rabbitmq:
+                host: localhost
+                port: 5672
+                username: guest
+                password: guest
+      bindings: # 服务的整合处理
+        ### 注意此配置 接收和发送不一样
+        input: # 这个名字是一个通道的名称
+          destination: studyExchange # 表示要使用的Exchange名称定义
+          content-type: application/json # 设置消息类型，本次为对象json，如果是文本则设置“text/plain”
+          binder: defaultRabbit # 设置要绑定的消息服务的具体设置
+          group: A_Group #<----------------------------------------关键
+
+eureka:
+  client: # 客户端进行Eureka注册的配置
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 2 # 设置心跳的时间间隔（默认是30秒）
+    lease-expiration-duration-in-seconds: 5 # 如果现在超过了5秒的间隔（默认是90秒）
+    instance-id: receive-8802.com  # 在信息列表时显示主机名称
+    prefer-ip-address: true     # 访问的路径变为IP地址
+
+```
+
+8803
+
+```yml
+server:
+  port: 8803
+
+spring:
+  application:
+    name: cloud-stream-consumer
+  cloud:
+    stream:
+      binders: # 在此处配置要绑定的rabbitmq的服务信息；
+        defaultRabbit: # 表示定义的名称，用于于binding整合
+          type: rabbit # 消息组件类型
+          environment: # 设置rabbitmq的相关的环境配置
+            spring:
+              rabbitmq:
+                host: localhost
+                port: 5672
+                username: guest
+                password: guest
+      bindings: # 服务的整合处理
+        ### 注意此配置 接收和发送不一样
+        input: # 这个名字是一个通道的名称
+          destination: studyExchange # 表示要使用的Exchange名称定义
+          content-type: application/json # 设置消息类型，本次为对象json，如果是文本则设置“text/plain”
+          binder: defaultRabbit # 设置要绑定的消息服务的具体设置
+          group: A_Group #<----------------------------------------关键
+
+eureka:
+  client: # 客户端进行Eureka注册的配置
+    service-url:
+      defaultZone: http://127.0.0.1:7001/eureka/,http://127.0.0.1:7002/eureka/
+  instance:
+    lease-renewal-interval-in-seconds: 2 # 设置心跳的时间间隔（默认是30秒）
+    lease-expiration-duration-in-seconds: 5 # 如果现在超过了5秒的间隔（默认是90秒）
+    instance-id: receive-8803.com  # 在信息列表时显示主机名称
+    prefer-ip-address: true     # 访问的路径变为IP地址
+
+
+```
+
+重启 8001/8002/8003
+
+发送消息，发现消息只被一个消费，问题解决，结论：同一个组的多个微服务实例，每次只会有一个拿到
+
+### Stream 之消息持久化
+
+在 Spring Cloud Stream 中，消息持久化是指将发送的消息保存在持久化存储中，以确保消息在发送过程中不会丢失，并且可以在之后被消费。
+
+通常情况下，消息传递是异步的，生产者发送消息到消息中间件后，消息中间件负责将消息传递给消费者。在这个过程中，如果发生异常或者消费者无法立即处理消息，消息可能会丢失。为了解决这个问题，可以使用消息持久化来确保消息的可靠传递。
+
+消息持久化的实现依赖于所使用的消息中间件。常见的消息中间件如 Apache Kafka、RabbitMQ 等都支持消息持久化机制。通过配置 Spring Cloud Stream，可以将消息发送到消息中间件的持久化存储中，并确保消息在存储中的可靠性和持久性。
+
+当消息持久化被启用时，消息会被写入持久化存储，直到被消费者确认接收或超过一定的存储时间。这样即使在消息传递过程中出现故障或者重启，消息仍然可以被正确地传递和消费。
+
+需要注意的是，开启消息持久化会增加系统的复杂性和延迟，因为消息需要写入和读取持久化存储。因此，在选择是否启用消息持久化时，需要根据应用场景的需求权衡可靠性和性能。
+
+
+停止 8802/8803 并去除掉8802的分组 group: A_Group，8803 的分组 group: A_Group 没有去掉。
+
+8801 先发送 4 条消息到RabbitMq。
+
+先启动 8802，无分组属性配置，后台没有打出来消息。
+
+再启动 8803，有分组属性配置，后台打出来了MQ上的消息。(消息持久化体现)
+
+通过测试可以发现设置了分组的微服务自动具备持久化的能力
+
+# 链路监控
+
+请求链路跟踪（Request Tracing）是一种技术，用于跟踪和监控分布式系统中请求的传递过程。在微服务架构中，一个请求往往需要经过多个不同的微服务进行处理，每个微服务都可能会产生日志和跟踪信息。请求链路跟踪的目标是通过在请求中添加唯一标识和上下文信息，并通过在不同的微服务之间传递这些信息，实现对请求的端到端跟踪和监控。
+
+请求链路跟踪通常包含以下概念和组件：
+
+1. Trace ID（跟踪 ID）：每个请求都会生成一个唯一的跟踪 ID，用于标识请求的唯一性。该 ID 在整个请求链路中传递，并在各个微服务中进行关联。
+2. Span（跨度）：Span 表示一段请求的处理过程，例如一个微服务的处理。它包含了跟踪 ID、开始时间、结束时间、耗时等信息。多个 Span 可以组成一个请求的完整链路。
+3. 上下文传递：为了将跟踪信息在不同的微服务之间传递，需要将跟踪 ID 和上下文信息添加到请求的头部或其他适当的位置，并在微服务之间进行传递。这样可以将请求在整个系统中的流程进行可视化的跟踪和关联。
+4. 跟踪数据收集和存储：跟踪数据通常会被收集和存储，以便后续的监控和分析。可以使用跟踪数据存储系统，如 Zipkin、Jaeger 等，将跟踪数据进行持久化和查询。
+
+通过请求链路跟踪，可以了解请求在分布式系统中的流转情况，包括请求的起点和终点，以及中间经过的微服务。这有助于发现潜在的性能问题、故障点和延迟，并进行故障排查和优化。同时，它还可以提供请求的耗时统计、异常追踪和日志关联等功能，帮助开发人员更好地理解和监控分布式系统的行为。
+
+实现请求链路跟踪的方式有多种，下面列举了一些常见的落地实现：
+
+1. Zipkin：Zipkin 是一个开源的分布式追踪系统，支持请求链路跟踪和监控。它提供了收集、存储和查询跟踪数据的能力，可以通过集成各种语言和框架的客户端来实现请求的追踪。
+2. Jaeger：Jaeger 是另一个开源的分布式追踪系统，由 Uber 开发并开源。它也提供了跟踪数据的收集、存储和查询功能，并支持各种编程语言和框架的客户端集成。
+3. OpenTelemetry：OpenTelemetry 是一个云原生的观测性框架，它包括跟踪（Trace）和度量（Metric）两个方面的功能。OpenTelemetry 提供了分布式追踪的能力，并支持多种语言和框架的集成。
+4. Spring Cloud Sleuth：Spring Cloud Sleuth 是 Spring Cloud 提供的分布式追踪解决方案，可以与 Zipkin、Jaeger 等分布式追踪系统集成。它通过在请求中添加唯一标识和上下文信息，实现请求的跟踪和关联。
+5. AWS X-Ray：AWS X-Ray 是亚马逊云提供的分布式追踪服务，适用于在 AWS 云环境中进行跟踪和监控。它可以跟踪请求在分布式系统中的流转，并提供可视化的跟踪图表和分析功能。
+
+
+## Spring Cloud Sleuth
+
+Sleuth 是一个由 Spring Cloud 提供的分布式追踪（Distributed Tracing）解决方案。它为微服务架构中的请求跟踪和分析提供了支持。
+
+在分布式系统中，一个请求往往会经过多个微服务进行处理，每个微服务都可能会产生日志和跟踪信息。Sleuth 的目标是通过在请求中添加唯一标识（Trace ID）和上下文信息（Span ID），以及通过在不同微服务之间传递这些信息，来实现对请求的端到端跟踪和监控。
+
+Sleuth 主要提供以下功能：
+
+1. 跟踪 ID 生成：Sleuth 为每个请求生成一个唯一的跟踪 ID，并将其注入到请求中。这样可以在整个请求链路中进行追踪和关联。
+2. 请求链路追踪：通过在不同的微服务之间传递跟踪 ID 和上下文信息，Sleuth 可以将请求在整个系统中的流程进行可视化的跟踪，包括请求的起点和终点以及中间经过的微服务。
+3. 请求耗时统计：Sleuth 追踪请求在每个微服务中的处理时间，并可以生成请求的耗时统计报告，帮助发现和解决潜在的性能问题。
+4. 日志关联：Sleuth 可以在日志中自动关联和打印跟踪 ID 和上下文信息，方便在日志中查看请求的完整链路信息。
+
+Sleuth 基于 OpenZipkin 的分布式追踪技术，通过集成 Spring Cloud 的其他组件，如 Spring Cloud Stream、Spring Cloud Gateway 等，可以实现更全面的分布式追踪和监控。
+
+通过使用 Sleuth，开发人员可以更方便地追踪和监控分布式系统中的请求流程，识别性能瓶颈和故障点，并进行故障排查和优化。
