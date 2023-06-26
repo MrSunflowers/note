@@ -3328,3 +3328,103 @@ Sleuth 主要提供以下功能：
 Sleuth 基于 OpenZipkin 的分布式追踪技术，通过集成 Spring Cloud 的其他组件，如 Spring Cloud Stream、Spring Cloud Gateway 等，可以实现更全面的分布式追踪和监控。
 
 通过使用 Sleuth，开发人员可以更方便地追踪和监控分布式系统中的请求流程，识别性能瓶颈和故障点，并进行故障排查和优化。
+
+[Spring Cloud Sleuth](https://github.com/spring-cloud/spring-cloud-sleuth)
+
+### zipkin 搭建安装
+
+Zipkin 是一个分布式跟踪系统，用于协助监测和调试分布式应用程序的性能问题。它可以帮助开发人员在分布式系统中追踪请求的流动路径，并提供有关请求的跟踪信息，包括请求的起始点、各个服务之间的调用关系、请求处理时间等。
+
+使用 Zipkin，您可以了解到在一个复杂的分布式系统中请求的整个生命周期。每个请求都会被赋予一个唯一的跟踪标识，并通过不同服务和组件进行传播。这使得您可以对请求进行端到端的追踪，并识别可能存在的性能瓶颈或故障。
+
+Zipkin 提供了一个易于使用的用户界面，可以用来查看和分析跟踪数据。它还支持各种语言和框架，可以与不同的应用程序和微服务架构集成。
+
+总结起来，Zipkin 是一个用于分布式系统的跟踪和分析工具，可帮助开发人员诊断和解决分布式应用程序中的性能问题。
+
+通过使用 Spring Cloud Sleuth 与 Zipkin 的整合，可以将 Spring Cloud Sleuth 生成的跟踪数据发送到 Zipkin 服务器进行存储和展示。在 Zipkin 的用户界面中，您可以查看和分析请求的跟踪数据，包括请求的起始点、调用关系、处理时间等信息。这使得您可以更好地理解和调试分布式系统中的性能问题。
+
+[zipkin](https://zipkin.io/)
+
+[github](https://github.com/openzipkin/zipkin)
+
+SpringCloud 从 F 版起不需要自己构建 Zipkin Server 了，只需调用 jar 包即可。
+
+运行jar
+
+```
+java -jar zipkin-server-2.24.2-exec.jar
+```
+
+运行控制台
+
+http://localhost:9411/zipkin/
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306262220998.png)
+
+一条链路通过Trace ld唯一标识，Span标识发起的请求信息，各span通过parent id关联起来
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202306262221207.png)
+
+- Trace：类似于树结构的Span集合，表示一条调用链路，存在唯一标识
+- span：表示调用链路来源，通俗的理解span就是一次请求信息
+
+### Sleuth 链路监控
+
+服务提供者
+
+cloud-provider-eureka-payment8001
+
+```xml
+<!--包含了sleuth+zipkin-->
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-zipkin</artifactId>
+</dependency>
+```
+
+```yml
+spring:
+  application:
+    name: cloud-provider-eureka-payment # 服务提供者功能相同则取同样的名称
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource  # 当前数据源操作类型
+    driver-class-name: com.mysql.cj.jdbc.Driver  # mysql 驱动
+    url: jdbc:mysql://192.168.1.120:3306/spring_test?useUnicode=true&serverTimezone=GMT%2B8&characterEncoding=UTF-8&useSSL=true
+    username: root
+    password: root
+  zipkin: #<-------------------------------------关键
+    base-url: http://localhost:9411
+  sleuth:  #<-------------------------------------关键
+    sampler:
+      #采样率值介于 0 到 1 之间，1 则表示全部采集
+      probability: 1
+```
+
+服务消费者
+
+cloud-consumer-eureka-openFeign-order80
+
+
+```xml
+<dependency>
+    <groupId>org.springframework.cloud</groupId>
+    <artifactId>spring-cloud-starter-zipkin</artifactId>
+</dependency>
+
+```
+
+```yml
+spring:
+  application:
+    name: cloud-consumer-eureka-openFeign-order80
+  zipkin:
+    base-url: http://localhost:9411
+  sleuth:
+    sampler:
+      probability: 1
+```
+
+80调用8001几次测试下
+
+打开浏览器访问: http://localhost:9411
+
