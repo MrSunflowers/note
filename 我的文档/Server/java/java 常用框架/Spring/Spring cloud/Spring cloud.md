@@ -3428,3 +3428,395 @@ spring:
 
 打开浏览器访问: http://localhost:9411
 
+# Spring cloud alibaba 
+
+[Spring cloud alibaba](https://spring-cloud-alibaba-group.github.io/github-pages/greenwich/spring-cloud-alibaba.html#_spring_cloud_alibaba_nacos_discovery)
+
+由于 Spring Cloud Netflix 项目进入维护模式，这意味着 Spring Cloud 团队将不会再向模块添加新功能，致使使用 Spring Cloud Netflix 的开发者带来一些担忧和不确定性，因为 Netflix 的一些核心组件，如 Eureka、Hystrix、Ribbon 等，是许多 Spring Cloud 应用程序中常用的组件。然而 Spring Cloud 团队已经提出了几种替代方案来填补 Netflix 模块的空白，并保持 Spring Cloud 的持续发展。其中就包括：
+
+- Spring Cloud Gateway：Spring Cloud Gateway 是 Spring Cloud 提供的新一代网关解决方案，它基于 Spring 5 和 Project Reactor 构建，具有更高的性能和更灵活的路由功能。开发者可以使用 Spring Cloud Gateway 替代 Netflix 的 **Zuul** 网关组件。
+- Spring Cloud Load Balancer：Spring Cloud Load Balancer 是Spring Cloud 提供的负载均衡解决方案，它是一个基于 Spring Cloud 的轻量级负载均衡器，可以替代 Netflix 的 **Ribbon** 组件。它支持多种负载均衡算法，并与服务注册中心集成。
+- Spring Cloud Alibaba：Spring Cloud Alibaba 是 Spring Cloud 的一个子项目，它提供了一套与 Spring Cloud 兼容的组件，用于构建基于阿里巴巴开源技术栈的微服务应用。Spring Cloud Alibaba 包含了替代 Netflix 组件的解决方案，如使用 Nacos 替代 **Eureka** 作为服务注册与发现组件，使用 Sentinel 替代 **Hystrix** 作为熔断降级组件等。
+
+Spring Cloud Alibaba 提供了丰富的功能和组件，帮助开发者构建和管理分布式系统和微服务应用。以下是一些 Spring Cloud Alibaba 提供的主要功能：
+
+- 服务注册与发现：Spring Cloud Alibaba使用Nacos作为服务注册与发现的组件，提供了强大的服务注册、发现和服务元数据管理功能。Nacos支持多种注册方式和服务发现模式，可以灵活地适应各种微服务架构。
+- 配置管理：Spring Cloud Alibaba提供了基于Nacos的分布式配置管理功能。通过Nacos Config，开发者可以集中管理应用程序的配置信息，并实现动态配置刷新和版本控制，使得配置管理更加方便和可靠。
+- 服务调用与负载均衡：Spring Cloud Alibaba集成了Ribbon和LoadBalancer组件，提供了服务调用和负载均衡的支持。开发者可以使用Ribbon实现服务间的远程调用，并通过负载均衡策略实现请求的均衡分发。
+- 熔断降级：Spring Cloud Alibaba集成了Sentinel作为熔断降级的组件，可以实现对服务调用的流量控制、熔断降级和系统保护。Sentinel提供了实时的流量控制和监控，保护微服务应用免受故障和异常的影响。
+- 消息队列：Spring Cloud Alibaba集成了RocketMQ作为消息队列的组件，提供了可靠的消息传递和异步通信能力。开发者可以使用RocketMQ实现分布式消息的发送和接收，并支持消息的顺序性和事务性处理。
+- 消息驱动能力：基于 Spring Cloud Stream 为微服务应用构建消息驱动能力。
+- 分布式事务：使用 @GlobalTransactional 注解， 高效并且对业务零侵入地解决分布式事务问题。
+- 阿里云对象存储：阿里云提供的海量、安全、低成本、高可靠的云存储服务。支持在任何应用、任何时间、任何地点存储和访问任意类型的数据。
+- 分布式任务调度：提供秒级、精准、高可靠、高可用的定时（基于 Cron 表达式）任务调度服务。同时提供分布式的任务执行模型，如网格任务。网格任务支持海量子任务均匀分配到所有 Worker（schedulerx-client）上执行。
+- 阿里云短信服务：覆盖全球的短信服务，友好、高效、智能的互联化通讯能力，帮助企业迅速搭建客户触达通道。
+
+如果需要使用已发布的版本，在 dependencyManagement 中添加如下配置。
+
+```xml
+<dependencyManagement>
+    <dependencies>
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-alibaba-dependencies</artifactId>
+            <version>2.1.0.RELEASE</version>
+            <type>pom</type>
+            <scope>import</scope>
+        </dependency>
+    </dependencies>
+</dependencyManagement>
+```
+
+
+[Sentinel](https://github.com/alibaba/Sentinel)：把流量作为切入点，从流量控制、熔断降级、系统负载保护等多个维度保护服务的稳定性。
+
+[Nacos](https://github.com/alibaba/Nacos)：一个更易于构建云原生应用的动态服务发现、配置管理和服务管理平台。
+
+[RocketMQ](https://rocketmq.apache.org/)：一款开源的分布式消息系统，基于高可用分布式集群技术，提供低延时的、高可靠的消息发布与订阅服务。
+
+[Dubbo](https://github.com/apache/dubbo)：Apache Dubbo™ 是一款高性能 Java RPC 框架。
+
+[Seata](https://github.com/seata/seata)：阿里巴巴开源产品，一个易于使用的高性能微服务分布式事务解决方案。
+
+[Alibaba Cloud OSS](https://www.aliyun.com/product/oss): 阿里云对象存储服务（Object Storage Service，简称 OSS），是阿里云提供的海量、安全、低成本、高可靠的云存储服务。您可以在任何应用、任何时间、任何地点存储和访问任意类型的数据。
+
+[Alibaba Cloud SchedulerX](https://help.aliyun.com/document_detail/43136.html): 阿里中间件团队开发的一款分布式任务调度产品，提供秒级、精准、高可靠、高可用的定时（基于 Cron 表达式）任务调度服务。
+
+[Alibaba Cloud SMS](https://www.aliyun.com/product/sms): 覆盖全球的短信服务，友好、高效、智能的互联化通讯能力，帮助企业迅速搭建客户触达通道。
+
+## Nacos
+
+前四个字母分别为 Naming 和 Configuration 的前两个字母，最后的 s 为 Service，
+
+一个更易于构建云原生应用的动态服务发现、配置管理和服务管理平台。
+
+Nacos: Dynamic Naming and Configuration Service
+
+Nacos就是注册中心＋配置中心的组合 -> Nacos = Eureka+Config+Bus
+
+替代 Eureka 做服务注册中心
+
+替代 Config 做服务配置中心
+
+[Nacos](https://nacos.io/zh-cn/index.html)
+
+| 服务注册与发现框架 | CAP模型 | 控制台管理 | 社区活跃度      |
+| ------------------ | ------- | ---------- | --------------- |
+| Eureka             | AP      | 支持       | 低(2.x版本闭源) |
+| Zookeeper          | CP      | 不支持     | 中              |
+| consul             | CP      | 支持       | 高              |
+| Nacos              | AP      | 支持       | 高              |
+
+据说 Nacos 在阿里巴巴内部有超过 10 万的实例运行，已经过了类似双十一等各种大型流量的考验。
+
+### Nacos 安装
+
+- 本地 Java8+Maven 环境
+- 从官网下载 Nacos （测试使用的是 nacos-server-1.1.4 ）
+- 解压安装包，直接运行 bin 目录下的 startup.cmd
+- 命令运行成功后直接访问 http://localhost:8848/nacos，默认账号密码都是 nacos
+
+### Nacos 服务注册中心
+
+新建服务提供者 
+cloudalibaba-provider-nacos-payment9001 
+cloudalibaba-provider-nacos-payment9002
+新建服务消费者 
+cloudalibaba-consumer-nacos-order83
+
+#### 新建服务提供者 
+
+cloudalibaba-provider-nacos-payment9001 
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>SpringCloudDemo</artifactId>
+        <groupId>org.example</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>cloudalibaba-provider-nacos-payment9001</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <name>cloudalibaba-provider-nacos-payment9001</name>
+
+
+    <dependencies>
+        <!--SpringCloud ailibaba nacos -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <!-- SpringBoot整合Web组件 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--日常通用jar包配置-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
+```
+
+```yml
+server:
+  port: 9001
+
+spring:
+  application:
+    name: cloudalibaba-provider-nacos-payment # 服务提供者功能相同则取同样的名称
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848 #配置Nacos地址
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+
+@EnableDiscoveryClient
+@SpringBootApplication
+public class PaymentMain9001 {
+    public static void main(String[] args) {
+        SpringApplication.run(PaymentMain9001.class, args);
+    }
+}
+```
+
+```java
+package org.example.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class PaymentController {
+    @Value("${server.port}")
+    private String serverPort;
+
+    @GetMapping(value = "/payment/nacos/{id}")
+    public String getPayment(@PathVariable("id") Integer id) {
+        return "nacos registry, serverPort: "+ serverPort+"\t id"+id;
+    }
+}
+```
+
+cloudalibaba-provider-nacos-payment9002 同上
+
+#### 新建服务消费者  
+
+cloudalibaba-consumer-nacos-order83
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>SpringCloudDemo</artifactId>
+        <groupId>org.example</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>cloudalibaba-consumer-nacos-order83</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <name>cloudalibaba-consumer-nacos-order83</name>
+
+
+    <dependencies>
+        <!--SpringCloud ailibaba nacos -->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <!-- SpringBoot整合Web组件 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--日常通用jar包配置-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
+
+```
+
+```yml
+server:
+  port: 83
+
+spring:
+  application:
+    name: cloudalibaba-consumer-nacos-order
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848
+
+
+#消费者将要去访问的微服务名称(注册成功进nacos的微服务提供者)
+service-url:
+  nacos-user-service: http://cloudalibaba-provider-nacos-payment
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+
+
+@EnableDiscoveryClient
+@SpringBootApplication
+public class OrderNacosMain83
+{
+    public static void main(String[] args)
+    {
+        SpringApplication.run(OrderNacosMain83.class,args);
+    }
+}
+```
+
+```java
+package org.example.controller;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
+
+import javax.annotation.Resource;
+
+@RestController
+@Slf4j
+public class OrderNacosController {
+
+    @Resource
+    private RestTemplate restTemplate;
+
+    @Value("${service-url.nacos-user-service}")
+    private String serverURL;
+
+    @GetMapping(value = "/consumer/payment/nacos/{id}")
+    public String paymentInfo(@PathVariable("id") Long id)
+    {
+        return restTemplate.getForObject(serverURL+"/payment/nacos/"+id,String.class);
+    }
+
+}
+
+```
+
+```java
+package org.example.config;
+
+import org.springframework.cloud.client.loadbalancer.LoadBalanced;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestTemplate;
+
+@Configuration
+public class ApplicationContextConfig
+{
+    @Bean
+    @LoadBalanced
+    public RestTemplate getRestTemplate()
+    {
+        return new RestTemplate();
+    }
+}
+```
+
+启动nacos控制台
+
+访问 http://localhost:83/consumer/payment/nacos/2
+
+83访问9001/9002，轮询负载OK
+
+为什么nacos支持负载均衡？因为spring-cloud-starter-alibaba-nacos-discovery 内含 netflix-ribbon 包。
+
+#### Nacos 和 CP/AP 切换
+
+Nacos与其他注册中心特性对比
+
+![Nacos与其他注册中心特性对比](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307021715923.png)
+
+Nacos 支持 AP 和 CP 模式的切换
+
+何时选择使用何种模式?
+
+—般来说，如果不需要存储服务级别的信息且服务实例是通过 nacos-client 注册，并能够保持心跳上报，那么就可以选择 AP 模式。当前主流的服务如 Spring cloud 和 Dubbo 服务，都适用于 AP 模式，AP 模式为了服务的可能性而减弱了一致性，因此 AP 模式下只支持注册临时实例。
+
+如果需要在服务级别编辑或者存储配置信息，那么 CP 是必须，K8S 服务和 DNS 服务则适用于 CP 模式。CP 模式下则支持注册持久化实例，此时则是以 Raft 协议为集群运行模式，该模式下注册实例之前必须先注册服务，如果服务不存在，则会返回错误。
+
+切换命令：
+
+```
+curl -X PUT '$NACOS_SERVER:8848/nacos/v1/ns/operator/switches?entry=serverMode&value=CP
+```
+
+### Nacos 服务配置中心
+
+当 Nacos 作为服务配置中心使用时，其本身作为 config Sever 启动，之前的配置文件存储在仓库或本地，使用 Nacos 可以将配置文件存储在 Nacos 服务器本身
