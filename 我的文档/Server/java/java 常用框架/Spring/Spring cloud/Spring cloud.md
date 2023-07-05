@@ -3820,3 +3820,257 @@ curl -X PUT '$NACOS_SERVER:8848/nacos/v1/ns/operator/switches?entry=serverMode&v
 ### Nacos 服务配置中心
 
 当 Nacos 作为服务配置中心使用时，其本身作为 config Sever 启动，之前的配置文件存储在仓库或本地，使用 Nacos 可以将配置文件存储在 Nacos 服务器本身
+
+新建配置客户端 cloudalibaba-config-nacos-client3377
+
+Nacos 同 springcloud-config 一样，在项目初始化时，要保证先从配置中心进行配置拉取，拉取配置之后，才能保证项目的正常启动。
+
+springboot 中配置文件的加载是存在优先级顺序的，bootstrap 优先级高于 application
+
+所以同样存在两个配置文件其中 bootstrap.yml 为基础配置，在项目启动时在项目本地加载，application.yml 从配置服务器中读取，加载个性化配置。
+
+[文档](https://nacos.io/zh-cn/docs/quick-start-spring-cloud.html)
+
+#### cloudalibaba-config-nacos-client3377
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <artifactId>SpringCloudDemo</artifactId>
+        <groupId>org.example</groupId>
+        <version>1.0-SNAPSHOT</version>
+    </parent>
+    <artifactId>cloudalibaba-config-nacos-client3377</artifactId>
+    <version>1.0-SNAPSHOT</version>
+
+    <name>cloudalibaba-config-nacos-client3377</name>
+
+    <dependencies>
+        <!--nacos-config-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
+        </dependency>
+        <!--nacos-discovery-->
+        <dependency>
+            <groupId>com.alibaba.cloud</groupId>
+            <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+        </dependency>
+        <!--web + actuator-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!--一般基础配置-->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+</project>
+```
+
+bootstrap
+
+```yml
+# nacos配置
+server:
+  port: 3377
+
+spring:
+  application:
+    name: cloudalibaba-config-nacos-client
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848 #Nacos服务注册中心地址
+      config:
+        server-addr: localhost:8848 #Nacos作为配置中心地址
+        file-extension: yaml #指定yaml格式的配置
+        #group: DEFAULT_GROUP
+        #namespace: 7d8f0f5a-6a53-4785-9686-dd460158e5d4
+
+
+# ${spring.application.name}-${spring.profile.active}.${spring.cloud.nacos.config.file-extension}
+# nacos-config-client-dev.yaml
+
+# nacos-config-client-test.yaml   ----> config.info
+
+```
+
+```yml
+spring:
+        profiles:
+                active: dev # 表示开发环境
+                #active: test # 表示测试环境
+                #active: info
+
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+
+
+@EnableDiscoveryClient
+@SpringBootApplication
+public class NacosConfigClientMain3377
+{
+    public static void main(String[] args) {
+        SpringApplication.run(NacosConfigClientMain3377.class, args);
+    }
+}
+```
+
+```java
+package org.example.controller;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.cloud.context.config.annotation.RefreshScope;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RefreshScope //支持Nacos的动态刷新功能。
+public class ConfigClientController
+{
+    @Value("${config.info}")
+    private String configInfo;
+
+    @GetMapping("/config/info")
+    public String getConfigInfo() {
+        return configInfo;
+    }
+}
+```
+
+启动 nacos 进入主界面，点击 【配置管理-配置列表】
+
+新建配置发现需要填写 Data ID 查阅官网可知
+
+在 Nacos Spring Cloud 中，dataId 的完整格式如下：
+
+```
+${prefix}-${spring.profiles.active}.${file-extension}
+```
+
+其中
+
+- prefix 默认为 spring.application.name 的值，也可以通过配置项 spring.cloud.nacos.config.prefix来配置。
+- spring.profiles.active 即为当前环境对应的 profile，详情可以参考 Spring Boot文档。 注意：当 spring.profiles.active 为空时，对应的连接符 - 也将不存在，dataId 的拼接格式变成 ${prefix}.${file-extension}
+- file-exetension 为配置内容的数据格式，可以通过配置项 spring.cloud.nacos.config.file-extension 来配置。目前只支持 **properties** 和 **yaml** 类型。
+
+![image-20230705211634701](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307052116914.png)
+
+启动 3377 并访问
+
+http://localhost:3377/config/info
+
+得到配置
+
+修改 nacos 中的配置文件，重新访问 http://localhost:3377/config/info
+
+发现配置已经修改
+
+### 多环境多项目配置管理
+
+一个大型分布式微服务系统会有很多微服务子项目，每个微服务项目又都会有相应的开发环境、测试环境、预发环境、正式环境…那怎么对这些微服务配置进行管理呢
+
+nacos 将配置文件分为 命名空间（Namespace）+ 分组（Group）+ Data lD 三部分
+
+#### Namespace
+
+打开 nacos 主页，点击 【命名空间】 新建 myNamespace 命名空间，回到配置管理，在新命名空间中新建配置，并在 bootstrap 配置命名空间 ID
+
+```yml
+# nacos配置
+server:
+  port: 3377
+
+spring:
+  application:
+    name: cloudalibaba-config-nacos-client
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848 #Nacos服务注册中心地址
+      config:
+        server-addr: localhost:8848 #Nacos作为配置中心地址
+        file-extension: yaml #指定yaml格式的配置
+        #group: MY_GROUP
+        namespace: 906e94ac-64fe-4ab1-be84-766195cc4066 #配置命名空间 ID
+
+
+# ${spring.application.name}-${spring.profile.active}.${spring.cloud.nacos.config.file-extension}
+# nacos-config-client-dev.yaml
+
+# nacos-config-client-test.yaml   ----> config.info
+```
+
+重启 3377 并刷新，发现读取的就是 myNamespace 中的配置文件
+
+#### Group
+
+在新命名空间中新建配置 group 填写 MY_GROUP
+
+并修改
+
+```yml
+# nacos配置
+server:
+  port: 3377
+
+spring:
+  application:
+    name: cloudalibaba-config-nacos-client
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848 #Nacos服务注册中心地址
+      config:
+        server-addr: localhost:8848 #Nacos作为配置中心地址
+        file-extension: yaml #指定yaml格式的配置
+        group: MY_GROUP
+        namespace: 906e94ac-64fe-4ab1-be84-766195cc4066 #配置命名空间 ID
+
+
+# ${spring.application.name}-${spring.profile.active}.${spring.cloud.nacos.config.file-extension}
+# nacos-config-client-dev.yaml
+
+# nacos-config-client-test.yaml   ----> config.info
+```
+
+重启 3377 并刷新，发现读取的就是 myNamespace 中 MY_GROUP 的配置文件
+
+在默认情况下：Namespace=public，Group=DEFAULT_GROUP，默认Cluster是DEFAULT
+
+- Nacos 默认的 Namespace 是 public，Namespace 主要用来实现隔离。比方说我们现在有三个环境：开发、测试、生产环境，我们就可以创建三个 Namespace，不同的 Namespace 之间是隔离的。
+- Group默认是 DEFAULT_GROUP，Group 可以把不同的微服务划分到同一个分组里面去
+- Service 就是微服务:一个 Service 可以包含多个 Cluster (集群)，Nacos 默认 Cluster 是 DEFAULT，Cluster 是对指定微服务的一个虚拟划分。比方说为了容灾，将 Service 微服务分别部署在了杭州机房和广州机房，这时就可以给杭州机房的 Service 微服务起一个集群名称(HZ) ，给广州机房的 Service 微服务起一个集群名称(GZ)，还可以尽量让同一个机房的微服务互相调用，以提升性能。
+
+### nacos 集群
