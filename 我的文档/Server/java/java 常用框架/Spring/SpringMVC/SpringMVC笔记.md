@@ -2129,3 +2129,42 @@ d) 数据验证： 验证数据的有效性（长度、格式等），验证结�
 10) 渲染视图完毕执行拦截器的afterCompletion(…)方法【逆向】。
 
 11) 将渲染结果返回给客户端。
+
+# 十四、补充
+
+## 1.ControllerAdvice 注解及其应用
+
+示例：
+
+```java
+/**
+ * 集中处理所有异常
+ */
+@Slf4j
+@RestControllerAdvice(basePackages = "com.atguigu.gulimall.product.controller")
+public class GulimallExceptionControllerAdvice {
+
+
+    @ExceptionHandler(value= MethodArgumentNotValidException.class)
+    public R handleVaildException(MethodArgumentNotValidException e){
+        log.error("数据校验出现问题{}，异常类型：{}",e.getMessage(),e.getClass());
+        BindingResult bindingResult = e.getBindingResult();
+
+        Map<String,String> errorMap = new HashMap<>();
+        bindingResult.getFieldErrors().forEach((fieldError)->{
+            errorMap.put(fieldError.getField(),fieldError.getDefaultMessage());
+        });
+        return R.error(BizCodeEnum.VALID_EXCEPTION.getCode(), BizCodeEnum.VALID_EXCEPTION.getMsg()).put("data",errorMap);
+    }
+
+    @ExceptionHandler(value = Throwable.class)
+    public R handleException(Throwable throwable){
+
+        log.error("错误：",throwable);
+        return R.error(BizCodeEnum.UNKNOWN_EXCEPTION.getCode(), BizCodeEnum.UNKNOWN_EXCEPTION.getMsg());
+    }
+
+
+}
+```
+

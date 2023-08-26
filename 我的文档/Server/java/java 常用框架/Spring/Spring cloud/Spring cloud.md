@@ -555,6 +555,49 @@ Eureka采用了CS的设计架构，Eureka Sever作为服务注册功能的服务
 
 **Eureka包含两个组件: Eureka Server 和 Eureka Client **
 
+
+Eureka是一个服务注册和发现的框架，它可以让微服务之间互相发现和调用。Eureka有两个组件：Eureka Server和Eureka Client。Eureka Server是服务注册中心，负责维护服务实例的信息。Eureka Client是服务提供者和消费者，负责向Eureka Server注册自己的信息，以及从Eureka Server获取其他服务的信息。Eureka的作用和配置如下：
+
+- **作用**：
+  - 服务注册：服务提供者启动时，会通过Eureka Client向Eureka Server注册自己的元数据，如IP地址，端口，运行状态等。
+  - 服务发现：服务消费者可以从Eureka Server获取注册的服务列表，并根据负载均衡策略选择一个服务实例进行远程调用。
+  - 服务续约：服务提供者会每隔一定时间（默认30秒）向Eureka Server发送心跳，表明自己还存活。如果Eureka Server在一定时间（默认90秒）内没有收到心跳，就会认为该服务实例已经下线，并从注册列表中移除。
+  - 服务剔除：服务提供者在关闭时，会向Eureka Server发送取消请求，告知自己要下线。Eureka Server会将该服务实例从注册列表中删除。
+  - 自我保护：当Eureka Server在一段时间内收到的心跳失败比例超过了一个阈值（默认85%），就会认为可能是网络故障导致的，并进入自我保护模式。在这种模式下，Eureka Server不会剔除任何服务实例，以防止误删正常的服务。当网络恢复后，自我保护模式会自动退出。
+  - 集群同步：Eureka Server可以集群部署，多个节点之间会进行异步方式的数据同步，保证数据最终一致性。每个Eureka Server既是服务注册中心，也是服务消费者，可以相互注册和发现。
+
+- **配置**：
+  - Eureka Server的配置主要包括以下几方面：
+    - 设置应用名称（spring.application.name）
+    - 设置端口号（server.port）
+    - 设置是否将自己注册到其他节点（eureka.client.register-with-eureka）
+    - 设置是否从其他节点获取注册信息（eureka.client.fetch-registry）
+    - 设置其他节点的地址（eureka.client.service-url.defaultZone）
+    - 设置是否开启自我保护模式（eureka.server.enable-self-preservation）
+    - 设置实例过期时间（eureka.instance.lease-expiration-duration-in-seconds）
+  - Eureka Client的配置主要包括以下几方面：
+    - 设置应用名称（spring.application.name）
+    - 设置端口号（server.port）
+    - 设置实例ID（eureka.instance.instance-id）
+    - 设置健康检查地址（eureka.instance.health-check-url-path）
+    - 设置是否将自己注册到Eureka Server（eureka.client.register-with-eureka）
+    - 设置是否从Eureka Server获取注册信息（eureka.client.fetch-registry）
+    - 设置Eureka Server的地址（eureka.client.service-url.defaultZone）
+    - 设置续约间隔时间（eureka.instance.lease-renewal-interval-in-seconds）
+
+如果你想了解更多关于Eureka的原理和实现细节，你可以参考以下链接：
+
+[深入了解 Eureka 架构原理及实现](https://zhuanlan.zhihu.com/p/138542807)
+
+[我们来研究一下Eureka的工作流程机制及相关原理](https://zhuanlan.zhihu.com/p/182408464)
+
+[学习下Eureka组件的结构和作用以及实现步骤](https://www.cnblogs.com/wu-sheng/p/15580181.html)
+
+[Eureka -- 浅谈Eureka](https://www.cnblogs.com/yanfeiLiu/p/9574552.html)
+
+[Eureka基本了解与使用](https://blog.csdn.net/m0_51065043/article/details/109498650)
+
+
 - Eureka Server 提供服务注册服务
 
  各个微服务节点通过配置启动后，会在 EurekaServer 中进行注册，这样 EurekaServer 中的服务注册表中将会存储所有可用服务节点的信息，服务节点的信息可以在界面中直观看到。
@@ -1826,6 +1869,8 @@ public class T2
 
 Predicate就是为了实现一组匹配规则，让请求过来找到对应的Route进行处理。
 
+注意：**多个 routes 匹配时按从上到下的优先级进行匹配，所以要将精确匹配放在上面**
+
 #### 网关 Filter
 
 路由过滤器可用于**修改**进入的HTTP请求和返回的HTTP响应，路由过滤器只能指定路由进行使用。Spring Cloud Gateway内置了多种路由过滤器，他们都由GatewayFilter的工厂类来产生。
@@ -1879,6 +1924,28 @@ public class MyLogGateWayFilter implements GlobalFilter,Ordered
 其中 Filter 分为 GatewayFilter 和 GlobalFilter 常用的 GatewayFilter：AddRequestParameter GatewayFilter，上述示例为全局 Filter GlobalFilter
 
 [Filter 参考官网](https://cloud.spring.io/spring-cloud-static/spring-cloud-gateway/2.2.1.RELEASE/reference/html/#gatewayfilter-factories)
+
+##### 路由重写 RewritePath filter 
+
+路由重写
+
+```yml
+spring:
+  cloud:
+    gateway:
+      routes:
+
+        - id: renren-fast
+          uri: lb://renren-fast
+          predicates:
+            - Path=/api/**
+          filters:
+            - RewritePath=/api/(?<segment>.*),/renren-fast/$\{segment}
+```
+
+作用:重写访问路径
+
+上述配置表示 将 `http://localhost:8080/api/xxx` 替换为 `http://localhost:8080/renren-fast/xxx`
 
 # 配置中心
 
@@ -4073,4 +4140,668 @@ spring:
 - Group默认是 DEFAULT_GROUP，Group 可以把不同的微服务划分到同一个分组里面去
 - Service 就是微服务:一个 Service 可以包含多个 Cluster (集群)，Nacos 默认 Cluster 是 DEFAULT，Cluster 是对指定微服务的一个虚拟划分。比方说为了容灾，将 Service 微服务分别部署在了杭州机房和广州机房，这时就可以给杭州机房的 Service 微服务起一个集群名称(HZ) ，给广州机房的 Service 微服务起一个集群名称(GZ)，还可以尽量让同一个机房的微服务互相调用，以提升性能。
 
+### 加载多个配置文件
+
+#### bootstrap 文件
+
+bootstrap.properties 文件：在默认情况下，名称为 bootstrap 的配置文件会优先于其他的配置文件进行加载，这保证了其可以优先加载配置中心的配置信息
+
+同时在默认情况下，会自动加载应用名称+配置的文件后缀的配置文件
+
+例如：bootstrap.properties 中这样配置
+
+```properties
+spring.application.name=coupon
+# 配置中心地址
+spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+# 指定配置中心配置文件格式，在默认情况下，会自动加载应用名称+文件后缀的配置文件
+spring.cloud.nacos.config.file-extension=yaml
+```
+
+即使没有配置具体加载的配置文件名称，默认行为也会直接去加载【coupon.yaml】的配置文件,其中若应用名称在 application 文件中有配置，这里不配也可以读取到，所以猜想其配置应该是全部读取到内存，然后按名称分类进行逻辑上实现先后加载。若为配置应用名称，则去配置中心拉取【null.yaml】文件
+
+#### 加载多个配置文件
+
+当需要从配置中心加载多个配置文件时，需如下配置
+
+application.yml
+
+```
+无
+```
+
+bootstrap.properties
+
+```
+# 应用名称
+spring.application.name=gulimall-coupon
+# 注册中心地址
+spring.cloud.nacos.discovery.server-addr=127.0.0.1:8848
+# 配置中心地址
+spring.cloud.nacos.config.server-addr=127.0.0.1:8848
+# 以下配置即为自定义默认加载的配置文件的配置信息
+# 指定配置中心配置文件格式，在默认情况下，会自动加载应用名称+文件后缀的配置文件
+spring.cloud.nacos.config.file-extension=yaml
+# 加载命名空间内的配置文件
+spring.cloud.nacos.config.namespace=6c57e3fe-9cd7-4fa6-8e4e-fad9946a56ac
+# 指定加载 dev 分组下的配置文件
+spring.cloud.nacos.config.group=dev
+
+# 以下为加载其他配置文件的配置
+# 加载 Data Id 为 datasource.yaml 的配置文件
+# 指定文件名称
+spring.cloud.nacos.config.ext-config[0].data-id=datasource.yaml
+# 指定分组
+spring.cloud.nacos.config.ext-config[0].group=dev
+# 指定是否动态刷新，默认 false
+spring.cloud.nacos.config.ext-config[0].refresh=true
+
+# 加载 Data Id 为 mybatis.yaml 的配置文件
+# 指定文件名称
+spring.cloud.nacos.config.ext-config[1].data-id=mybatis.yaml
+# 指定分组
+spring.cloud.nacos.config.ext-config[1].group=dev
+# 指定是否动态刷新，默认 false
+spring.cloud.nacos.config.ext-config[1].refresh=true
+```
+
+nacos
+
+![image-20230731230419790](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307312304928.png)
+
+![image-20230731230445037](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307312304139.png)
+
+![image-20230731230502906](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307312305008.png)
+
+![image-20230731230539047](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307312305144.png)
+
+启动时会详细显示加载的配置文件信息
+
+![image-20230731230744908](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307312307018.png)
+
 ### nacos 集群
+
+对于生产环境来说，单台 nacos 不足以保证高可用性，所以考虑搭建 nacos 集群，在默认情况下，nacos 将配置信息存储在其自带的嵌入式数据库 Apache Derby 中。
+
+#### Apache Derby
+
+Apache Derby（也称为Java DB）是一个开源的关系型数据库管理系统（RDBMS），以Java语言编写。它是一个完全嵌入式的数据库，可以作为Java应用程序的一部分进行部署和使用。Apache Derby符合Java数据库连接（JDBC）标准，因此可以通过标准的JDBC API与应用程序集成。
+
+Apache Derby 最初是由IBM开发的，名为IBM Cloudscape。后来，IBM将其捐赠给Apache软件基金会，并成为Apache Derby项目的一部分。作为开源项目，Apache Derby得到了广泛的社区支持和贡献。
+
+Apache Derby具有以下特点：
+
+- 轻量级：Apache Derby的二进制文件非常小，占用的内存和磁盘空间较少，适合嵌入式和移动设备应用。
+- 嵌入式数据库：Apache Derby可以作为应用程序的一部分嵌入到Java应用程序中，不需要单独的数据库服务器。
+- 支持标准SQL：Apache Derby支持SQL语言和关系型数据库的基本功能，可以进行数据的增删改查操作。
+- 事务支持：Apache Derby支持ACID（原子性、一致性、隔离性、持久性）事务，确保数据的完整性和一致性。
+- 跨平台：由于Apache Derby是用Java编写的，因此可以在各种操作系统上运行，包括Windows、Linux和Mac等。
+
+Apache Derby在许多应用场景中被广泛使用，特别是在需要一个轻量级、嵌入式数据库的环境中，例如桌面应用程序、移动应用程序、测试和开发环境等。
+
+然而，对于生产环境或需要更高性能和可扩展性的场景，建议将 Nacos 配置为使用外部数据库，例如 MySQL 或其他支持的数据库。这样可以获得更好的性能、数据持久性和可扩展性。在使用外部数据库时，需要进行相应的配置更改和连接设置。
+
+当使用默认的嵌入式数据库（如Apache Derby）作为Nacos的数据存储时，在启动多个Nacos节点的情况下，可能会遇到一致性问题。这是因为嵌入式数据库通常只能在单个进程中运行，并且不支持分布式事务或数据复制。
+
+举一个例子来说明这个问题：假设我们有两个Nacos节点（节点A和节点B），它们都使用默认配置下的嵌入式数据库。现在考虑以下情况：
+
+1. 注册服务：在节点A上注册了一个新的服务，该服务的信息被保存在嵌入式数据库中。
+2. 数据复制延迟：由于嵌入式数据库不支持数据复制或跨节点同步，节点B上的数据库副本可能不会立即更新。这可能是由于复制延迟或网络延迟等原因造成的。
+3. 查询服务：此时，一个客户端向节点B发出请求，试图获取刚刚注册的服务的信息。然而，由于节点B的数据库副本尚未更新，它可能无法找到该服务的信息，因为该服务仅保存在节点A的数据库中。
+
+这样的情况下，数据在多个Nacos节点之间的不一致性可能导致以下问题：
+
+- 服务的注册和发现：当服务在一个节点上注册后，其他节点可能无法立即感知到该服务的存在，因为数据尚未在节点之间同步。
+- 读取操作的不确定性：在分布式环境中，如果多个节点上的数据不一致，读取操作的结果可能会因节点之间的数据差异而产生不确定性。
+
+为了解决这个一致性问题，Nacos采用了集中式存储的方式来支持集群化部署，<span style="color: red;">**目前只支持 MySQL 的存储**</span>。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307091719924.png)
+
+#### 切换 nacos 数据库配置
+
+1. 打开 nacos 安装目录，进入 \conf 目录，找到 nacos-mysql.sql 文件，这就是 nacos 在 mysql 需要的表结构和数据，进入 mysql 执行工具执行脚本
+2. 打开 application.properties 文件，在里面添加配置数据库地址和用户(可参考官网或 application.properties.example 文件)
+
+```propertise
+spring.datasource.platform=mysql
+
+db.num=1
+db.url.0=jdbc:mysql://192.168.1.120:3306/nacos_config?characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true
+db.user=root
+db.password=root
+```
+
+##### 解决 nacos 1.1.4 版本不支持 mysql 8 的问题
+
+待补充
+
+## Sentinel
+
+[Sentinel](https://spring-cloud-alibaba-group.github.io/github-pages/greenwich/spring-cloud-alibaba.html#_spring_cloud_alibaba_sentinel)
+
+Sentinel 作为 Hystrix 的替代可实现服务降级，服务熔断，服务限流等功能。
+
+与 Hystrix 的比较
+
+Hystrix
+
+- 需要自己手工搭建监控平台
+- 没有一套web界面可以给我们进行更加细粒度化得配置流控、速率控制、服务熔断、服务降级
+
+Sentinel
+
+- 单独一个组件，可以独立出来。
+- 直接界面化的细粒度统一配置。
+
+
+Sentinel 分为两部分组成：
+1. 控制台（Dashboard）基于 Spring Boot 开发，打包后可以直接运行，不需要额外的 Tomcat 等应用容器。
+2. 核心库（Java 客户端）不依赖任何框架/库，能够运行于所有 Java 运行时环境，同时对 Dubbo / Spring Cloud 等框架也有较好的支持。
+
+下载
+
+https://github.com/alibaba/Sentinel/releases
+
+下载到本地 sentinel-dashboard-1.7.0.jar
+
+运行命令
+
+```
+java -jar sentinel-dashboard-1.7.0.jar
+```
+
+当使用 1.8+ 版本的 JDK 时运行下面命令，这个参数的作用是让 Java 模块系统允许 Sentinel 访问 java.lang 包中的一些受保护的类。
+
+```
+java -jar --add-opens java.base/java.lang=ALL-UNNAMED sentinel-dashboard-1.7.0.jar
+```
+
+访问 http://localhost:8080/#/login 进入管理界面
+
+Sentinel 默认使用 Java 8 + 8080 端口，所以 8080 端口不能被占用
+
+登录账号密码均为 sentinel
+
+### Sentinel 初始化监控
+
+#### cloudalibaba-sentinel-service8401
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <artifactId>SpringCloudDemo</artifactId>
+    <groupId>org.example</groupId>
+    <version>1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>cloudalibaba-sentinel-service8401</artifactId>
+  <version>1.0-SNAPSHOT</version>
+
+  <name>cloudalibaba-sentinel-service8401</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.source>1.7</maven.compiler.source>
+    <maven.compiler.target>1.7</maven.compiler.target>
+  </properties>
+
+  <dependencies>
+    <!--SpringCloud ailibaba nacos -->
+    <dependency>
+      <groupId>com.alibaba.cloud</groupId>
+      <artifactId>spring-cloud-starter-alibaba-nacos-discovery</artifactId>
+    </dependency>
+    <!--SpringCloud ailibaba sentinel-datasource-nacos 后续做持久化用到-->
+    <dependency>
+      <groupId>com.alibaba.csp</groupId>
+      <artifactId>sentinel-datasource-nacos</artifactId>
+    </dependency>
+    <!--SpringCloud ailibaba sentinel -->
+    <dependency>
+      <groupId>com.alibaba.cloud</groupId>
+      <artifactId>spring-cloud-starter-alibaba-sentinel</artifactId>
+    </dependency>
+    <!--openfeign-->
+    <dependency>
+      <groupId>org.springframework.cloud</groupId>
+      <artifactId>spring-cloud-starter-openfeign</artifactId>
+    </dependency>
+    <!-- SpringBoot整合Web组件+actuator -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-web</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-actuator</artifactId>
+    </dependency>
+    <!--日常通用jar包配置-->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-devtools</artifactId>
+      <scope>runtime</scope>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>cn.hutool</groupId>
+      <artifactId>hutool-all</artifactId>
+      <version>4.6.3</version>
+    </dependency>
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+</project>
+
+```
+
+```yml
+server:
+  port: 8401
+
+spring:
+  application:
+    name: cloudalibaba-sentinel-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: localhost:8848 #Nacos服务注册中心地址
+    sentinel:
+      transport:
+        dashboard: localhost:8080 #配置Sentinel dashboard地址
+        port: 8719
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: '*'
+
+feign:
+  sentinel:
+    enabled: true # 激活Sentinel对Feign的支持
+
+
+```
+
+```java
+package org.example;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+
+@EnableDiscoveryClient
+@SpringBootApplication
+public class MainApp8401 {
+    public static void main(String[] args) {
+        SpringApplication.run(MainApp8401.class, args);
+    }
+}
+```
+
+```java
+package org.example.controller;
+
+import com.alibaba.csp.sentinel.annotation.SentinelResource;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.concurrent.TimeUnit;
+
+@RestController
+@Slf4j
+public class FlowLimitController {
+    @GetMapping("/testA")
+    public String testA()
+    {
+        return "------testA";
+    }
+
+    @GetMapping("/testB")
+    public String testB()
+    {
+        log.info(Thread.currentThread().getName()+"\t"+"...testB");
+        return "------testB";
+    }
+}
+```
+
+启动 Sentinel 8080
+
+启动微服务 8401
+
+启动 8401 微服务后查看 sentienl 控制台，刚启动，空空如也，啥都没有
+
+Sentinel 默认采用的懒加载，访问 http://localhost:8401/testA 即可看到效果 效果 sentinel8080 正在监控微服务 8401
+
+### Sentinel 流控规则
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161507227.png)
+
+- 资源名：唯一名称，默认请求路径。
+- 针对来源：Sentinel可以针对调用者进行限流，填写微服务名，默认default（不区分来源）。
+- 阈值类型/单机阈值：
+	- QPS(每秒钟的请求数量)︰当调用该API的QPS达到阈值的时候，进行限流。
+	- 线程数：当调用该API的线程数达到阈值的时候，进行限流。
+- 是否集群：不需要集群。
+- 流控模式：
+	- 直接：API达到限流条件时，直接限流。
+	- 关联：当关联的资源达到阈值时，就限流自己。
+	- 链路：只记录指定链路上的流量（指定资源从入口资源进来的流量，如果达到阈值，就进行限流)【API级别的针对来源】。
+- 流控效果：
+	- 快速失败：直接失败，抛异常。
+	- Warm up：根据Code Factor（冷加载因子，默认3）的值，从阈值/codeFactor，经过预热时长，才达到设置的QPS阈值。
+	- 排队等待：匀速排队，让请求以匀速的速度通过，阈值类型必须设置为QPS，否则无效。
+
+#### Sentinel 流控-QPS直接失败配置
+
+表示1秒钟内查询1次就是OK，若超过次数1，就直接->快速失败，报默认错误
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161511913.png)
+
+源码
+
+com.alibaba.csp.sentinel.slots.block.flow.controller.DefaultController
+
+#### Sentinel 流控-线程数直接失败配置
+
+线程数：当调用该API的线程数达到阈值的时候，进行限流。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161516503.png)
+
+#### Sentinel 流控-关联配置
+
+当自己关联的资源达到阈值时，就限流自己，当与A关联的资源B达到阀值后，就限流A自己。
+
+当关联资源/testB的QPS阀值超过1时，就限流/testA的Rest访问地址，当关联资源到阈值后限制配置好的资源名
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161517352.png)
+
+#### Sentinel 流控-预热配置
+
+Warm Up
+
+Warm Up（RuleConstant.CONTROL_BEHAVIOR_WARM_UP）方式，即预热/冷启动方式。当系统长期处于低水位的情况下，当流量突然增加时，直接把系统拉升到高水位可能瞬间把系统压垮。通过"冷启动"，让通过的流量缓慢增加，在一定时间内逐渐增加到阈值上限，给冷系统一个预热的时间，避免冷系统被压垮。详细文档可以参考[限流 冷启动](https://github.com/alibaba/Sentinel/wiki/%E9%99%90%E6%B5%81---%E5%86%B7%E5%90%AF%E5%8A%A8)具体的例子可以参见[WarmUpFlowDemo](https://github.com/alibaba/Sentinel/blob/master/sentinel-demo/sentinel-demo-basic/src/main/java/com/alibaba/csp/sentinel/demo/flow/WarmUpFlowDemo.java)通常冷启动的过程系统允许通过的 QPS 曲线如下图所示：
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161521416.png)
+
+[流量控制 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/流量控制#warm-up)
+
+默认coldFactor(冷加载因子)为3，即请求QPS 从 threshold / 3开始，经预热时长逐渐升至设定的QPS阈值。
+
+源码 - com.alibaba.csp.sentinel.slots.block.flow.controller.WarmUpController
+
+WarmUp配置
+
+案例，阀值为10+预热时长设置5秒。
+
+系统初始化的阀值为10/ 3约等于3,即阀值刚开始为3;然后过了5秒后阀值才慢慢升高恢复到10
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161524868.png)
+
+表现：多次快速点击http://localhost:8401/testB - 刚开始不行，后续慢慢OK
+
+应用场景
+
+如：秒杀系统在开启的瞬间，会有很多流量上来，很有可能把系统打死，预热方式就是把为了保护系统，可慢慢的把流量放进来,慢慢的把阀值增长到设置的阀值。
+
+#### Sentinel 流控-排队等待
+
+匀速排队，让请求以均匀的速度通过，阀值类型必须设成QPS，否则无效。
+
+设置：/testA每秒处理1次请求，超过的话就排队等待，等待的超时时间为20000毫秒。
+
+匀速排队
+
+匀速排队（RuleConstant.CONTROL_BEHAVIOR_RATE_LIMITER）方式会严格控制请求通过的间隔时间，也即是让请求以均匀的速度通过，对应的是漏桶算法。详细文档可以参考 [流量控制 匀速排队模式 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/流量控制-匀速排队模式)，具体的例子可以参见 [Sentinel/sentinel-demo/sentinel-demo-basic/src/main/java/com/alibaba/csp/sentinel/demo/flow/PaceFlowDemo.java at master · alibaba/Sentinel · GitHub](https://github.com/alibaba/Sentinel/blob/master/sentinel-demo/sentinel-demo-basic/src/main/java/com/alibaba/csp/sentinel/demo/flow/PaceFlowDemo.java)。
+
+该方式的作用如下图所示：
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161538665.png)
+
+这种方式主要用于处理间隔性突发的流量，例如消息队列。想象一下这样的场景，在某一秒有大量的请求到来，而接下来的几秒则处于空闲状态，我们希望系统能够在接下来的空闲期间逐渐处理这些请求，而不是在第一秒直接拒绝多余的请求。
+
+**注意：匀速排队模式暂时不支持 QPS > 1000 的场景。**
+
+源码 - com.alibaba.csp.sentinel.slots.block.flow.controller.RateLimiterController
+
+### Sentinel 降级规则
+
+[熔断降级 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/熔断降级)
+
+**熔断降级概述**
+
+除了流量控制以外，对调用链路中不稳定的资源进行熔断降级也是保障高可用的重要措施之一。一个服务常常会调用别的模块，可能是另外的一个远程服务、数据库，或者第三方 API 等。例如，支付的时候，可能需要远程调用银联提供的 API；查询某个商品的价格，可能需要进行数据库查询。然而，这个被依赖服务的稳定性是不能保证的。如果依赖的服务出现了不稳定的情况，请求的响应时间变长，那么调用服务的方法的响应时间也会变长，线程会产生堆积，最终可能耗尽业务自身的线程池，服务本身也变得不可用。
+
+现代微服务架构都是分布式的，由非常多的服务组成。不同服务之间相互调用，组成复杂的调用链路。以上的问题在链路调用中会产生放大的效果。复杂链路上的某一环不稳定，就可能会层层级联，最终导致整个链路都不可用。因此我们需要对不稳定的弱依赖服务调用进行熔断降级，暂时切断不稳定调用，避免局部不稳定因素导致整体的雪崩。熔断降级作为保护自身的手段，通常在客户端（调用端）进行配置。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161542346.png)
+
+- RT（平均响应时间，秒级）
+	- 平均响应时间 超出阈值 且 在时间窗口内通过的请求>=5，两个条件同时满足后触发降级。
+	- 窗口期过后关闭断路器。
+	- RT最大4900（更大的需要通过-Dcsp.sentinel.statistic.max.rt=XXXX才能生效）。
+- 异常比列（秒级）
+	- QPS >= 5且异常比例（秒级统计）超过阈值时，触发降级;时间窗口结束后，关闭降级 。
+- 异常数(分钟级)
+	- 异常数(分钟统计）超过阈值时，触发降级;时间窗口结束后，关闭降级
+
+Sentinel熔断降级会在调用链路中某个资源出现不稳定状态时（例如调用超时或异常比例升高)，对这个资源的调用进行限制，让请求快速失败，避免影响到其它的资源而导致级联错误。
+
+当资源被降级后，在接下来的降级时间窗口之内，对该资源的调用都自动熔断（默认行为是抛出 DegradeException）。
+
+Sentinei的断路器是没有类似Hystrix半开状态的。(Sentinei 1.8.0 已有半开状态)
+
+半开的状态系统自动去检测是否请求有异常，没有异常就关闭断路器恢复使用，有异常则继续打开断路器不可用。
+
+#### Sentinel 降级-RT
+
+平均响应时间(DEGRADE_GRADE_RT)：当1s内持续进入5个请求，对应时刻的平均响应时间（秒级）均超过阈值（ count，以ms为单位），那么在接下的时间窗口（DegradeRule中的timeWindow，以s为单位）之内，对这个方法的调用都会自动地熔断(抛出DegradeException )。注意Sentinel 默认统计的RT上限是4900 ms，超出此阈值的都会算作4900ms，若需要变更此上限可以通过启动配置项-Dcsp.sentinel.statistic.max.rt=xxx来配置。
+
+注意：Sentinel 1.7.0才有平均响应时间（DEGRADE_GRADE_RT），Sentinel 1.8.0的没有这项，取而代之的是慢调用比例 (SLOW_REQUEST_RATIO)。
+
+慢调用比例 (SLOW_REQUEST_RATIO)：选择以慢调用比例作为阈值，需要设置允许的慢调用 RT（即最大的响应时间），请求的响应时间大于该值则统计为慢调用。当单位统计时长（statIntervalMs）内请求数目大于设置的最小请求数目，并且慢调用的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求响应时间小于设置的慢调用 RT 则结束熔断，若大于设置的慢调用 RT 则会再次被熔断。[熔断降级 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/熔断降级#熔断策略)
+
+接下来讲解Sentinel 1.7.0的
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161547383.png)
+
+配置
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161547529.png)
+
+按照上述配置，永远一秒钟打进来10个线程（大于5个了）调用testD，我们希望200毫秒处理完本次任务，如果超过200毫秒还没处理完，在未来1秒钟的时间窗口内，断路器打开（保险丝跳闸）微服务不可用，保险丝跳闸断电了后续我停止jmeter，没有这么大的访问量了，断路器关闭（保险丝恢复），微服务恢复OK。
+
+#### Sentinel 降级-异常比例
+
+异常比例(DEGRADE_GRADE_EXCEPTION_RATIO)：当资源的每秒请求量 >= 5，并且每秒异常总数占通过量的比值超过阈值（ DegradeRule中的 count）之后，资源进入降级状态，即在接下的时间窗口( DegradeRule中的timeWindow，以s为单位）之内，对这个方法的调用都会自动地返回。异常比率的阈值范围是[0.0, 1.0]，代表0% -100%
+
+注意，与Sentinel 1.8.0相比，有些不同（Sentinel 1.8.0才有的半开状态），Sentinel 1.8.0的如下：
+
+异常比例 (ERROR_RATIO)：当单位统计时长（statIntervalMs）内请求数目大于设置的最小请求数目，并且异常的比例大于阈值，则接下来的熔断时长内请求会自动被熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求成功完成（没有错误）则结束熔断，否则会再次被熔断。异常比率的阈值范围是 [0.0, 1.0]，代表 0% - 100%。
+
+接下来讲解Sentinel 1.7.0的
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161550775.png)
+
+配置
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161550151.png)
+
+```
+@RestController
+@Slf4j
+public class FlowLimitController {
+
+    ...
+
+    @GetMapping("/testD")
+    public String testD() {
+        log.info("testD 异常比例");
+        int age = 10/0;
+        return "------testD";
+    }
+}
+```
+
+按照上述配置，单独访问一次，必然来一次报错一次(int age = 10/0)，调一次错一次。
+
+直接使用高并发测试发送请求，多次调用达到我们的配置条件了。断路器开启(保险丝跳闸)，微服务不可用了，不再报错error而是服务降级了。
+
+#### Sentinel 降级-异常数
+
+异常数( DEGRADE_GRADF_EXCEPTION_COUNT )：当资源近1分钟的异常数目超过阈值之后会进行熔断。注意由于统计时间窗口是分钟级别的，若timeWindow小于60s，则结束熔断状态后码可能再进入熔断状态。
+
+注意，与Sentinel 1.8.0相比，有些不同（Sentinel 1.8.0才有的半开状态），Sentinel 1.8.0的如下：
+
+异常数 (ERROR_COUNT)：当单位统计时长内的异常数目超过阈值之后会自动进行熔断。经过熔断时长后熔断器会进入探测恢复状态（HALF-OPEN 状态），若接下来的一个请求成功完成（没有错误）则结束熔断，否则会再次被熔断。
+
+接下来讲解Sentinel 1.7.0的
+
+**异常数是按照分钟统计的，时间窗口一定要大于等于<span style="color: red;">60</span>秒。**
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161555833.png)
+
+配置
+
+```
+@RestController
+@Slf4j
+public class FlowLimitController{
+	...
+
+    @GetMapping("/testE")
+    public String testE()
+    {
+        log.info("testE 测试异常数");
+        int age = 10/0;
+        return "------testE 测试异常数";
+    }
+}
+```
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161556413.png)
+
+访问http://localhost:8401/testE，第一次访问报错，因为除数不能为零，我们看到error窗口，但是达到5次报错后，进入熔断后降级。
+
+### Sentinel 热点key
+
+[热点参数限流 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/热点参数限流)
+
+热点即经常访问的数据。很多时候我们希望统计某个热点数据中访问频次最高的 Top K 数据，并对其访问进行限制。比如：
+
+- 商品 ID 为参数，统计一段时间内最常购买的商品 ID 并进行限制
+- 用户 ID 为参数，针对一段时间内频繁访问的用户 ID 进行限制
+
+热点参数限流会统计传入参数中的热点参数，并根据配置的限流阈值与模式，对包含热点参数的资源调用进行限流。热点参数限流可以看做是一种特殊的流量控制，仅对包含热点参数的资源调用生效。
+
+![img](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161558921.png)
+
+Sentinel 利用 LRU 策略统计最近最常访问的热点参数，结合令牌桶算法来进行参数级别的流控。热点参数限流支持集群模式。
+
+Sentinel 热点key功能需要配合 SentinelResource 注解进行配置，SentinelResource 主要用于配置限流或异常后的处理，即兜底方法，之前的case，限流出问题后，都是用sentinel系统默认的提示: Blocked by Sentinel (flow limiting)
+
+```
+@RestController
+@Slf4j
+public class FlowLimitController
+{
+
+    ...
+
+    @GetMapping("/testHotKey")
+    @SentinelResource(value = "testHotKey",blockHandler/*兜底方法*/ = "deal_testHotKey")
+    public String testHotKey(@RequestParam(value = "p1",required = false) String p1,
+                             @RequestParam(value = "p2",required = false) String p2) {
+        //int age = 10/0;
+        return "------testHotKey";
+    }
+    
+    /*兜底方法*/
+    public String deal_testHotKey (String p1, String p2, BlockException exception) {
+        return "------deal_testHotKey,o(╥﹏╥)o";  //sentinel系统默认的提示：Blocked by Sentinel (flow limiting)
+    }
+
+}
+```
+
+配置
+
+![image-20230716165742206](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161657379.png)
+
+在使用了 SentinelResource 注解之后，兜底方法必须接收一个 BlockException 参数，同时配置界面的资源名称必须和 SentinelResource 中的名称一致，热点参数必须是基本类型或者 String，**若在 SentinelResource 注解中未指定异常处理方法，将会直接抛出异常**
+
+```
+@RestController
+@Slf4j
+public class FlowLimitController
+{
+
+    ...
+
+    @GetMapping("/testHotKey")
+    @SentinelResource(value = "testHotKey",blockHandler/*兜底方法*/ = "deal_testHotKey")
+    public String testHotKey(@RequestParam(value = "p1",required = false) String p1,
+                             @RequestParam(value = "p2",required = false) String p2) {
+        int age = 10/0;//<----------------------------会抛异常的地方
+        return "------testHotKey";
+    }
+    
+    /*兜底方法*/
+    public String deal_testHotKey (String p1, String p2, BlockException exception) {
+        return "------deal_testHotKey,o(╥﹏╥)o";  //sentinel系统默认的提示：Blocked by Sentinel (flow limiting)
+    }
+
+}
+```
+
+当方法出现除了 BlockException 的异常时，RuntimeException int age = 10/0 ，将会抛出Spring Boot 2的默认异常页面，而不是兜底方法，因为 @SentinelResource 处理的是sentinel控制台配置的违规情况，而这个是java运行时报出的运行时异常RunTimeException，@SentinelResource不管
+
+### Sentinel 系统自适应限流
+
+[系统自适应限流 · alibaba/Sentinel Wiki · GitHub](https://github.com/alibaba/Sentinel/wiki/系统自适应限流)
+
+Sentinel 系统自适应限流从整体维度对应用入口流量进行控制，结合应用的 Load、CPU 使用率、总体平均 RT、入口 QPS 和并发线程数等几个维度的监控指标，通过自适应的流控策略，让系统的入口流量和系统的负载达到一个平衡，让系统尽可能跑在最大吞吐量的同时保证系统整体的稳定性。
+
+系统规则
+
+系统保护规则是从应用级别的入口流量进行控制，从单台机器的 load、CPU 使用率、平均 RT、入口 QPS 和并发线程数等几个维度监控应用指标，让系统尽可能跑在最大吞吐量的同时保证系统整体的稳定性。
+
+系统保护规则是应用整体维度的，而不是资源维度的，并且仅对入口流量生效。入口流量指的是进入应用的流量（EntryType.IN），比如 Web 服务或 Dubbo 服务端接收的请求，都属于入口流量。
+
+系统规则支持以下的模式：
+
+- Load 自适应（仅对 Linux/Unix-like 机器生效）：系统的 load1 作为启发指标，进行自适应系统保护。当系统 load1 超过设定的启发值，且系统当前的并发线程数超过估算的系统容量时才会触发系统保护（BBR 阶段）。系统容量由系统的 maxQps * minRt 估算得出。设定参考值一般是 CPU cores * 2.5。
+- CPU usage（1.5.0+ 版本）：当系统 CPU 使用率超过阈值即触发系统保护（取值范围 0.0-1.0），比较灵敏。
+- 平均 RT：当单台机器上所有入口流量的平均 RT 达到阈值即触发系统保护，单位是毫秒。
+- 并发线程数：当单台机器上所有入口流量的并发线程数达到阈值即触发系统保护。
+- 入口 QPS：当单台机器上所有入口流量的 QPS 达到阈值即触发系统保护。
+
+![image-20230716172638905](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161726020.png)
+
+### Sentinel SentinelResource 注解
+
+
+
+
+
+
+

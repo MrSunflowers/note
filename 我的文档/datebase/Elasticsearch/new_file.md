@@ -1,0 +1,1 @@
+[Elasticsearch Java Rest 手册](https://quanke.gitbooks.io/elasticsearch-java-rest/content/java-high-level-rest-client/supported-apis/bulk-api.html)
