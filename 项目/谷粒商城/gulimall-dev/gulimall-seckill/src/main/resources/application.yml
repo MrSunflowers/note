@@ -1,0 +1,65 @@
+server:
+  port: 25000
+  servlet:
+    session:
+      timeout: 30m
+
+spring:
+  application:
+    name: gulimall-seckill
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    sentinel:
+      transport:
+        # 应用开启端口，接收dashboard限流规则，如果被占用会默认+1
+        port: 8719
+        # 控制台ip:port
+        dashboard: 127.0.0.1:8333
+  zipkin:
+    # zipkin服务器的地址
+    base-url: http://192.168.56.10:9411/
+    # 关闭服务发现，否则Springcloud会把zipkin当做服务名称
+    discovery-client-enabled: false
+    # 数据传输方式
+    sender:
+      type: web
+  sleuth:
+    sampler:
+      rate: 1 # 设置抽样采集率 默认为0.1
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  redis:
+    host: 192.168.56.10
+    port: 6379
+  rabbitmq:
+    host: 192.168.56.10
+    port: 5672
+    # 虚拟主机
+    virtual-host: /
+  session:
+    store-type: redis
+  # 开发期间禁用缓存
+  thymeleaf:
+    cache: false
+
+# 开启feign熔断，开启后能够监控到远程调用资源
+feign:
+  sentinel:
+    enabled: true
+# 审计模块暴露，应用健康情况（配合sentinel dashboard）
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: '*'
+
+# 开启日志
+logging:
+  level:
+    com.atguigu.gulimall: debug
+    # feign调用日志，链路日志
+    org.springframework.cloud.openfeign: debug
+    org.springframework.cloud.sleuth: debug

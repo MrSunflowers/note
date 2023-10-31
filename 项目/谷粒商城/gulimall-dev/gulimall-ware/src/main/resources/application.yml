@@ -1,0 +1,77 @@
+server:
+  port: 11000
+
+spring:
+  application:
+    name: gulimall-ware
+  cloud:
+    nacos:
+      discovery:
+        server-addr: 127.0.0.1:8848
+    sentinel:
+      transport:
+        # 应用开启端口，接收dashboard限流规则，如果被占用会默认+1
+        port: 8719
+        # 控制台ip:port
+        dashboard: 127.0.0.1:8333
+  zipkin:
+    # zipkin服务器的地址
+    base-url: http://192.168.56.10:9411/
+    # 关闭服务发现，否则Springcloud会把zipkin当做服务名称
+    discovery-client-enabled: false
+    # 数据传输方式
+    sender:
+      type: web
+  sleuth:
+    sampler:
+      rate: 1 # 设置抽样采集率 默认为0.1
+  datasource:
+    username: root
+    password: root
+    url: jdbc:mysql://192.168.56.10:3306/gulimall_wms?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  rabbitmq:
+    host: 192.168.56.10
+    port: 5672
+    # 虚拟主机
+    virtual-host: /
+    # 开启发送端发送确认，无论是否到达broker都会触发回调【发送端确认机制+本地事务表】
+    publisher-confirm-type: correlated
+    # 开启发送端抵达队列确认，消息未被队列接收时触发回调【发送端确认机制+本地事务表】
+    publisher-returns: true
+    # 消息在没有被队列接收时是否强行退回
+    template:
+      mandatory: true
+    # 消费者手动确认模式，关闭自动确认，否则会消息丢失
+    listener:
+      simple:
+        acknowledge-mode: manual
+
+mybatis-plus:
+  #  扫描依赖的jar包下的所有mapper.xml
+  mapper-locations: classpath:/mapper/**/*.xml
+  global-config:
+    db-config:
+      id-type: auto
+
+# 开启feign熔断，开启后能够监控到远程调用资源
+feign:
+  sentinel:
+    enabled: true
+# 审计模块暴露，应用健康情况（配合sentinel dashboard）
+management:
+  endpoints:
+    web:
+      exposure:
+        exclude: '*'
+
+# 开启日志
+logging:
+  level:
+    com.atguigu.gulimall: debug
+    # feign调用日志，链路日志
+    org.springframework.cloud.openfeign: debug
+    org.springframework.cloud.sleuth: debug

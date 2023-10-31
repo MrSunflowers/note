@@ -2,6 +2,8 @@
 
 [Elasticsearch Java Rest 手册](https://quanke.gitbooks.io/elasticsearch-java-rest/content/java-high-level-rest-client/supported-apis/bulk-api.html)
 
+[文档](https://www.elastic.co/guide/en/elasticsearch/client/index.html)
+
 The Elastic Stack, 包括 Elasticsearch、 Kibana、 Beats 和 Logstash（也称为 ELK Stack）。能够安全可靠地获取任何来源、任何格式的数据，然后实时地对数据进行搜索、分析和可视化。
 
 Elaticsearch，简称为 ES， ES 是一个开源的高扩展的分布式全文搜索引擎， 是整个 ElasticStack 技术栈的核心。
@@ -1682,6 +1684,12 @@ JSON
 }
 ```
 
+#### 过滤器 filter
+
+filter， 返回的文档必须满足filter子句的条件。但是跟Must不一样的是，不会计算分值， 并且可以使用缓存
+
+从上面的描述来看，你应该已经知道，如果只看查询的结果，must 和 filter是一样的。区别是场景不一样。如果结果需要算分就使用 must，否则可以考虑使用 filter。
+
 #### 范围查询 range
 
 假设想找出小米和华为的牌子，价格大于2000元的手机
@@ -1754,6 +1762,10 @@ JSON
     }
 }
 ```
+
+#### keyword 检索 term
+
+非 text 字段推荐使用
 
 #### 全文检索 match
 
@@ -1948,6 +1960,25 @@ json
             }
         ]
     }
+}
+```
+
+#### 多字段匹配 multi_match
+
+从 field_a 和 field_b 中匹配 query keyword
+
+```
+GET <index>/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "<query keyword>",
+      "fields": [
+        "<field_a>",
+        "<field_b>"
+      ]
+    }
+  }
 }
 ```
 
@@ -4369,6 +4400,10 @@ Kibana 是一个免费且开放的用户界面，能够让你对 Elasticsearch �
 
 一、解压缩下载的 zip 文件。
 
+```
+tar -zxvf kibana.tar.gz -c /opt
+```
+
 二、修改 config/kibana.yml 文件。
 
 ```
@@ -4380,6 +4415,10 @@ elasticsearch.hosts: ["http://localhost:9200"]
 kibana.index: ".kibana"
 # 支持中文
 i18n.locale: "zh-CN"
+#去除警告(可选)
+xpack.encryptedSavedObjects.encryptionKey: encryptedSavedObjects12345678909876543210
+xpack.security.encryptionKey: encryptionKeysecurity12345678909876543210
+xpack.reporting.encryptionKey: encryptionKeyreporting12345678909876543210
 ```
 
 三、Windows 环境下执行 bin/kibana.bat 文件。（首次启动有点耗时）
@@ -5354,8 +5393,13 @@ Trie 的核心思想是空间换时间，利用字符串的公共前缀来降低
 [](https://blog.csdn.net/u011863024/article/details/115721328)
 
 
-[](https://www.bilibili.com/video/BV1hh411D7sb?t=948.6&p=45)
+[](https://www.bilibili.com/video/BV1hh411D7sb?t=37.6&p=83)
 
 
 [Elasticsearch学习笔记_巨輪的博客-CSDN博客](https://blog.csdn.net/u011863024/article/details/115721328)
 
+# Elasticsearch 8
+
+Elasticsearch 8 基于 jdk 17 构建
+
+[](https://www.bilibili.com/video/BV1hh411D7sb?t=80.0&p=65)
