@@ -1,0 +1,1508 @@
+[TOC]
+
+# 1.Nginx目录结构
+
+```
+[root@localhost ~]# tree /usr/local/nginx
+/usr/local/nginx
+├── client_body_temp                 # POST 大文件暂存目录
+├── conf                             # Nginx所有配置文件的目录
+│   ├── fastcgi.conf                 # fastcgi相关参数的配置文件
+│   ├── fastcgi.conf.default         # fastcgi.conf的原始备份文件
+│   ├── fastcgi_params               # fastcgi的参数文件
+│   ├── fastcgi_params.default       
+│   ├── koi-utf
+│   ├── koi-win
+│   ├── mime.types                   # 媒体类型
+│   ├── mime.types.default
+│   ├── nginx.conf                   #这是Nginx默认的主配置文件，日常使用和修改的文件
+│   ├── nginx.conf.default
+│   ├── scgi_params                  # scgi相关参数文件
+│   ├── scgi_params.default  
+│   ├── uwsgi_params                 # uwsgi相关参数文件
+│   ├── uwsgi_params.default
+│   └── win-utf
+├── fastcgi_temp                     # fastcgi临时数据目录
+├── html                             # Nginx默认站点目录
+│   ├── 50x.html                     # 错误页面优雅替代显示文件，例如出现502错误时会调用此页面
+│   └── index.html                   # 默认的首页文件
+├── logs                             # Nginx日志目录
+│   ├── access.log                   # 访问日志文件
+│   ├── error.log                    # 错误日志文件
+│   └── nginx.pid                    # pid文件，Nginx进程启动后，会把所有进程的ID号写到此文件
+├── proxy_temp                       # 临时目录
+├── sbin                             # Nginx 可执行文件目录
+│   └── nginx                        # Nginx 二进制可执行程序
+├── scgi_temp                        # 临时目录
+└── uwsgi_temp                       # 临时目录
+```
+
+主要的目录是 conf,html,及 sbin。
+
+- conf 目录放的是核心配置文件
+- html 目录放的是静态页面
+	- 50x.html 是发生错误展示的页面，index.html 是默认的访问页面。可以在该目录下新建 html，然后在浏览器中访问，例如在该目录下新建 hello.html，内容是 hello，然后访问：http://192.168.8.101/hello.html
+- logs文件夹用于存放日志信息
+- error.log 存放出错的信息，nginx.pid 存放的是当前 nginx 的 pid。
+- sbin 存放的是可执行文件，可以用 ./nginx启动 nginx
+
+# 2.Nginx基本运行原理
+
+Nginx 的进程是使用经典的「Master-Worker」模型, Nginx 在启动后，会有一个 master 进程和多个 worker 进程。master 进程主要用来管理 worker 进程，包含：接收来自外界的信号，向各 worker 进程发送信号，监控 worker 进程的运行状态，当 worker 进程退出后(异常情况下)，会自动重新启动新的 worker 进程。worker 进程主要处理基本的网络事件，多个 worker 进程之间是对等的，他们同等竞争来自客户端的请求，各进程互相之间是独立的。一个请求，只可能在一个 worker 进程中处理，一个 worker 进程，不可能处理其它进程的请求。 worker 进程的个数是可以设置的，一般会设置与机器 cpu 核数一致，这里面的原因与 nginx 的进程模型以及事件处理模型是分不开的。
+
+# 3.Nginx的基本配置文件
+
+刚安装好的 nginx.conf 如下
+
+```
+#user  nobody;
+worker_processes  1;
+
+#error_log  logs/error.log;
+#error_log  logs/error.log  notice;
+#error_log  logs/error.log  info;
+
+#pid        logs/nginx.pid;
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    #log_format  main  '$remote_addr - $remote_user [$time_local] "$request" '
+    #                  '$status $body_bytes_sent "$http_referer" '
+    #                  '"$http_user_agent" "$http_x_forwarded_for"';
+
+    #access_log  logs/access.log  main;
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    #keepalive_timeout  0;
+    keepalive_timeout  65;
+
+    #gzip  on;
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        #charset koi8-r;
+
+        #access_log  logs/host.access.log  main;
+
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }
+
+        #error_page  404              /404.html;
+
+        # redirect server error pages to the static page /50x.html
+        #
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+        # proxy the PHP scripts to Apache listening on 127.0.0.1:80
+        #
+        #location ~ \.php$ {
+        #    proxy_pass   http://127.0.0.1;
+        #}
+
+        # pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+        #
+        #location ~ \.php$ {
+        #    root           html;
+        #    fastcgi_pass   127.0.0.1:9000;
+        #    fastcgi_index  index.php;
+        #    fastcgi_param  SCRIPT_FILENAME  /scripts$fastcgi_script_name;
+        #    include        fastcgi_params;
+        #}
+
+        # deny access to .htaccess files, if Apache's document root
+        # concurs with nginx's one
+        #
+        #location ~ /\.ht {
+        #    deny  all;
+        #}
+    }
+
+
+    # another virtual host using mix of IP-, name-, and port-based configuration
+    #
+    #server {
+    #    listen       8000;
+    #    listen       somename:8080;
+    #    server_name  somename  alias  another.alias;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+
+    # HTTPS server
+    #
+    #server {
+    #    listen       443 ssl;
+    #    server_name  localhost;
+
+    #    ssl_certificate      cert.pem;
+    #    ssl_certificate_key  cert.key;
+
+    #    ssl_session_cache    shared:SSL:1m;
+    #    ssl_session_timeout  5m;
+
+    #    ssl_ciphers  HIGH:!aNULL:!MD5;
+    #    ssl_prefer_server_ciphers  on;
+
+    #    location / {
+    #        root   html;
+    #        index  index.html index.htm;
+    #    }
+    #}
+
+}
+```
+
+去掉注释的简单版如下
+
+```
+worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
+
+events {
+    #单个进程最大连接数（最大连接数=连接数*进程数）
+    #根据硬件调整，和前面工作进程配合起来用，尽量大，但是别把cpu跑到100%就行。
+    worker_connections  1024;
+}
+
+
+http {
+    #文件扩展名与文件类型映射表(是conf目录下的一个文件)
+    include       mime.types;
+    #默认文件类型，如果mime.types预先定义的类型没匹配上，默认使用二进制流的方式传输
+    default_type  application/octet-stream;
+
+    #sendfile指令指定nginx是否调用sendfile 函数（zero copy 方式）来输出文件，对于普通应用，必须设为on。如果用来进行下载等应用磁盘IO重负载应用，可设置为off，以平衡磁盘与网络IO处理速度。
+    sendfile        on;
+    
+     #
+	 ，单位是秒
+    keepalive_timeout  65;
+
+ #虚拟主机的配置
+    server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+        
+    }
+}
+```
+
+# 4.域名解析
+
+虚拟主机使用特殊的软硬件技术，把一台运行在因特网上的服务器主机分成一台台“虚拟”的主机，每一台虚拟主机都具有独立的域名，具有完整的 Internet 服务器（WWW、FTP、Email等）功能，虚拟主机之间完全独立，并可由用户自行管理，在外界看来，每一台虚拟主机和一台独立的主机完全一样。
+
+域名解析就是域名到 IP 地址的转换过程，IP 地址是网路上标识站点的数字地址，为了简单好记，采用域名来代替 ip 地址标识站点地址，。域名的解析工作由 DNS 服务器完成。
+
+## 域名、dns、ip地址的关系
+
+域名是相对网站来说的，IP是相对网络来说的。当输入一个域名的时候，网页是如何做出反应的？
+
+输入域名---->域名解析服务器（dns）解析成ip地址—>访问IP地址—>完成访问的内容—>返回信息。
+
+Internet上的计算机IP是唯一的，一个IP地址对应一个计算机。
+
+一台计算机上面可以有很多个服务，也就是一个ip地址对应了很多个域名，即一个计算机上有很多网站。
+
+## IP地址和DNS地址的区别
+
+IP地址是指单个主机的唯一IP地址，而DNS服务器地址是用于域名解析的地址。
+
+一个是私网地址，一个是公网地址；
+
+一个作为主机的逻辑标志，一个作为域名解析服务器的访问地址。
+
+### IP地址
+
+IP，就是Internet Protocol的缩写，是一种通信协议，我们用的因特网基本是IP网组成的。
+
+IP地址就是因特网上的某个设备的一个编号。
+
+IP地址一般由网络号，主机号，掩码来组成。
+
+IP网络上有很多路由器，路由器之间转发、通信都是只认这个IP地址，类似什么哪？就好像你寄包裹，你的写上发件人地址，你的姓名，收件人地址，收件人姓名。
+
+这个发件人地址就是你电脑的IP的网络号，你的姓名就是你的主机号。
+
+收件人的地址就是你要访问的IP的网络号，收件人的姓名就是访问IP的主机号。
+
+现在还有了更复杂的IPV6,还有IPV9。
+
+### DNS
+
+我们访问因特网必须知道对端的IP地址，可是我们访问网站一般只知道域名啊，怎么办？
+
+这时候DNS就有用处了，电脑先访问DNS服务器，查找域名对应的IP,于是，你的电脑就知道要发包到IP地址了。
+
+### http 协议
+
+HTTP是一个应用层协议，由请求和响应构成，是一个标准的客户端服务器模型。HTTP是一个无状态的协议。
+
+HTTP 协议通常承载于 TCP 协议之上，有时也承载于 TLS 或 SSL 协议层之上，这个时候，就成了我们常说的 HTTPS。
+
+客户端与服务器的数据交互的流程
+
+1）首先客户机与服务器需要建立TCP连接。只要单击某个超级链接，HTTP的工作即开始。
+
+2）建立连接后，客户机发送一个请求给服务器，请求方式的格式为：统一资源标识符（URL）、协议版本号，后边是MIME信息包括请求修饰符、客户机信息和可能的内容。
+
+3）服务器接到请求后，给予相应的响应信息，其格式为一个状态行，包括信息的协议版本号、一个成功或错误的代码，后边是MIME信息包括服务器信息、实体信息和可能的内容，例如返回一个HTML的文本。
+
+4）客户端接收服务器所返回的信息通过浏览器显示在用户的显示屏上，然后客户机与服务器断开连接。如果在以上过程中的某一步出现错误，那么产生错误的信息将返回到客户端，有显示屏输出。对于用户来说，这些过程是由HTTP自己完成的，用户只要用鼠标点击，等待信息显示就可以了。
+
+# 5.虚拟主机（配置）
+
+**虚拟主机是为了在同一台物理机器上运行多个不同的网站，提高资源利用率引入的技术。**
+
+一般的web服务器一个ip地址的80端口只能正确对应一个网站。web服务器在不使用多个ip地址和端口的情况下，如果需要支持多个相对独立的网站就需要一种机制来分辨同一个ip地址上的不同网站的请求，这就出现了主机头绑定的方法。简单的说就是，将不同的网站空间对应不同的域名，以连接请求中的域名字段来分发和应答正确的对应空间的文件执行结果。举个例子来说，一台服务器ip地址为192.168.8.101，有两个域名和对应的空间在这台服务器上，使用的都是192.168.8.101的80端口来提供服务。如果只是简单的将两个域名A和B的域名记录解析到这个ip地址，那么web服务器在收到任何请求时反馈的都会是同一个网站的信息，这显然达不到要求。接下来我们使用主机头绑定域名A和B到他们对应的空间文件夹C和D。当含有域名A的web请求信息到达192.168.8.101时，web服务器将执行它对应的空间C中的首页文件，并返回给客户端，含有域名B的web请求信息同理，web服务器将执行它对应的空间D中的首页文件，并返回给客户端，所以在使用主机头绑定功能后就不能使用ip地址访问其上的任何网站了，因为请求信息中不存在域名信息，所以会出错。
+
+## 监听不同域名
+
+配置nginx.cfg
+
+```
+worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
+
+events {
+    #单个进程最大连接数（最大连接数=连接数*进程数）
+    #根据硬件调整，和前面工作进程配合起来用，尽量大，但是别把cpu跑到100%就行。
+    worker_connections  1024;
+}
+
+
+http {
+    #文件扩展名与文件类型映射表(是conf目录下的一个文件)
+    include       mime.types;
+    #默认文件类型，如果mime.types预先定义的类型没匹配上，默认使用二进制流的方式传输
+    default_type  application/octet-stream;
+
+    #sendfile指令指定nginx是否调用sendfile 函数（zero copy 方式）来输出文件，对于普通应用，必须设为on。如果用来进行下载等应用磁盘IO重负载应用，可设置为off，以平衡磁盘与网络IO处理速度。
+    sendfile        on;
+    
+     #长连接超时时间，单位是秒
+    keepalive_timeout  65;
+
+ #虚拟主机的配置
+    server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  test80.xzj520520.cn;
+
+	#配置根目录以及默认页面
+        location / {
+            root   /www/test80;
+            index  index.html index.htm;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+        
+    }
+    
+    
+    #虚拟主机的配置
+    server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  test81.xzj520520.cn;
+
+	#配置根目录以及默认页面
+        location / {
+            root   /www/test81;
+            index  index.html index.htm;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+        
+    }
+```
+
+使用 `systemctl reload nginx` 重新加载配置
+
+配置单机域名
+
+![ba83f6445941356fb0ca5aa8780a0412](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311052010852.png)
+
+测试
+
+访问 http://test80.xzj520520.cn/
+访问 http://test81.xzj520520.cn/
+
+如果匹配不到会访问第一个站点
+
+## 监听多个端口
+
+修改nginx.conf
+
+```
+worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
+
+events {
+    #单个进程最大连接数（最大连接数=连接数*进程数）
+    #根据硬件调整，和前面工作进程配合起来用，尽量大，但是别把cpu跑到100%就行。
+    worker_connections  1024;
+}
+
+
+http {
+    #文件扩展名与文件类型映射表(是conf目录下的一个文件)
+    include       mime.types;
+    #默认文件类型，如果mime.types预先定义的类型没匹配上，默认使用二进制流的方式传输
+    default_type  application/octet-stream;
+
+    #sendfile指令指定nginx是否调用sendfile 函数（zero copy 方式）来输出文件，对于普通应用，必须设为on。如果用来进行下载等应用磁盘IO重负载应用，可设置为off，以平衡磁盘与网络IO处理速度。
+    sendfile        on;
+    
+     #长连接超时时间，单位是秒
+    keepalive_timeout  65;
+
+ #虚拟主机的配置
+    server {
+    #监听端口
+        listen       80;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {
+            root   /www/test80;
+            index  index.html index.htm;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+        
+    }
+    
+    
+    #虚拟主机的配置
+    server {
+    #监听端口
+        listen       81;
+        #域名，可以有多个，用空格隔开
+        server_name  localhost;
+
+	#配置根目录以及默认页面
+        location / {
+            root   /www/test81;
+            index  index.html index.htm;
+        }
+
+	#出错页面配置
+        error_page   500 502 503 504  /50x.html;
+        #/50x.html文件所在位置
+        location = /50x.html {
+            root   html;
+        }
+        
+    }
+
+}
+```
+
+使用 `systemctl reload nginx` 重新加载配置
+
+在如下位置新建test80,test81
+
+![5a29e5e8f40fcef889b4c4d9da622d89](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311052013445.png)
+
+test80,test81新建index.html
+
+分别访问
+
+http://192.168.8.101:80/
+
+http://192.168.8.101:81/
+
+## 泛域名
+
+所谓“泛域名解析”是指：利用通配符* （星号）来做次级域名以实现所有的次级域名均指向同一IP地址。
+
+好处：
+
+1.可以让域名支持无限的子域名(这也是泛域名解析最大的用途)。
+
+2.防止用户错误输入导致的网站不能访问的问题
+
+3.可以让直接输入网址登陆网站的用户输入简洁的网址即可访问网站
+
+泛域名在实际使用中作用是非常广泛的，比如实现无限二级域名功能，提供免费的url转发，在IDC部门实现自动分配免费网址，在大型企业中实现网址分类管理等等，都发挥了巨大的作用。
+
+## ServerName 配置规则
+
+可以在同一个servername中配置多个域名
+
+### 完整匹配
+
+server中可以配置多个域名，例如：
+
+```
+server_name  test81.xzj520520.cn  test82.xzj520520.cn;
+```
+
+
+### 通配符匹配
+
+使用通配符的方式如下：
+
+```
+server_name  *.xzj520520.cn;
+```
+
+需要注意的是**精确匹配**的优先级大于**通配符匹配**和**正则匹配**。
+
+
+### 正则匹配
+
+采用正则的匹配方式如下:
+
+![41d0a93f50338db6ed3b62480fc92319](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311052123608.png)
+
+正则匹配格式，必须以~开头，比如：server_name ~^www\d+\.example\.net$;。如果开头没有~，则nginx认为是精确匹配。在逻辑上，需要添加^和$锚定符号。注意，正则匹配格式中.为正则元字符，如果需要匹配.，则需要反斜线转义。如果正则匹配中含有{和}则需要双引号引用起来，避免nginx报错，如果没有加双引号，则nginx会报如下错误：directive "server_name" is not terminated by ";" in ...。
+
+### 特殊匹配格式
+
+采用正则的匹配方式如下:
+
+```
+server_name ""; 匹配Host请求头不存在的情况。
+```
+
+### 匹配顺序
+
+```
+1. 精确的名字
+2. 以*号开头的最长通配符名称，例如 *.example.org
+3. 以*号结尾的最长通配符名称，例如 mail.*
+4. 第一个匹配的正则表达式（在配置文件中出现的顺序）
+```
+
+优化
+
+```
+1. 尽量使用精确匹配;
+2. 当定义大量server_name时或特别长的server_name时，需要在http级别调整server_names_hash_max_size和server_names_hash_bucket_size，否则nginx将无法启动。
+```
+
+附录：
+
+~* 不区分大小写的匹配（匹配firefox的正则同时匹配FireFox）
+
+!~ 区分大小写不匹配
+
+!~* 不区分大小写不匹配
+
+. 匹配除换行符以外的任意字符
+
+\w 匹配字母或数字或下划线或汉字
+
+\s 匹配任意的空白符
+
+\d 匹配数字
+
+\b 匹配单词的开始或结束
+
+^ 匹配字符串的开始
+
+$ 匹配字符串的结束
+
+*重复零次或更多次前面一个字符
+
++重复一次或更多次前面一个字符
+
+? 重复零次或一次前面一个字符
+
+{n} 重复n次前面一个字符{n,} 重复n次或更多次
+
+{n,m} 重复n到m次
+
+*? 重复任意次，但尽可能少重复
+
++? 重复1次或更多次，但尽可能少重复
+
+?? 重复0次或1次，但尽可能少重复{n,m}? 重复n到m次，但尽可能少重复{n,}? 重复n次以上，但尽可能少重复
+
+\W 匹配任意不是字母，数字，下划线，汉字的字符
+
+\S 匹配任意不是空白符的字符
+
+\D 匹配任意非数字的字符
+
+\B 匹配不是单词开头或结束的位置
+
+[^x] 匹配除了x以外的任意字符
+
+[^abc] 匹配除了abc这几个字母以外的任意字符
+
+(exp) 匹配exp,并捕获文本到0…9
+
+(?exp) 匹配exp,并捕获文本到名称为name的组里，也可以写成(?'name’exp)(?:exp) 匹配exp,不捕获匹配的文本，也不给此分组分配组号
+
+(?=exp) 零宽断言,匹配exp前面的位置
+
+(?<=exp) 匹配exp后面的位置
+
+(?!exp) 匹配后面跟的不是exp的位置
+
+(?<!exp) 匹配前面不是exp的位置
+
+(?#comment) 注释,这种类型的分组不对正则表达式的处理产生任何影响，用于提供注释让人阅读
+
+### httpDNS 了解
+
+[httpDNS](https://juejin.cn/post/7041854828661702663)
+
+# 6.反向代理（配置）
+
+反向代理方式是指以代理服务器来接受Internet上的连接请求，然后将请求转发给内部网络上的服务器；并将从服务器上得到的结果返回给Internet上请求连接的客户端，此时代理服务器对外就表现为一个服务器。
+
+反向代理服务器通常有两种模型，一种是作为内容服务器的替身，另一种作为内容服务器集群的负载均衡器。
+
+**作内容服务器的替身**
+
+如果您的内容服务器具有必须保持安全的敏感信息，如信用卡号数据库，可在防火墙外部设置一个代理服务器作为内容服务器的替身。当外部客户机尝试访问内容服务器时，会将其送到代理服务器。实际内容位于内容服务器上，在防火墙内部受到安全保护。代理服务器位于防火墙外部，在客户机看来就像是内容服务器。
+
+当客户机向站点提出请求时，请求将转到代理服务器。然后，代理服务器通过防火墙中的特定通路，将客户机的请求发送到内容服务器。内容服务器再通过该通道将结果回传给代理服务器。代理服务器将检索到的信息发送给客户机，好像代理服务器就是实际的内容服务器。如果内容服务器返回错误消息，代理服务器会先行截取该消息并更改标头中列出的任何 URL，然后再将消息发送给客户机。如此可防止外部客户机获取内部内容服务器的重定向 URL。
+
+这样，代理服务器就在安全数据库和可能的恶意攻击之间提供了又一道屏障。与有权访问整个数据库的情况相对比，就算是侥幸攻击成功，作恶者充其量也仅限于访问单个事务中所涉及的信息。未经授权的用户无法访问到真正的内容服务器，因为防火墙通路只允许代理服务器有权进行访问。
+
+**作为内容服务器的负载均衡器**
+
+可以在一个组织内使用多个代理服务器来平衡各 Web 服务器间的网络负载。在此模型中，可以利用代理服务器的高速缓存特性，创建一个用于负载平衡的服务器池。此时，代理服务器可以位于防火墙的任意一侧。如果 Web 服务器每天都会接收大量的请求，则可以使用代理服务器分担 Web 服务器的负载并提高网络访问效率。
+
+对于客户机发往真正服务器的请求，代理服务器起着中间调停者的作用。代理服务器会将所请求的文档存入高速缓存。如果有不止一个代理服务器，DNS 可以采用“轮询法”选择其 IP 地址，随机地为请求选择路由。客户机每次都使用同一个 URL，但请求所采取的路由每次都可能经过不同的代理服务器。
+
+可以使用多个代理服务器来处理对一个高用量内容服务器的请求，这样做的好处是内容服务器可以处理更高的负载，并且比其独自工作时更有效率。在初始启动期间，代理服务器首次从内容服务器检索文档，此后，对内容服务器的请求数会大大下降。
+
+## Nginx的反向代理配置
+
+**proxy_pass**
+
+在默认的配置文件中
+
+```
+
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            root   html;
+            index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+
+}
+```
+
+server.location 下的 root+index 用来配置静态资源，用来配置前端静态资源使用，proxy_pass 用来配置代理服务器使用，这两个属性二选一
+
+proxy_pass 配置有两种形式
+
+### 单台机器配置语法
+
+```
+proxy_pass + 空格 + 完整网址（一般为非 https 协议）/ http:// + 服务器组别名 + 封号结尾
+```
+
+示例：
+
+```
+
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            proxy_pass http://www.bilibili.com;
+			#proxy_pass http://192.168.1.131:80;
+            #root   html;
+            #index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+### 多台机器配置语法(负载均衡器)
+
+upstream httpds 服务器组，与 server 同一级别
+
+基本语法
+
+```
+upstream 别名 {
+    server 192.168.1.131:80;
+    server 192.168.1.132:80;
+}
+```
+
+克隆两个 centos，ip分别设为192.168.1.131，192.168.1.132
+
+示例：
+
+```
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    upstream httpds{
+        server 192.168.1.131:80;
+        server 192.168.1.132:80;
+    }
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            proxy_pass http://httpds;
+            #root   html;
+            #index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+默认带有负载均衡功能，默认策略为轮训
+
+## 负载均衡器策略
+
+### 1.轮训
+
+见上述示例
+
+### 2.权重 
+
+weight 值越大权重越大，权重是相对的
+
+```
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    upstream httpds{
+        server 192.168.1.131:80 weight=8;
+        server 192.168.1.132:80 weight=2;
+    }
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            proxy_pass http://httpds;
+            #root   html;
+            #index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+### 3.down (宕机)不参与负载均衡
+
+```
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    upstream httpds{
+        server 192.168.1.131:80 down;
+        server 192.168.1.132:80 weight=2;
+    }
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            proxy_pass http://httpds;
+            #root   html;
+            #index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+### 4.backup 备用服务器，主机不可用时使用
+
+```
+
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+    sendfile        on;
+    keepalive_timeout  65;
+
+    upstream httpds{
+        server 192.168.1.131:80 backup;
+        server 192.168.1.132:80 weight=2;
+    }
+
+    server {
+        listen       80;
+        server_name  localhost;
+        location / {
+            proxy_pass http://httpds;
+            #root   html;
+            #index  index.html index.htm;
+        }
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+### 5.IP Hash 
+
+根据客户端的ip地址转发同一台服务器，可以保持会话，但是很少用这种方式去保持会话，例如我们当前正在使用wifi访问，当切换成手机信号访问时，会话就不保持了。
+
+### 6.least_conn
+
+最少连接访问，优先访问连接最少的那一台服务器，这种方式也很少使用，因为连接少，可能是由于该服务器配置较低，刚开始赋予的权重较低。
+
+### 7.url_hash（需要第三方插件） 
+
+根据用户访问的url定向转发请求，不同的url转发到不同的服务器进行处理（定向流量转发），一般用于定向寻找资源，例如100个文件散列在10台机器上，就可以根据请求文件资源的哈希定位到具体的机器上。
+
+### 8.fair（需要第三方插件）
+
+根据后端服务器响应时间转发请求，这种方式也很少使用，因为容易造成流量倾斜，给某一台服务器压垮。
+
+# 7.动静分离
+
+为了提高网站的响应速度，减轻程序服务器（Tomcat，Jboss等）的负载，对于静态资源，如图片、js、css等文件，可以在反向代理服务器中进行缓存，这样浏览器在请求一个静态资源时，代理服务器就可以直接处理，而不用将请求转发给后端服务器。对于用户请求的动态文件，如 servlet、jsp，则转发给 Tomcat，Jboss 服务器处理，这就是动静分离。即动态文件与静态文件的分离。
+
+动静分离可通过 location 对请求 url 进行匹配，将网站静态资源（HTML，JavaScript，CSS，img等文件）与后台应用分开部署，提高用户访问静态代码的速度，降低对后台应用访问。通常将静态资源放到 nginx 中，动态资源转发到 tomcat 服务器中。
+
+nginx 在处理静态资源的并发访问时，实际上是要比 Tomcat 快一些的，但在 java 的技术不断更新的基础上，这个差距在主键减小，包括 Tomcat 使用的 keepalive、epoll 等技术加持下
+
+**动静分离适用于中小型网站**
+
+![image-20231107205341033](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311072053214.png)
+
+## location 配置
+
+主要是 location 的配置
+
+```
+#user  nobody;
+worker_processes  1;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+    sendfile        on;
+    keepalive_timeout  65;
+
+
+    server {
+        listen       80;
+        server_name  localhost;
+		
+		# 所有 80 端口的根目录请求，访问 tomcat 服务器
+        location / {
+            proxy_pass http://192.168.8.101:8080;
+        }
+        
+		# 涉及到的 images 文件夹下的资源，到本机的 html/images 目录寻找
+		# 例如 192.168.8.102:80/images/test.png
+		# 精确匹配的优先级要大于模糊匹配，所以这里会被代理过来
+		# location 后必须有 / 号 ，
+		# 也可以使用正则表达式 例如 ~
+        location /images {
+            root   html;
+            index  index.html index.htm;
+        }
+        
+
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+    }
+}
+```
+
+常见的 Nginx 正则表达式
+
+```
+^ ：匹配输入字符串的起始位置
+$ ：匹配输入字符串的结束位置
+* ：匹配前面的字符零次或多次。如“ol*”能匹配“o”及“ol”、“oll”
++ ：匹配前面的字符一次或多次。如“ol+”能匹配“ol”及“oll”、“olll”，但不能匹配“o”
+? ：匹配前面的字符零次或一次，例如“do(es)?”能匹配“do”或者“does”，”?”等效于”{0,1}”
+. ：匹配除“\n”之外的任何单个字符，若要匹配包括“\n”在内的任意字符，请使用诸如“[.\n]”之类的模式
+\ ：将后面接着的字符标记为一个特殊字符或一个原义字符或一个向后引用。如“\n”匹配一个换行符，而“\$”则匹配“$”
+\d ：匹配纯数字
+{n} ：重复 n 次
+{n,} ：重复 n 次或更多次
+{n,m} ：重复 n 到 m 次
+[] ：定义匹配的字符范围
+[c] ：匹配单个字符 c
+[a-z] ：匹配 a-z 小写字母的任意一个
+[a-zA-Z0-9] ：匹配所有大小写字母或数字
+() ：表达式的开始和结束位置
+| ：或运算符  //例(js|img|css)
+```
+
+location 正则：
+
+```
+//location大致可以分为三类
+精准匹配：location = /{}
+一般匹配：location /{}
+正则匹配：location ~/{}
+//location常用的匹配规则：
+= ：进行普通字符精确匹配，也就是完全匹配。
+^~ ：表示前缀字符串匹配（不是正则匹配，需要使用字符串），如果匹配成功，则不再匹配其它 location。
+~ ：区分大小写的匹配（需要使用正则表达式）。
+~* ：不区分大小写的匹配（需要使用正则表达式）。
+!~ ：区分大小写的匹配取非（需要使用正则表达式）。
+!~* ：不区分大小写的匹配取非（需要使用正则表达式）。
+//优先级
+首先精确匹配 =
+其次前缀匹配 ^~
+其次是按文件中顺序的正则匹配 ~或~*
+然后匹配不带任何修饰的前缀匹配
+最后是交给 / 通用匹配
+```
+
+注意：
+
+- 精确匹配： `=` ， 后面的表达式中写的是纯字符串
+- 字符串匹配： `^~` 和 无符号匹配 ， 后面的表达式中写的是纯字符串
+- 正则匹配： `~` 和 `~*` 和 `!~` 和 `!~*` ， 后面的表达式中写的是正则表达式
+
+location 的说明
+
+```
+ (1）location = / {}
+=为精确匹配 / ，主机名后面不能带任何字符串，比如访问 / 和 /data，则 / 匹配，/data 不匹配
+再比如 location = /abc，则只匹配/abc ，/abc/或 /abcd不匹配。若 location  /abc，则即匹配/abc 、/abcd/ 同时也匹配 /abc/。
+
+（2）location / {}
+因为所有的地址都以 / 开头，所以这条规则将匹配到所有请求 比如访问 / 和 /data, 则 / 匹配， /data 也匹配，
+但若后面是正则表达式会和最长字符串优先匹配（最长匹配）
+
+（3）location /documents/ {}
+匹配任何以 /documents/ 开头的地址，匹配符合以后，还要继续往下搜索其它 location
+只有其它 location后面的正则表达式没有匹配到时，才会采用这一条
+
+（4）location /documents/abc {}
+匹配任何以 /documents/abc 开头的地址，匹配符合以后，还要继续往下搜索其它 location
+只有其它 location后面的正则表达式没有匹配到时，才会采用这一条
+
+（5）location ^~ /images/ {}
+匹配任何以 /images/ 开头的地址，匹配符合以后，停止往下搜索正则，采用这一条
+
+（6）location ~* \.(gif|jpg|jpeg)$ {}
+匹配所有以 gif、jpg或jpeg 结尾的请求
+然而，所有请求 /images/ 下的图片会被 location ^~ /images/ 处理，因为 ^~ 的优先级更高，所以到达不了这一条正则
+
+（7）location /images/abc {}
+最长字符匹配到 /images/abc，优先级最低，继续往下搜索其它 location，会发现 ^~ 和 ~ 存在
+
+（8）location ~ /images/abc {}
+匹配以/images/abc 开头的，优先级次之，只有去掉 location ^~ /images/ 才会采用这一条
+
+（9）location /images/abc/1.html {}
+匹配/images/abc/1.html 文件，如果和正则 ~ /images/abc/1.html 相比，正则优先级更高
+
+优先级总结：
+(location =) > (location 完整路径) > (location ^~ 路径) > (location ~,~* 正则顺序) > (location 部分起始路径) > (location /)
+```
+
+实际网站使用中，至少有三个匹配规则定义:
+
+第一个必选规则
+
+直接匹配网站根，通过域名访问网站首页比较频繁，使用这个会加速处理，比如说官网。这里是直接转发给后端应用服务器了，也可以是一个静态首页
+
+```
+location = / {
+    proxy_pass http://127.0.0.1:8080/; 
+}
+```
+
+
+第二个必选规则
+
+处理静态文件请求，这是nginx作为http服务器的强项,有两种配置模式，目录匹配或后缀匹配,任选其一或搭配使用
+
+```
+location ^~ /static/ {
+    root /webroot/static/;
+}
+
+location ~* \.(html|gif|jpg|jpeg|png|css|js|ico)$ {
+    root /webroot/res/;
+}
+```
+
+第三个规则
+
+通用规则，用来转发动态请求到后端应用服务器
+
+```
+location /api/ {
+    proxy_pass http://127.0.0.1:3000/api/
+}
+```
+
+## URLRewrite
+
+rewrite是实现URL重写的关键指令，根据regex(正则表达式)部分内容，重定向到repacement，结尾是flag标记。
+
+格式：
+
+```
+rewrite <regex> <replacement> [flag];
+关键字   正则     替代内容       flag标记
+
+关键字:其中关键字 error_1og 不能改变
+正则:per1兼容正则表达式语句进行规则匹配
+替代内容: 将正则匹配的内容替换成repacementflag
+标记: rewrite支持的 flag 标记
+rewrite参数的标签段位置:
+server,location,if
+
+flag标记说明:
+last #本条规则匹配完成后，继续向下匹配新的1ocation URI规则
+break #本条规则匹配完成即终止，不再匹配后面的任何规则
+redirect #返回302临时重定向，浏览器地址会显示跳转后的URL地址
+permanent #返回301永久重定向，浏览器地址栏会显示跳转后的URL地址
+```
+
+URLRewrite 的优缺点
+
+优点：掩藏真实的url以及url中可能暴露的参数，以及隐藏web使用的编程语言，提高安全性便于搜索引擎收录
+
+缺点：降低效率，影响性能。如果项目是内网使用，比如公司内部软件，则没有必要配置。
+
+实例
+
+![image-20231107212706294](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311072127366.png)
+
+```
+# 例如请求 http://127.0.0.1/test.html 真实的地址其实是
+# http://127.0.0.1/index.html?testParam=3
+rewrite ^/test.html$ /index.html?testParam=3 break;
+
+//也可以用正则表达式的形式：^/([0-9]).html$ 括号代表入参
+rewrite ^/([0-9]).html$ /index.html?testParam=$1 break; //$1表示第一个匹配的字符串 
+
+```
+
+
+使用负载均衡的方式访问：
+
+![image-20231107212800747](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311072128798.png)
+
+# 8.内网隔离
+
+在真实的线上环境可以利用防火墙配置，使我们的应用服务器只允许 网关 nginx 的 IP 和 端口 可以访问，做到一个内外网分离
+
+
+添加指定端口和ip访问(添加之后记得重新启动防火墙)
+
+```
+firewall-cmd --permanent --add-rich-rule="rule family="ipv4" source address="192.168.8.102" port protocol="tcp" port="8080" accept"
+```
+
+移除规则
+
+```
+firewall-cmd --permanent --remove-rich-rule="rule family="ipv4" source address="192.168.8.102" port protocol="tcp" port="8080" accept"
+```
+
+重启防火墙
+
+```
+firewall-cmd --reload
+```
+
+# 9.防盗链
+
+盗链是指服务提供商自己不提供服务的内容，通过技术手段绕过其它有利益的最终用户界面（如广告），直接在自己的网站上向最终用户提供其它服务提供商的服务内容，骗取最终用户的浏览和点击率。受益者不提供资源或提供很少的资源，而真正的服务提供商却得不到任何的收益。
+
+即服务器上的资源只允许配置的服务器引用，不允许其他服务器引用，比如qq空间中的图片只能在qq空间中看到。
+
+nginx 防盗链配置
+
+在任意的 location 中配置
+
+```
+location ^~/images/ {
+    valid_referers 192.168.8.102;  #valid_referers 指令，配置是否允许 referer 头部以及允许哪些 referer 访问。192.168.8.102不是ip而是域名（去掉http:// 前缀）
+    if ($invalid_referer) {  # 注意这里if后要加空格
+        return 403; ## 返回错误码
+    }
+    
+    root   /www/resources;
+}
+```
+
+valid_referers 解释
+
+可以同时携带多个参数，表示多个 referer 头部都生效。
+
+参数值
+
+- none：允许没有 referer 信息的请求访问，即直接通过url访问。
+- blocked：请求头Referer字段不为空（即存在Referer），但是值可以为空（值被代理或者防火墙删除了），并且允许refer不以“http://”或“https://”开头，通俗点说就是允许“http://”或"https//"以外的请求。
+- server_names：若 referer 中站点域名与 server_name 中本机域名某个匹配，则允许该请求访问
+- 其他字符串类型：检测referer与字符串是否匹配，如果匹配则允许访问，可以采用通配符*
+- 正则表达式：若 referer 的值匹配上了正则，就允许访问
+
+invalid_referer 变量
+
+- 允许访问时变量值为空
+- 不允许访问时变量值为 1
+
+例
+
+```
+server {
+    server_name referer.test.com;
+    listen 80;
+
+    error_log logs/myerror.log debug;
+    root html;
+    location / {
+        valid_referers none server_names
+                       *.test.com www.test.org.cn/nginx/;
+        if ($invalid_referer) {
+                return 403; # 返回错误码
+        }
+        return 200 'valid\n';
+    }
+}
+
+# none：表示没有 referer 的可以访问
+# server_names：表示本机 server_name 也就是 referer.test.com 可以访问
+# *.test.com：匹配上了正则的可以访问
+# www.test.org.cn/nginx/：该页面发起的请求可以访问
+```
+
+# 10.配置错误提示页面
+
+html目录中添加403.html
+
+修改 nginx.conf
+
+```
+worker_processes  1;
+
+
+
+events {
+    worker_connections  1024;
+}
+
+
+http {
+    include       mime.types;
+    default_type  application/octet-stream;
+
+   
+
+    sendfile        on;
+
+    keepalive_timeout  65;
+
+
+
+    server {
+        listen       80;
+        server_name  localhost;
+
+        location / {
+            proxy_pass http://192.168.8.101:8080;
+        }
+        
+        
+        location ^~/images/ {
+            valid_referers 192.168.8.102 baidu.com;
+            if ($invalid_referer) {
+                return 403; # 返回错误码
+            }
+            
+            root   /www/resources;
+        }
+        
+		# 403 错误提示页面配置
+        error_page   403  /403.html;
+        location = /403.html {
+            root   html;
+        }
+        error_page   500 502 503 504  /50x.html;
+        location = /50x.html {
+            root   html;
+        }
+
+        
+    }
+
+}
+
+```
+
+也可以返回出错图片
+
+![image-20231109204701059](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311092047142.png)
+
+# 11.高可用配置，nginx 集群
+
+高可用场景及解决方案
+
+利用 Keepalived 的虚拟 IP 来实现，多台机器使用同一虚拟 IP，此IP在多台机器上来回切换，以达到高可用集群的目的
+
+Keepalived 软件起初是专为 LVS 负载均衡软件设计的，用来管理并监控 LVS 集群系统中各个服务节点的状态，后来又加入了可以实现高可用的 VRRP 功能。因此，Keepalived 除了能够管理 LVS 软件外，还可以作为其他服务（例如：Nginx、Haproxy、MySQL等）的高可用解决方案软件。VRRP 出现的目的就是为了解决静态路由单点故障问题的，它能够保证当个别节点宕机时，整个网络可以不间断地运行。所以，Keepalived 一方面具有配置管理 LVS 的功能，同时还具有对 LVS 下面节点进行健康检查的功能，另一方面也可实现系统网络服务的高可用功能。
+
+keepalived官网http://www.keepalived.org
+
+keepalived服务的三个重要功能：
+
+- 管理LVS负载均衡软件
+- 实现LVS集群节点的健康检查中
+- 作为系统网络服务的高可用性（failover）
+
+## 安装keepalived
+
+centos安装命令：
+
+```
+ yum install -y keepalived
+```
+
+keepalived 实战
+
+keepalived 的配置文件在如下位置：
+
+```
+/etc/keepalived/keepalived.conf
+```
+
+在该实战中，101为主nginx，102为备用机，首先需要修改101和102的keepalived.conf配置
+
+101的keepalived.conf配置，使用ens33网卡
+
+```
+! Configuration File for keepalived
+
+global_defs {
+   router_id LB_102 # LB_102 为负载均衡的机器名称，可以随便起名，别重复
+}
+
+vrrp_instance VI_102 # VI_102 为实例名称，集群保持一致 {
+    state MASTER # MASTER/BACKUP
+    interface ens33 # ens33网卡名称
+    virtual_router_id 51 # 集群保持一致
+    priority 100 # 竞选 MASTER 节点的优先级
+    advert_int 1 # 检测存活时间，心跳间隔
+	# keepalived 分组名称信息 集群保持一致
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+	# 虚拟的IP地址，可填写多个
+    virtual_ipaddress { 
+        192.168.8.200
+    }
+}
+```
+
+使用systemctl start keepalived启动keepalived,查看ip发现多了虚拟 ip 192.168.8.200:
+
+102的keepalived.conf配置,使用ens33网卡
+
+```
+! Configuration File for keepalived
+
+global_defs {
+   router_id LB_101
+}
+
+vrrp_instance VI_102 {
+    state BACKUP
+    interface ens33
+    virtual_router_id 51
+    priority 50
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.8.200
+    }
+}
+```
+
+使用systemctl start keepalived启动keepalived
+
+在nginx集群状态下，需要访问虚拟IP，即 VIP 162.168.8.200：
+
+关闭 102，再次访问 192.168.8.200：
+
+发现可以正常访问
+
+Keepalived 是进程检测，即它只检测自己进程是否存活，不检测其他软件情况。可以编写脚本来检测Nginx服务运行情况，当Nginx宕机直接杀死本机Keepalived，以达到IP漂移切换的目的，所以Keepalived可以检测一切软件，如redis、mysql等
+
+# 12.https签名配置
+
+## 不安全的 HTTP 协议
+
+当与一个站点进行通讯时，在通讯的过程中，一般会经历多个协议，其由底层到高层的顺序一般为 socket(最底层，即调用网卡发送数据) -> TCP/IP -> HTTP(应用层)
+
+在 HTTP 访问时，客户端与服务器之间没有任何身份确认的过程，数据全部明文传输，“裸奔”在互联网上，所以很容易遭到黑客的攻击。客户端发出的请求很容易被黑客截获，如果此时黑客冒充服务器，则其可返回任意信息给客户端，而不被客户端察觉，所以我们经常会听到一词“劫持”。
+
+所以 HTTP 传输面临的风险有
+
+1. 窃听风险：黑客可以获知通信内容。
+2. 篡改风险：黑客可以修改通信内容。
+3. 冒充风险：黑客可以冒充他人身份参与通信。
+
+## HTTP 向 HTTPS 演化的过程
+
+第一步：为了防止上述现象的发生，人们想到一个办法：对传输的信息加密（即使黑客截获，也无法破解）
+
+### 对称加密
+
+对称加密算法是应用较早的加密算法，技术成熟。在对称加密算法中，数据发信方将明文（原始数据）和加密密钥（mi yao）一起经过特殊加密算法处理后，使其变成复杂的加密密文发送出去。收信方收到密文后，若想解读原文，则需要使用加密用过的密钥及相同算法的逆算法对密文进行解密，才能使其恢复成可读明文。在对称加密算法中，使用的密钥只有一个，发收信双方都使用这个密钥对数据进行加密和解密，这就要求解密方事先必须知道加密密钥。但此种方式的缺点是：
+
+- 不同的客户端、服务器数量庞大，所以双方都需要维护大量的密钥，维护成本很高
+- 因每个客户端、服务器的安全级别不同，密钥极易泄露
+
+### 非对称加密
+
+非对称加密需要两个密钥：公钥 (publickey) 和私钥 (privatekey)。公钥和私钥是一对，如果用公钥对数据加密，那么只能用对应的私钥解密。如果用私钥对数据加密，只能用对应的公钥进行解密。因为加密和解密用的是不同的密钥，所以称为非对称加密。
+
+客户端用公钥对请求内容加密，服务器使用私钥对内容解密，反之亦然，但上述过程也存在缺点：
+
+- 公钥是公开的（也就是黑客也会有公钥），所以私钥加密的信息，如果被黑客截获，其可以使用公钥进行解密，获取其中的内容
+
+鉴于非对称加密的机制，我们可能会有这种思路：服务器先把公钥以明文方式传输给浏览器，之后浏览器向服务器传数据前都先用这个公钥加密好再传，这条数据的安全似乎可以保障了！因为只有服务器有相应的私钥能解开公钥加密的数据。
+
+然而反过来由服务器到浏览器的这条路怎么保障安全？如果服务器用它的私钥加密数据传给浏览器，那么浏览器用公钥可以解密它，而这个公钥是一开始通过明文传输给浏览器的，若这个公钥被中间人劫持到了，那他也能用该公钥解密服务器传来的信息了。所以目前似乎只能保证由浏览器向服务器传输数据的安全性。
+
+### 改良的非对称加密方案
+
+我们已经理解通过一组公钥私钥，可以保证单个方向传输的安全性，那用两组公钥私钥，是否就能保证双向传输都安全了？请看下面的过程：
+
+1. 某网站服务器拥有公钥A与对应的私钥A’；浏览器拥有公钥B与对应的私钥B’。
+2. 浏览器把公钥B明文传输给服务器。
+3. 服务器把公钥A明文给传输浏览器。
+4. 之后浏览器向服务器传输的内容都用公钥A加密，服务器收到后用私钥A’解密。由于只有服务器拥有私钥A’，所以能保证这条数据的安全。
+5. 同理，服务器向浏览器传输的内容都用公钥B加密，浏览器收到后用私钥B’解密。同上也可以保证这条数据的安全。
+
+的确可以！抛开这里面仍有的漏洞不谈，HTTPS的加密却没使用这种方案，为什么？很重要的原因是非对称加密算法非常耗时，而对称加密快很多。那我们能不能运用非对称加密的特性解决前面提到的对称加密的漏洞？
+
+### 非对称加密+对称加密
+
+既然非对称加密耗时，那非对称加密+对称加密结合可以吗？而且得尽量减少非对称加密的次数。当然是可以的，且非对称加密、解密各只需用一次即可。
+请看一下这个过程：
+
+1. 某网站拥有用于非对称加密的公钥A、私钥A’。
+2. 浏览器向网站服务器请求，服务器把公钥A明文给传输浏览器。
+3. 浏览器随机生成一个用于对称加密的密钥X，用公钥A加密后传给服务器。
+4. 服务器拿到后用私钥A’解密得到密钥X。
+5. 这样双方就都拥有密钥X了，且别人无法知道它。之后双方所有数据都通过密钥X加密解密即可。
+
+如果在数据传输过程中，中间人劫持到了数据，此时他的确无法得到浏览器生成的密钥X，这个密钥本身被公钥A加密了，只有服务器才有私钥A’解开它，然而中间人却完全不需要拿到私钥A’就能干坏事了。请看：
+
+1. 某网站有用于非对称加密的公钥A、私钥A’。
+2. 浏览器向网站服务器请求，服务器把公钥A明文给传输浏览器。
+3. **中间人劫持到公钥A，保存下来，把数据包中的公钥A替换成自己伪造的公钥B（它当然也拥有公钥B对应的私钥B’）。**
+4. 浏览器生成一个用于对称加密的密钥X，用公钥B（浏览器无法得知公钥被替换了）加密后传给服务器。
+5. **中间人劫持后用私钥B’解密得到密钥X，再用公钥A加密后传给服务器。**
+6. 服务器拿到后用私钥A’解密得到密钥X。
+
+这样在双方都不会发现异常的情况下，中间人通过一套“狸猫换太子”的操作，掉包了服务器传来的公钥，进而得到了密钥X。根本原因是浏览器无法确认收到的公钥是不是网站自己的，因为公钥本身是明文传输的，难道还得对公钥的传输进行加密？这似乎变成鸡生蛋、蛋生鸡的问题了。
+
+**如何证明浏览器收到的公钥一定是该网站的公钥**
+
+其实所有证明的源头都是一条或多条不证自明的“公理”（可以回想一下数学上公理），由它推导出一切。比如现实生活中，若想证明某身份证号一定是小明的，可以看他身份证，而身份证是由政府作证的，这里的“公理”就是“政府机构可信”，这也是社会正常运作的前提。
+
+那能不能类似地有个机构充当互联网世界的“公理”呢？让它作为一切证明的源头，给网站颁发一个“身份证”？
+
+它就是CA机构，它是如今互联网世界正常运作的前提，而CA机构颁发的“身份证”就是数字证书。
+
+网站在使用 HTTPS 前，需要向 CA 机构申领一份数字证书，数字证书里含有证书持有者信息、公钥信息等。服务器把证书传输给浏览器，浏览器从证书里获取公钥就行了，证书就如身份证，证明“该公钥对应该网站”。而这里又有一个显而易见的问题，“证书本身的传输过程中，如何防止被篡改”？即如何证明证书本身的真实性？身份证运用了一些防伪技术，而数字证书怎么防伪呢？解决这个问题我们就接近胜利了！
+
+如何放防止数字证书被篡改
+
+我们把证书原本的内容生成一份“签名”，比对证书内容和签名是否一致就能判别是否被篡改。这就是数字证书的“防伪技术”，这里的“签名”就叫数字签名
+
+数字签名的制作过程
+
+1. CA机构拥有非对称加密的私钥和公钥。
+2. CA机构对证书明文数据T进行hash。
+3. 对hash后的值用私钥加密，得到数字签名S。
+
+明文和数字签名共同组成了数字证书，这样一份数字证书就可以颁发给网站了。
+那浏览器拿到服务器传来的数字证书后，如何验证它是不是真的？（有没有被篡改、掉包）
+
+浏览器验证过程
+
+1. 拿到证书，得到明文T，签名S。
+2. 用CA机构的公钥对S解密（由于是浏览器信任的机构，所以浏览器保有它的公钥。详情见下文），得到S’。
+3. 用证书里指明的hash算法对明文T进行hash得到T’。
+4. 显然通过以上步骤，T’应当等于S‘，除非明文或签名被篡改。所以此时比较S’是否等于T’，等于则表明证书可信。
+
+为何么这样可以保证证书可信呢？我们来仔细想一下。
+
+假设中间人篡改了证书的原文，由于他没有CA机构的私钥，所以无法得到此时加密后签名，无法相应地篡改签名。浏览器收到该证书后会发现原文和签名解密后的值不一致，则说明证书已被篡改，证书不可信，从而终止向服务器传输信息，防止信息泄露给中间人。
+
+既然不可能篡改，那整个证书被掉包呢？
+
+假设有另一个网站B也拿到了CA机构认证的证书，它想劫持网站A的信息。于是它成为中间人拦截到了A传给浏览器的证书，然后替换成自己的证书，传给浏览器，之后浏览器就会错误地拿到B的证书里的公钥了，这确实会导致上文“中间人攻击”那里提到的漏洞？
+
+其实这并不会发生，因为证书里包含了网站A的信息，包括域名，浏览器把证书里的域名与自己请求的域名比对一下就知道有没有被掉包了。
+
+### https 配置
+
+#### 自签名 
