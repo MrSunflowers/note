@@ -273,6 +273,151 @@ com.rabbitmq.client.Channel#basicPublish(String exchange, String routingKey, Bas
 
 **将消息标记为持久化并不能完全保证不会丢失消息**。尽管它告诉RabbitMQ将消息保存到磁盘，但是这里依然存在当消息刚准备存储在磁盘的时候 但是还没有存储完，消息还在缓存的一个间隔点。此时并没有真正写入磁盘。持久性保证并不强，但是对于我们的简单任务队列而言，这已经绰绰有余了。如果需要更强有力的持久化策略，参考发布确认章节。
 
+### 发布确认
+
+RabbitMQ 发布确认是一种机制，用于确保消息在发送到消息队列后被**成功接收或落盘成功**。通过使用发布确认，生产者可以知道消息已经安全地传递给了RabbitMQ，并且可以继续发送下一个消息。这有助于提高消息传递的可靠性和稳定性。
+
+要保证消息不丢失必须满足下面三个条件：
+
+1. 队列持久化
+2. 消息持久化
+3. 发布确认
+
+生产者将信道设置成 confirm 模式，一旦信道进入 confirm 模式，所有在该信道上面发布的消息都将会被指派一个唯一的ID(从1开始)，一旦消息被投递到所有匹配的队列之后，broker就会发送一个确认给生产者(包含消息的唯一ID)，这就使得生产者知道消息已经正确到达目的队列了，如果消息和队列是可持久化的，那么确认消息会在将消息写入磁盘之后发出，broker回传给生产者的确认消息中delivery-tag域包含了确认消息的序列号，此外broker也可以设置basic.ack的multiple域，表示到这个序列号之前的所有消息都已经得到了处理。
+
+confirm模式最大的好处在于他是**异步**的，一旦发布一条消息，生产者应用程序就可以在等信道返回确认的同时继续发送下一条消息，当消息最终得到确认之后，生产者应用便可以通过回调方法来处理该确认消息，如果RabbitMQ因为自身内部错误导致消息丢失，就会发送一条nack消息，生产者应用程序同样可以在回调方法中处理该nack消息。
+
+发布确认默认是没有开启的，如果要开启需要调用方法confirmSelect，每当你要想使用发布确认，都需要在channel上调用该方法
+
+```java
+channel.confirmSelect();
+```
+
+`com.rabbitmq.client.Channel#confirmSelect` 是 RabbitMQ Java 客户端库中的一个方法。它的作用是将信道（channel）设置为确认模式（confirm mode）。
+
+在 RabbitMQ 中，确认模式用于确保消息在发布后是否成功到达消息代理（broker）。当信道设置为确认模式后，当消息成功到达消息代理时，消息代理会发送一个确认回执给发布者，表示消息已经安全地存储在消息代理中。如果消息在发送过程中发生错误，消息代理不会发送确认回执，此时发布者可以根据需要进行重试或其他处理。
+
+消息发送方示例
+
+```java
+ public static void main(String[] args) throws Exception {
+    try (Channel channel = RabbitMqUtils.getChannel()) {
+        channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+        channel.confirmSelect(); //设置为确认模式
+        //从控制台当中接受信息
+        Scanner scanner = new Scanner(System.in);
+        while (scanner.hasNext()) {
+            String message = scanner.next();
+            channel.basicPublish("", QUEUE_NAME, MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes());
+            System.out.println("发送消息完成:" + message);
+        }
+    }
+}
+```
+
+#### 同步确认发布
+
+`com.rabbitmq.client.Channel#waitForConfirms(long)` 是 RabbitMQ 客户端库中的一个方法。该方法是用于等待消息确认的。在使用 RabbitMQ 进行消息传递时，消息的可靠性是非常重要的。当消息发送到 RabbitMQ 服务器后，我们可以选择等待服务器确认消息是否已经成功接收和处理。
+
+该方法的参数是一个超时时间（以毫秒为单位），它表示在等待确认时最长等待的时间。如果在指定的时间内没有收到确认消息，该方法将返回一个布尔值，表示消息是否被确认。
+
+也就是发布一个消息之后只有它被确认发布，后续的消息才能继续发布,waitForConfirmsOrDie(long)这个方法只有在消息被确认的时候才返回，如果在指定时间范围内这个消息没有被确认那么它将抛出异常。
+
+这种确认方式有一个最大的缺点就是:发布速度特别的慢，因为如果没有确认发布的消息就会**阻塞所有后续消息的发布**，这种方式最多提供每秒不超过数百条发布消息的吞吐量。当然对于某些应用程序来说这可能已经足够了。
+
+消息发送方示例
+
+```java
+public static void main(String[] args) throws Exception {
+    try (Channel channel = RabbitMqUtils.getChannel()) {
+        channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+        channel.confirmSelect(); // 设置为确认模式
+        // 从控制台当中接受信息
+        Scanner scanner = new Scanner(System.in);
+        while (scanner.hasNext()) {
+            String message = scanner.next();
+            channel.basicPublish("", QUEUE_NAME, MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes());
+            // 服务端返回false或超时时间内未返回，生产者可以消息重发
+            boolean wait = channel.waitForConfirms(1000);
+            if (wait) {
+                System.out.println("消息发送成功");
+            }else {
+                // 消息重发操作
+            }
+            System.out.println("发送消息完成:" + message);
+        }
+    }
+}
+```
+
+批量同步确认
+
+`com.rabbitmq.client.Channel#waitForConfirms(long)` 方法会等待自上次调用**以来发布的所有消息**被代理服务器确认（ack）或未确认（nack）。也就是说，当你多次调用 `waitForConfirms(long)` 方法时，**它会等待自上次调用以来发布的所有消息被确认或未确认**。例如，假设你在代码中多次调用了 `waitForConfirms(long)` 方法，每次调用之间都有消息被发布。在这种情况下，每次调用 `waitForConfirms(long)` 方法时，它会等待自上次调用以来发布的所有新消息被确认或未确认。
+
+与单个等待确认消息相比，先发布一批消息然后一起确认可以极大地提高吞吐量，当然这种方式的缺点就是:当发生故障导致发布出现问题时，不知道是哪个消息出现问题了，我们必须将整个批处理保存在内存中，以记录重要的信息而后重新发布消息。当然这种方案仍然是同步的，也一样阻塞消息的发布。
+
+```java
+public static void publishMessageBatch() throws Exception {
+    try (Channel channel = RabbitMqUtils.getChannel()) {
+        channel.queueDeclare(QUEUE_NAME, false, false, false, null);
+        //开启发布确认
+        channel.confirmSelect();
+        //批量确认消息大小
+        int batchSize = 10;
+        //未确认消息个数
+        int outstandingMessageCount = 0;
+        long begin = System.currentTimeMillis();
+        for (int i = 1; i <= 10; i++) {
+            String message = i + "";
+            channel.basicPublish("", QUEUE_NAME, null, message.getBytes());
+            outstandingMessageCount++;
+            if (outstandingMessageCount == batchSize) {
+                channel.waitForConfirms();
+                outstandingMessageCount = 0;
+            }
+        }
+        long end = System.currentTimeMillis();
+        System.out.println("发布" + 10 + "个批量确认消息,耗时" + (end - begin) + "ms");
+    }
+}
+```
+
+#### RabbitMQ 异步确认发布
+
+异步确认发布的优点是可以提高系统的吞吐量和响应速度。发送者可以在消息发送后立即进行其他操作，而不需要等待确认信号的返回。这样可以减少发送者的等待时间，提高系统的并发处理能力。这个中间件是通过函数回调来保证是否投递成功的。
+
+`com.rabbitmq.client.Channel#addConfirmListener(com.rabbitmq.client.ConfirmCallback, com.rabbitmq.client.ConfirmCallback)` 是一个方法，用于在 RabbitMQ 客户端的通道上添加确认监听器。
+
+该方法有两个参数，都是 `ConfirmCallback` 类型的回调函数。第一个参数是用于处理成功确认的回调函数，第二个参数是用于处理失败确认的回调函数。
+
+当消息被 RabbitMQ 成功确认时，将会调用第一个回调函数。而当消息未能成功确认时，将会调用第二个回调函数。
+
+```java
+public static void publishMessageAsync() throws Exception {
+    try (Channel channel = RabbitMqUtils.getChannel()) {
+        channel.queueDeclare(QUEUE_NAME, true, false, false, null);
+        channel.confirmSelect(); // 设置为确认模式
+        // 从控制台当中接受信息
+        Scanner scanner = new Scanner(System.in);
+        // 添加异步确认监听器
+        channel.addConfirmListener((deliveryTag, multiple) -> {
+            // 成功确认回调
+            System.out.println(deliveryTag + "号消息确认收到");
+        }, (deliveryTag, multiple) -> {
+            // 失败回调
+            System.out.println(deliveryTag + "号消息失败");
+        });
+        while (scanner.hasNext()) {
+            String message = scanner.next();
+            channel.basicPublish("", QUEUE_NAME, MessageProperties.PERSISTENT_TEXT_PLAIN, message.getBytes());
+            // 服务端返回false或超时时间内未返回，生产者可以消息重发
+            System.out.println("发送消息完成:" + message);
+        }
+    }
+}
+```
+
+
 
 # 核心(六大模式)
 
@@ -541,18 +686,22 @@ public class Worker03 {
 
 ### 预取值
 
-本身消息的发送就是异步发送的，所以在任何时候，channel 上肯定不止只有一个消息,另外来自消费者的手动确认本质上也是异步的。因此这里就存在一个未确认的消息的缓冲区，因此希望开发人员能限制此缓冲区的大小，以避免缓冲区里面无限制的未确认消息问题。这个时候就可以通过使用basic.qos方法设置“预取计数”值来完成的。该值定义通道上允许的未确认消息的最大数量。一旦数量达到配置的数量，RabbitMQ将停止在通道上传递更多消息，除非至少有一个未处理的消息被确认，例如，假设在通道上有未确认的消息5、6、7，8，并且通道的预取计数设置为4，此时RabbitMQ将不会在该通道上再传递任何消息，除非至少有一个未应答的消息被ack。比方说tag=6这个消息刚刚被确认ACK，RabbitMQ将会感知这个情况到并再发送一条消息。消息应答和QoS预取值对用户吞吐量有重大影响。通常，增加预取将提高向消费者传递消息的速度。虽然自动应答传输消息速率是最佳的，但是，在这种情况下已传递但尚未处理的消息的数量也会增加，从而增加了消费者的RAM消耗(随机存取存储器)应该小心使用具有无限预处理的自动确认模式或手动确认模式，消费者消费了大量的消息如果没有确认的话，会导致消费者连接节点的内存消耗变大，所以找到合适的预取值是一个反复试验的过程，不同的负载该值取值也不同100到300范围内的值通常可提供最佳的吞吐量，并且不会给消费者带来太大的风险。预取值为1是最保守的。当然这将使吞吐量变得很低，特别是消费者连接延迟很严重的情况下，特别是在消费者连接等待时间较长的环境中。对于大多数应用来说，稍微高一点的值将是最佳的。
+RabbitMQ的预取值（Prefetch）是指在消费者从消息队列中获取消息时，**一次性获取的消息数量**。它可以控制消费者一次性处理的消息数量，以避免消费者负载过重或者**消息堆积过多**的情况。
 
-
-RabbitMQ的预取值（Prefetch）是指在消费者从消息队列中获取消息时，一次性获取的消息数量。它可以控制消费者一次性处理的消息数量，以避免消费者负载过重或者消息堆积过多的情况。
 预取值的设置可以通过以下两种方式之一来实现：
 
-1. Basic.Qos方法：消费者可以使用Basic.Qos方法来设置预取值。通过指定参数prefetch_count，可以告诉RabbitMQ每次发送给消费者的消息数量。例如，设置prefetch_count为10，表示每次发送给消费者10条消息。
+1. Basic.Qos方法：消费者可以使用Basic.Qos方法来设置预取值。通过指定参数`prefetch_count`，可以告诉RabbitMQ每次发送给消费者的消息数量。例如，设置`prefetch_count`为10，表示每次发送给消费者10条消息。
 2. Channel.BasicQos事件：消费者也可以通过订阅Channel.BasicQos事件来设置预取值。当消费者订阅了该事件后，可以在事件处理程序中设置预取值。
 
 预取值的设置可以根据实际需求进行调整。较大的预取值可以提高消费者的处理速度，但可能会导致消息堆积过多；较小的预取值可以减少消费者的负载，但可能会影响处理速度。因此，合理设置预取值是根据具体场景和需求来决定的。
 
+本身消息的发送就是异步发送的，所以在任何时候，channel 上肯定不止只有一个消息,另外来自消费者的手动确认本质上也是异步的。因此这里就存在一个未确认的消息的缓冲区，因此希望开发人员能限制此缓冲区的大小，以避免缓冲区里面无限制的未确认消息问题。这个时候就可以通过使用basic.qos方法设置“预取计数”值来完成的。该值定义通道上允许的未确认消息的最大数量。一旦数量达到配置的数量，RabbitMQ将停止在通道上传递更多消息，除非至少有一个未处理的消息被确认，例如，假设在通道上有未确认的消息5、6、7，8，并且通道的预取计数设置为4，此时RabbitMQ将不会在该通道上再传递任何消息，除非至少有一个未应答的消息被ack。比方说tag=6这个消息刚刚被确认ACK，RabbitMQ将会感知这个情况到并再发送一条消息。消息应答和QoS预取值对用户吞吐量有重大影响。通常，增加预取将提高向消费者传递消息的速度。虽然自动应答传输消息速率是最佳的，但是，在这种情况下已传递但尚未处理的消息的数量也会增加，从而增加了消费者的RAM消耗(随机存取存储器)应该小心使用具有无限预处理的自动确认模式或手动确认模式，消费者消费了大量的消息如果没有确认的话，会导致消费者连接节点的内存消耗变大，所以找到合适的预取值是一个反复试验的过程，不同的负载该值取值也不同100到300范围内的值通常可提供最佳的吞吐量，并且不会给消费者带来太大的风险。预取值为1是最保守的。当然这将使吞吐量变得很低，特别是消费者连接延迟很严重的情况下，特别是在消费者连接等待时间较长的环境中。对于大多数应用来说，稍微高一点的值将是最佳的。
+
 ## publish/subscribe (发布/订阅模式)
+
+
+
+
 ## routing (路由模式)
 ## topics (主题模式)
 ## publisher confirms (发布确认模式)
