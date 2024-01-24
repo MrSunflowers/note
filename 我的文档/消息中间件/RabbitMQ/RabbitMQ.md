@@ -1117,61 +1117,438 @@ public class ReceiveLogsTopic02 {
 }
 ```
 
-
-# 核心(六大模式)
-
-
-
-
-
-
-
-## routing (路由模式)
-## topics (主题模式)
-## publisher confirms (发布确认模式)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# 高级
 ## 死信队列
-## 延迟队列
+
+死信，顾名思义就是无法被消费的消息，字面意思可以这样理解，一般来说，producer将消息投递到broker或者直接到queue里了，consumer从queue取出消息进行消费，但某些时候由于特定的原因导致queue中的某些消息无法被消费，这样的消息如果没有后续的处理，就变成了死信。
+
+死信队列是一种用于处理消息的特殊队列。当消息在正常队列中无法被消费者成功处理时，这些消息会被发送到死信队列中。通常情况下，无法处理的消息可能是由于消费者无法处理该消息的内容或者处理过程中出现了错误。死信队列提供了一种机制，使得这些无法处理的消息可以被后续进行处理或者分析，以便进一步解决问题。通过使用死信队列，我们可以更好地管理和处理无法被正常消费的消息，提高系统的可靠性和稳定性。
+
+应用场景:为了保证订单业务的消息数据不丢失，需要使用到RabbitMQ的死信队列机制，当消息消费发生异常时，将消息投入死信队列中.还有比如说: 用户在商城下单成功并点击去支付后在指定时间未支付时自动失效
+
+死信的来源
+
+消息TTL过期
+队列达到最大长度(队列满了，无法再添加数据到mq中)
+消息被拒绝(basic.reject或basic.nack)并且requeue=false.
+
+![image-20240122173844037](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401221738864.png)
+
+### 消息TTL过期
+
+示例
+
+生产者
+
+```java
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import org.example.util.RabbitMqUtils;
+
+public class Producer {
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        try (Channel channel = RabbitMqUtils.getChannel()) {
+            channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT); //设置消息的TTL时间
+            AMQP.BasicProperties properties = new AMQP.BasicProperties().builder().expiration("10000").build();
+            //该信息是用作演示队列个数限制
+            for (int i = 1; i < 11; i++) {
+                String message = "info" + i;
+                channel.basicPublish(NORMAL_EXCHANGE, "zhangsan", properties, message.getBytes());
+                System.out.println("生产者发送消息:" + message);
+            }
+        }
+    }
+}
+```
+
+消费者C1代码(启动之后关闭该消费者 模拟其接收不到消息)
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class Consumer01 {
+    //普通交换机名称
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+    //死信交换机名称
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel();
+        //声明死信和普通交换机 类型为direct
+        channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT);
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT);
+        //声明死信队列
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null);
+        //死信队列绑定死信交换机与routingkey
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        //正常队列绑定死信队列信息
+        Map<String, Object> params = new HashMap<>();
+        //正常队列设置死信交换机 参数key是固定值
+        params.put("x-dead-letter-exchange", DEAD_EXCHANGE);
+        //正常队列设置死信routing-key 参数key是固定值
+        params.put("x-dead-letter-routing-key", "lisi");
+        String normalQueue = "normal-queue";
+        channel.queueDeclare(normalQueue, false, false, false, params);
+        channel.queueBind(normalQueue, NORMAL_EXCHANGE, "zhangsan");
+        System.out.println("等待接收消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println("Consumer01接收到消息" + message);
+        };
+        channel.basicConsume(normalQueue, true, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+![image-20240122174545579](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401221745696.png)
+
+消费者C2代码(以上步骤完成后 启动C2消费者 它消费死信队列里面的消息)
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+public class Consumer02 {
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel();
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT);
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null);
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        System.out.println("等待接收死信队列消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println("Consumer02接收死信队列的消息" + message);
+        };
+        channel.basicConsume(deadQueue, true, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+![image-20240122174628321](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401221746421.png)
+
+### 队列达到最大长度
+
+消息生产者代码去掉TTL属性
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import org.example.util.RabbitMqUtils;
+
+public class Producer {
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        try (Channel channel = RabbitMqUtils.getChannel()) {
+            channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT); //设置消息的TTL时间
+            //该信息是用作演示队列个数限制
+            for (int i = 1; i < 11; i++) {
+                String message = "info" + i;
+                channel.basicPublish(NORMAL_EXCHANGE, "zhangsan", null, message.getBytes());
+                System.out.println("生产者发送消息:" + message);
+            }
+        }
+    }
+}
+```
+
+C1消费者修改以下代码(启动之后关闭该消费者 模拟其接收不到消息)
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class Consumer01 {
+    //普通交换机名称
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+    //死信交换机名称
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel();
+        //声明死信和普通交换机 类型为direct
+        channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT);
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT);
+        //声明死信队列
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null);
+        //死信队列绑定死信交换机与routingkey
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        //正常队列绑定死信队列信息
+        Map<String, Object> params = new HashMap<>();
+        //正常队列设置死信交换机 参数key是固定值
+        params.put("x-dead-letter-exchange", DEAD_EXCHANGE);
+        //正常队列设置死信routing-key 参数key是固定值
+        params.put("x-dead-letter-routing-key", "lisi");
+        // 队列最长6
+        params.put("x-max-length", 6);
+        String normalQueue = "normal-queue";
+        channel.queueDeclare(normalQueue, false, false, false, params);
+        channel.queueBind(normalQueue, NORMAL_EXCHANGE, "zhangsan");
+        System.out.println("等待接收消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println("Consumer01接收到消息" + message);
+        };
+        channel.basicConsume(normalQueue, true, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+注意此时需要把原先队列删除 因为参数改变了
+
+C2消费者代码不变(启动C2消费者)
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+public class Consumer02 {
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel();
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT);
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null);
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        System.out.println("等待接收死信队列消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println("Consumer02接收死信队列的消息" + message);
+        };
+        channel.basicConsume(deadQueue, true, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+![image-20240123163254857](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401231633240.png)
+
+### 消息被拒
+
+消息生产者代码同上生产者一致
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import org.example.util.RabbitMqUtils;
+
+public class Producer {
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        try (Channel channel = RabbitMqUtils.getChannel()) {
+            channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT); //设置消息的TTL时间
+            //该信息是用作演示队列个数限制
+            for (int i = 1; i < 11; i++) {
+                String message = "info" + i;
+                channel.basicPublish(NORMAL_EXCHANGE, "zhangsan", null, message.getBytes());
+                System.out.println("生产者发送消息:" + message);
+            }
+        }
+    }
+}
+```
+
+C1消费者代码(启动之后关闭该消费者 模拟其接收不到消息)
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class Consumer01 { //普通交换机名称
+    private static final String NORMAL_EXCHANGE = "normal_exchange"; //死信交换机名称
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel(); //声明死信和普通交换机 类型为direct
+        channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT);
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT); //声明死信队列
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null); //死信队列绑定死信交换机与routingkey
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        //正常队列绑定死信队列信息
+        Map<String, Object> params = new HashMap<>();
+        //正常队列设置死信交换机 参数key是固定值
+        params.put("x-dead-letter-exchange", DEAD_EXCHANGE);
+        //正常队列设置死信routing-key 参数key是固定值
+        params.put("x-dead-letter-routing-key", "lisi");
+        String normalQueue = "normal-queue";
+        channel.queueDeclare(normalQueue, false, false, false, params);
+        channel.queueBind(normalQueue, NORMAL_EXCHANGE, "zhangsan");
+        System.out.println("等待接收消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            if (message.equals("info5")) {
+                System.out.println("Consumer01接收到消息" + message + "并拒绝签收该消息"); //requeue设置为false 代表拒绝重新入队 该队列如果配置了死信交换机将发送到死信队列中
+                channel.basicReject(delivery.getEnvelope().getDeliveryTag(), false);
+            } else {
+                System.out.println("Consumer01接收到消息" + message);
+                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+            }
+        };
+        boolean autoAck = false;
+        channel.basicConsume(normalQueue, autoAck, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+![image-20240124103340935](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401241033229.png)
+
+C2消费者代码不变
+
+```java
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import com.rabbitmq.client.DeliverCallback;
+import org.example.util.RabbitMqUtils;
+
+public class Consumer02 {
+    private static final String DEAD_EXCHANGE = "dead_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        Channel channel = RabbitMqUtils.getChannel();
+        channel.exchangeDeclare(DEAD_EXCHANGE, BuiltinExchangeType.DIRECT);
+        String deadQueue = "dead-queue";
+        channel.queueDeclare(deadQueue, false, false, false, null);
+        channel.queueBind(deadQueue, DEAD_EXCHANGE, "lisi");
+        System.out.println("等待接收死信队列消息.....");
+        DeliverCallback deliverCallback = (consumerTag, delivery) -> {
+            String message = new String(delivery.getBody(), "UTF-8");
+            System.out.println("Consumer02接收死信队列的消息" + message);
+        };
+        channel.basicConsume(deadQueue, true, deliverCallback, consumerTag -> {
+        });
+    }
+}
+```
+
+启动消费者1然后再启动消费者2
+
+![image-20240124103406140](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401241034231.png)
+
+## RabbitMQ 延迟队列
+
+延时队列,队列内部是有序的，最重要的特性就体现在它的延时属性上，延时队列中的元素是希望在指定时间到了以后或之前取出和处理，简单来说，延时队列就是用来存放需要在指定时间被处理的元素的队列。当我们需要在一段时间后才将消息发送到消费者时，可以使用延迟队列。延迟队列通过在消息发送时设置一个延迟时间来实现。当消息进入延迟队列后，它将在指定的延迟时间后才会被投递给消费者。这种机制对于一些需要延迟处理的业务场景非常有用，比如定时任务、消息重试等。通过使用RabbitMQ延迟队列，我们可以更好地控制消息的投递时间，提高系统的灵活性和可靠性。
+
+### 使用场景
+
+1. 订单在十分钟之内未支付则自动取消
+2. 新创建的店铺，如果在十天内都没有上传过商品，则自动发送消息提醒。
+3. 用户注册成功后，如果三天内没有登陆则进行短信提醒。
+4. 用户发起退款，如果三天内没有得到处理则通知相关运营人员。
+5. 预定会议后，需要在预定的时间点前十分钟通知各个与会人员参加会议
+
+这些场景都有一个特点，需要在某个事件发生之后或者之前的指定时间点完成某一项任务，如：发生订单生成事件，在十分钟之后检查该订单支付状态，然后将未支付的订单进行关闭；看起来似乎使用定时任务，一直轮询数据，每秒查一次，取出需要被处理的数据，然后处理不就完事了吗？如果数据量比较少，确实可以这样做，比如：对于“如果账单一周内未支付则进行自动结算”这样的需求，如果对于时间不是严格限制，而是宽松意义上的一周，那么每天晚上跑个定时任务检查一下所有未支付的账单，确实也是一个可行的方案。但对于数据量比较大，并且时效性较强的场景，如：“订单十分钟内未支付则关闭“，短期内未支付的订单数据可能会有很多，活动期间甚至会达到百万甚至千万级别，对这么庞大的数据量仍旧使用轮询的方式显然是不可取的，很可能在一秒内无法完成所有订单的检查，同时会给数据库带来很大压力，无法满足业务要求而且性能低下。
+
+![image-20240124110836594](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401241108720.png)
+
+### RabbitMQ 中的 TTL
+
+RabbitMQ中的TTL代表 "Time To Live"，即生存时间。它是用来控制消息在队列中存活的时间的机制。当一个消息被发送到队列中时，可以为该消息设置一个TTL值。如果消息在指定的时间内没有被消费者消费，那么该消息将会被自动删除。
+
+TTL可以应用于两个级别：队列级别和消息级别。在队列级别，可以设置整个队列的TTL，这意味着队列中的所有消息都将遵循相同的TTL规则。在消息级别，可以为每条消息单独设置TTL，这样每条消息可以有不同的存活时间。
+
+使用TTL机制可以帮助控制消息在队列中的存活时间，避免过期消息的堆积。例如，如果某些消息有时效性要求，可以设置它们的TTL为一定的时间，超过这个时间后，这些消息将被自动删除，从而避免消费者处理过期的消息。
+
+单位是毫秒。换句话说，如果一条消息设置了TTL属性或者进入了设置TTL属性的队列，那么这条消息如果在TTL设置的时间内没有被消费，则会成为"死信"。如果同时配置了队列的TTL和消息的TTL，那么较小的那个值将会被使用，有两种方式设置TTL。
+
+### 消息设置TTL
+
+`com.rabbitmq.client.AMQP.BasicProperties.Builder#expiration` 是一个方法或属性，它属于 RabbitMQ 客户端库中的 `AMQP.BasicProperties.Builder` 类。这个方法或属性用于设置消息的过期时间。
+
+过期时间是指消息在被发送到消息队列后，如果在一定时间内没有被消费者消费，就会被自动删除。通过设置过期时间，可以控制消息在队列中的存活时间，避免消息长时间滞留。
+
+使用 `AMQP.BasicProperties.Builder#expiration` 方法或属性，可以将过期时间以毫秒为单位设置给消息。当消息在队列中存活的时间达到过期时间时，消息将被队列自动删除。
+
+示例
+
+```java
+import com.rabbitmq.client.AMQP;
+import com.rabbitmq.client.BuiltinExchangeType;
+import com.rabbitmq.client.Channel;
+import org.example.util.RabbitMqUtils;
+
+public class Producer {
+    private static final String NORMAL_EXCHANGE = "normal_exchange";
+
+    public static void main(String[] argv) throws Exception {
+        try (Channel channel = RabbitMqUtils.getChannel()) {
+            channel.exchangeDeclare(NORMAL_EXCHANGE, BuiltinExchangeType.DIRECT); 
+            //设置消息的TTL时间
+            AMQP.BasicProperties properties = new AMQP.BasicProperties().builder().expiration("10000").build();
+            //该信息是用作演示队列个数限制
+            for (int i = 1; i < 11; i++) {
+                String message = "info" + i;
+                channel.basicPublish(NORMAL_EXCHANGE, "zhangsan", properties, message.getBytes());
+                System.out.println("生产者发送消息:" + message);
+            }
+        }
+    }
+}
+```
+
+### 队列设置TTL
+
+```java
+Map<String, Object> params = new HashMap<>();
+params.put("x-message-ttl", 5000);
+String normalQueue = "normal-queue";
+channel.queueDeclare(normalQueue, false, false, false, params);
+```
+
+### 两者的区别
+
+如果设置了队列的TTL属性，那么一旦消息过期，就会被队列丢弃(如果配置了死信队列被丢到死信队列中)，而第二种方式，消息即使过期，也不一定会被马上丢弃，因为消息是否过期是在即将投递到消费者之前判定的，如果当前队列有严重的消息积压情况，则已过期的消息也许还能存活较长时间；另外，还需要注意的一点是，如果不设置TTL，表示消息永远不会过期，如果将TTL设置为0，则表示除非此时可以直接投递该消息到消费者，否则该消息将会被丢弃。
+
+前一小节我们介绍了死信队列，刚刚又介绍了TTL，至此利用RabbitMQ实现延时队列的两大要素已经集齐，接下来只需要将它们进行融合，再加入一点点调味料，延时队列就可以新鲜出炉了。想想看，延时队列，不就是想要消息延迟多久被处理吗，TTL则刚好能让消息在延迟多久之后成为死信，另一方面，成为死信的消息都会被投递到死信队列里，这样只需要消费者一直消费死信队列里的消息就完事了，因为里面的消息都是希望被立即处理的消息。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## 发布确认
 ## 幂等性
 ## 优先级队列
