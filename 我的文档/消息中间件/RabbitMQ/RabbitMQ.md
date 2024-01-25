@@ -1534,9 +1534,11 @@ channel.queueDeclare(normalQueue, false, false, false, params);
 
 前一小节我们介绍了死信队列，刚刚又介绍了TTL，至此利用RabbitMQ实现延时队列的两大要素已经集齐，接下来只需要将它们进行融合，再加入一点点调味料，延时队列就可以新鲜出炉了。想想看，延时队列，不就是想要消息延迟多久被处理吗，TTL则刚好能让消息在延迟多久之后成为死信，另一方面，成为死信的消息都会被投递到死信队列里，这样只需要消费者一直消费死信队列里的消息就完事了，因为里面的消息都是希望被立即处理的消息。
 
+### 延迟队列示例
 
+创建两个队列QA和QB，两者队列TTL分别设置为10S和40S，然后在创建一个交换机X和死信交换机Y，它们的类型都是direct，创建一个死信队列QD，它们的绑定关系如下：
 
-
+![image-20240125162850798](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401251628108.png)
 
 
 
@@ -1561,6 +1563,744 @@ channel.queueDeclare(normalQueue, false, false, false, params);
 ## federation exchange
 ## federation queue
 ## shovel
+
+# 整合 spring
+
+依赖pom
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-context</artifactId>
+        <version>5.2.3.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-beans</artifactId>
+        <version>5.2.3.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.amqp</groupId>
+        <artifactId>spring-rabbit</artifactId>
+        <version>2.1.8.RELEASE</version>
+    </dependency>
+    <dependency>
+        <groupId>junit</groupId>
+        <artifactId>junit</artifactId>
+        <version>4.12</version>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework</groupId>
+        <artifactId>spring-test</artifactId>
+        <version>5.1.7.RELEASE</version>
+    </dependency>
+</dependencies>
+```
+
+rabbitmq.properties
+
+```properties
+#IP
+rabbitmq.host=127.0.0.1
+#端口
+rabbitmq.port=5672
+#用户名
+rabbitmq.username=guest
+#密码
+rabbitmq.password=guest
+#虚拟机名称
+rabbitmq.virtual-host= /
+```
+
+下面分别以生产者和消费者演示
+
+## 简单模式
+
+生产者 Producer
+
+producer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--设置读取连接RabbitMQ服务器的配置信息-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 创建rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+    <rabbit:admin connection-factory="connectionFactory"/>
+
+
+    <!--注入rabbitTemplate后续获取该对象发送消息-->
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"/>
+
+    <!--创建队列-->
+    <rabbit:queue id="springQueue1" name="springQueue1" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+
+</beans>
+```
+
+```
+<rabbit:queue id="" name="" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+id                      表示bean的名称
+name                表示队列的名称
+auto-declare     表示如果当服务器没有该队列时是否创建
+durable             表示是否持久化到内存
+```
+
+ProducerMain
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ProducerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("producer.xml");
+        RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate.class);
+        // 发送消息 通过convertAndSend方法发送消息，由于我们使用的是简单模式，所以此处路由为队列名
+        rabbitTemplate.convertAndSend("springQueue1","测试消息");
+    }
+}
+```
+
+消费者 Consumer
+
+首先我们需要创建一个类实现MessageListener接口实现onMessage方法
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue1Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println(new String(message.getBody()));
+    }
+}
+```
+
+然后创建的xml文件里我们创建队列监听器容器来将不同队列的消息映射到不同的类
+
+consumer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 定义rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+
+    <bean class="org.example.SpringQueue1Listener" id="queue1Listener" />
+    <rabbit:listener-container connection-factory="connectionFactory" auto-declare="true">
+        <rabbit:listener ref="queue1Listener" queue-names="springQueue1"  ></rabbit:listener>
+    </rabbit:listener-container>
+
+</beans>
+```
+
+在xml里此时我们可以通过标签创建监听器
+
+```
+<rabbit:listener-container connection-factory="connectionFactory" auto-declare="true">
+    <rabbit:listener ref="testQueueListener" queue-names="test"></rabbit:listener>
+    <rabbit:listener ref="" queue-names=""></rabbit:listener>
+    ………………
+</rabbit:listener-container>
+ref                     表示之前我们定义实现了MessageListener接口的监听类在spring容器里的id
+
+queues-names  表示该类要监听的队列
+```
+
+后续需要再进行添加，在该标签下可继续进行添加 
+
+在之前创建的类重写的方法里参数message.getBody()即可获得队列里消息
+
+ConsumerMain
+
+```java
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ConsumerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("consumer.xml");
+        System.out.println(context.getBean("queue1Listener"));
+    }
+}
+```
+
+## pub/sub订阅模式
+
+订阅模式需要使用到fanout类型的交换机，并且将队列与之绑定，他的生产者在xml文件里需要去创建两个队列与fanout类型的交换机并绑定，在发送消息时指定交换机名称即可，而消费者则与前者相同，只是需要修改指定监听的队列名
+
+生产者 Producer
+
+producer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--设置读取连接RabbitMQ服务器的配置信息-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 创建rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+    <rabbit:admin connection-factory="connectionFactory"/>
+
+
+    <!--注入rabbitTemplate后续获取该对象发送消息-->
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"/>
+
+    <!--创建 fanout 类型交换机-->
+    <rabbit:fanout-exchange id="springFanoutExchange" name="springFanoutExchange" auto-declare="true" auto-delete="false" durable="true">
+        <!--绑定队列-->
+        <rabbit:bindings>
+            <rabbit:binding queue="springQueue1"></rabbit:binding>
+            <rabbit:binding queue="springQueue2"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+    <!--创建队列-->
+    <rabbit:queue id="springQueue1" name="springQueue1" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+    <rabbit:queue id="springQueue2" name="springQueue2" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+
+    <!--
+    此处由于创建的交换机类型是fanout广播类型不需要去配置路由，
+    如果创建的direct交换机不止需要配置队列名属性，
+    还需要配置路由属性，如果是topic交换机则需要配置通配符
+    广播类型
+    <rabbit:fanout-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+    直连类型
+    <rabbit:direct-exchange id="" name="" durable="true" auto-delete="false" auto-declare="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" key="路由"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:direct-exchange>
+
+    主题类型
+    <rabbit:topic-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" pattern="*.error"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+    -->
+
+</beans>
+```
+
+```
+<rabbit:fanout-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+    <rabbit:bindings>
+        <rabbit:binding queue="test"></rabbit:binding>
+    </rabbit:bindings>
+</rabbit:fanout-exchange>
+queue    表示绑定的队列名成
+```
+
+ProducerMain
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ProducerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("producer.xml");
+        RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate.class);
+        // 发送消息 此时我们只需要在发送消息时指定交换机即可
+        rabbitTemplate.convertAndSend("springFanoutExchange","","测试消息");
+    }
+}
+```
+
+消费者 Consumer
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue1Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue1Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue2Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue2Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+然后创建的xml文件里我们创建队列监听器容器来将不同队列的消息映射到不同的类
+
+consumer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 定义rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+
+    <bean class="org.example.SpringQueue1Listener" id="queue1Listener" />
+    <bean class="org.example.SpringQueue2Listener" id="queue2Listener" />
+    <rabbit:listener-container connection-factory="connectionFactory" auto-declare="true">
+        <rabbit:listener ref="queue1Listener" queue-names="springQueue1"  ></rabbit:listener>
+        <rabbit:listener ref="queue2Listener" queue-names="springQueue2"  ></rabbit:listener>
+    </rabbit:listener-container>
+
+</beans>
+```
+
+消费者与前面消费者创建相同，只需修改对应的监听队列名即可
+
+ConsumerMain
+
+```java
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+import java.util.Objects;
+
+public class ConsumerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("consumer.xml");
+        Objects.requireNonNull(context.getBean("queue1Listener"));
+        Objects.requireNonNull(context.getBean("queue2Listener"));
+    }
+}
+```
+
+## routing 路由模式
+
+路由模式与订阅模式相同都需要创建交换机，路由模式需要创建direct类型交换机，且在绑定队列时需要指定该队列的路由key
+
+生产者 Producer
+
+producer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--设置读取连接RabbitMQ服务器的配置信息-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 创建rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+    <rabbit:admin connection-factory="connectionFactory"/>
+
+
+    <!--注入rabbitTemplate后续获取该对象发送消息-->
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"/>
+
+    <!--创建 direct 类型交换机-->
+    <rabbit:direct-exchange id="springDirectExchange" name="springDirectExchange" auto-declare="true" auto-delete="false" durable="true">
+        <!--绑定队列-->
+        <rabbit:bindings>
+            <rabbit:binding queue="springQueue1" key="springQueue1"></rabbit:binding>
+            <rabbit:binding queue="springQueue2" key="springQueue2"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:direct-exchange>
+
+    <!--创建队列-->
+    <rabbit:queue id="springQueue1" name="springQueue1" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+    <rabbit:queue id="springQueue2" name="springQueue2" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+
+    <!--
+    此处由于创建的交换机类型是fanout广播类型不需要去配置路由，
+    如果创建的direct交换机不止需要配置队列名属性，
+    还需要配置路由属性，如果是topic交换机则需要配置通配符
+    广播类型
+    <rabbit:fanout-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+    直连类型
+    <rabbit:direct-exchange id="" name="" durable="true" auto-delete="false" auto-declare="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" key="路由"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:direct-exchange>
+
+    主题类型
+    <rabbit:topic-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" pattern="*.error"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+    -->
+
+</beans>
+```
+
+ProducerMain
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ProducerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("producer.xml");
+        RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate.class);
+        // 发送消息 发送消息时需要指定交换机以及路由
+        rabbitTemplate.convertAndSend("springDirectExchange","springQueue1","测试消息");
+    }
+}
+```
+
+消费者 Consumer
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue1Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue1Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue2Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue2Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+然后创建的xml文件里我们创建队列监听器容器来将不同队列的消息映射到不同的类
+
+consumer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 定义rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+
+    <bean class="org.example.SpringQueue1Listener" id="queue1Listener" />
+    <bean class="org.example.SpringQueue2Listener" id="queue2Listener" />
+    <rabbit:listener-container connection-factory="connectionFactory" auto-declare="true">
+        <rabbit:listener ref="queue1Listener" queue-names="springQueue1"  ></rabbit:listener>
+        <rabbit:listener ref="queue2Listener" queue-names="springQueue2"  ></rabbit:listener>
+    </rabbit:listener-container>
+
+</beans>
+```
+
+消费者与前面消费者创建相同，只需修改对应的监听队列名即可
+
+ConsumerMain
+
+```java
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+import java.util.Objects;
+
+public class ConsumerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("consumer.xml");
+        Objects.requireNonNull(context.getBean("queue1Listener"));
+        Objects.requireNonNull(context.getBean("queue2Listener"));
+    }
+}
+```
+
+## topics通配符模式
+
+整体代码与路由模式类似，他需要创建topic类型交换机且配置通配符规则
+
+生产者 Producer
+
+producer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--设置读取连接RabbitMQ服务器的配置信息-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 创建rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+    <rabbit:admin connection-factory="connectionFactory"/>
+
+
+    <!--注入rabbitTemplate后续获取该对象发送消息-->
+    <rabbit:template id="rabbitTemplate" connection-factory="connectionFactory"/>
+
+    <!--创建 topic 类型交换机-->
+    <rabbit:topic-exchange id="springTopicExchange" name="springTopicExchange" auto-declare="true" auto-delete="false" durable="true">
+        <!--绑定队列-->
+        <rabbit:bindings>
+            <rabbit:binding queue="springQueue1" pattern="*.orange.*"></rabbit:binding>
+            <rabbit:binding queue="springQueue2" pattern="lazy.#"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+
+    <!--创建队列-->
+    <rabbit:queue id="springQueue1" name="springQueue1" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+    <rabbit:queue id="springQueue2" name="springQueue2" auto-declare="true" auto-delete="false" durable="true"></rabbit:queue>
+
+    <!--
+    此处由于创建的交换机类型是fanout广播类型不需要去配置路由，
+    如果创建的direct交换机不止需要配置队列名属性，
+    还需要配置路由属性，如果是topic交换机则需要配置通配符
+    广播类型
+    <rabbit:fanout-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:fanout-exchange>
+
+    直连类型
+    <rabbit:direct-exchange id="" name="" durable="true" auto-delete="false" auto-declare="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" key="路由"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:direct-exchange>
+
+    主题类型
+    <rabbit:topic-exchange id="" name="" auto-declare="true" auto-delete="false" durable="true">
+        <rabbit:bindings>
+            <rabbit:binding queue="test" pattern="*.error"></rabbit:binding>
+        </rabbit:bindings>
+    </rabbit:topic-exchange>
+    -->
+
+</beans>
+```
+
+ProducerMain
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+public class ProducerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("producer.xml");
+        RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate.class);
+        // 发送消息 发送消息时需要填写匹配路由
+        rabbitTemplate.convertAndSend("springTopicExchange","quick.orange.fox","测试消息quick.orange.fox");
+        rabbitTemplate.convertAndSend("springTopicExchange","lazy.brown.fox","测试消息lazy.brown.fox");
+    }
+}
+```
+
+消费者 Consumer
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue1Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue1Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+```java
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageListener;
+
+
+public class SpringQueue2Listener implements MessageListener {
+    @Override
+    public void onMessage(Message message) {
+        System.out.println("SpringQueue2Listener : " + new String(message.getBody()));
+    }
+}
+```
+
+然后创建的xml文件里我们创建队列监听器容器来将不同队列的消息映射到不同的类
+
+consumer.xml
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xmlns:context="http://www.springframework.org/schema/context"
+       xmlns:rabbit="http://www.springframework.org/schema/rabbit"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+       http://www.springframework.org/schema/beans/spring-beans.xsd
+       http://www.springframework.org/schema/context
+       https://www.springframework.org/schema/context/spring-context.xsd
+       http://www.springframework.org/schema/rabbit
+       http://www.springframework.org/schema/rabbit/spring-rabbit.xsd">
+    <!--加载配置文件-->
+    <context:property-placeholder location="classpath:rabbitmq.properties"/>
+
+    <!-- 定义rabbitmq connectionFactory -->
+    <rabbit:connection-factory id="connectionFactory" host="${rabbitmq.host}"
+                               port="${rabbitmq.port}"
+                               username="${rabbitmq.username}"
+                               password="${rabbitmq.password}"
+                               virtual-host="${rabbitmq.virtual-host}"/>
+
+    <bean class="org.example.SpringQueue1Listener" id="queue1Listener" />
+    <bean class="org.example.SpringQueue2Listener" id="queue2Listener" />
+    <rabbit:listener-container connection-factory="connectionFactory" auto-declare="true">
+        <rabbit:listener ref="queue1Listener" queue-names="springQueue1"  ></rabbit:listener>
+        <rabbit:listener ref="queue2Listener" queue-names="springQueue2"  ></rabbit:listener>
+    </rabbit:listener-container>
+
+</beans>
+```
+
+消费者与前面消费者创建相同，只需修改对应的监听队列名即可
+
+ConsumerMain
+
+```java
+import org.springframework.context.support.ClassPathXmlApplicationContext;
+
+import java.util.Objects;
+
+public class ConsumerMain {
+    public static void main(String[] args) {
+        ClassPathXmlApplicationContext context = new ClassPathXmlApplicationContext("consumer.xml");
+        Objects.requireNonNull(context.getBean("queue1Listener"));
+        Objects.requireNonNull(context.getBean("queue2Listener"));
+    }
+}
+```
+
+# 整合 springboot
+
+[文档](https://docs.spring.io/spring-boot/docs/current/reference/html/messaging.html#messaging.amqp)
+
+
+
+
 
 # 安装
 
