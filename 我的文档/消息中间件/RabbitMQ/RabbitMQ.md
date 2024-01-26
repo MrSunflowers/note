@@ -551,7 +551,7 @@ com.rabbitmq.client.Channel#basicPublish(String exchange, String routingKey, Bas
 
 **将消息标记为持久化并不能完全保证不会丢失消息**。尽管它告诉RabbitMQ将消息保存到磁盘，但是这里依然存在当消息刚准备存储在磁盘的时候 但是还没有存储完，消息还在缓存的一个间隔点。此时并没有真正写入磁盘。持久性保证并不强，但是对于我们的简单任务队列而言，这已经绰绰有余了。如果需要更强有力的持久化策略，参考发布确认章节。
 
-### 发布确认
+## 发布确认
 
 RabbitMQ 发布确认是一种机制，用于确保消息在发送到消息队列后被**成功接收或落盘成功**。通过使用发布确认，生产者可以知道消息已经安全地传递给了RabbitMQ，并且可以继续发送下一个消息。这有助于提高消息传递的可靠性和稳定性。
 
@@ -593,7 +593,7 @@ channel.confirmSelect();
 }
 ```
 
-#### 同步确认发布
+### 同步确认发布
 
 `com.rabbitmq.client.Channel#waitForConfirms(long)` 是 RabbitMQ 客户端库中的一个方法。该方法是用于等待消息确认的。在使用 RabbitMQ 进行消息传递时，消息的可靠性是非常重要的。当消息发送到 RabbitMQ 服务器后，我们可以选择等待服务器确认消息是否已经成功接收和处理。
 
@@ -660,7 +660,7 @@ public static void publishMessageBatch() throws Exception {
 }
 ```
 
-#### RabbitMQ 异步确认发布
+### RabbitMQ 异步确认发布
 
 异步确认发布的优点是可以提高系统的吞吐量和响应速度。发送者可以在消息发送后立即进行其他操作，而不需要等待确认信号的返回。这样可以减少发送者的等待时间，提高系统的并发处理能力。这个中间件是通过函数回调来保证是否投递成功的。
 
@@ -698,6 +698,49 @@ public static void publishMessageAsync() throws Exception {
     }
 }
 ```
+
+### 发布确认高级
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## 交换机
 
@@ -767,7 +810,7 @@ H[路由路径2]-->K[队列4]-->M[消费者4]
 
 这样既可灵活实现对不同队列的不同处理方式
 
-## publish/subscribe (发布/订阅模式)
+### publish/subscribe (发布/订阅模式)
 
 ```mermaid
 graph LR
@@ -872,7 +915,7 @@ public class EmitLog {
 }
 ```
 
-## Direct exchange(路由模式)
+### Direct exchange(路由模式)
 
 在上一节中，我们构建了一个简单的日志记录系统。我们能够向许多接收者广播日志消息。在本节我们将向其中添加一些特别的功能-比方说我们只让某个消费者订阅发布的部分消息。例如我们只把严重错误消息定向存储到日志文件(以节省磁盘空间)，同时仍然能够在控制台上打印所有日志消息。
 
@@ -987,7 +1030,7 @@ public class EmitLogDirect {
 }
 ```
 
-## Topics(主题模式)
+### Topics(主题模式)
 
 在上一个小节中，我们改进了日志记录系统。我们没有使用只能进行随意广播的fanout交换机，而是使用了direct交换机，从而有能实现有选择性地接收日志。
 
@@ -1540,6 +1583,369 @@ channel.queueDeclare(normalQueue, false, false, false, params);
 
 ![image-20240125162850798](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401251628108.png)
 
+队列配置
+
+```java
+import org.springframework.amqp.core.*;
+import org.springframework.amqp.rabbit.annotation.EnableRabbit;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@EnableRabbit
+public class MyRabbitMQCong {
+
+
+    /**
+     * 声明直连交换机 xExchange
+     */
+    @Bean("xExchange")
+    public DirectExchange xExchange() {
+        return new DirectExchange("X");
+    }
+
+    /**
+     * 声明死信直连交换机 yExchange
+     */
+    @Bean("yExchange")
+    public DirectExchange yExchange() {
+        return new DirectExchange("Y");
+    }
+
+
+    /**
+     * 创建一个持久化队列 QA 绑定 死信交换机 Y TTL 设置为 10S
+     */
+    @Bean("queueA")
+    public Queue queueA() {
+        return QueueBuilder.durable("QA").deadLetterExchange("Y").deadLetterRoutingKey("YD").ttl(10000).build();
+    }
+
+    /**
+     * 创建一个持久化队列 QB 绑定 死信交换机 Y TTL 设置为 40S
+     */
+    @Bean("queueB")
+    public Queue queueB() {
+        return QueueBuilder.durable("QB").deadLetterExchange("Y").deadLetterRoutingKey("YD").ttl(40000).build();
+    }
+
+
+    /**
+     * 创建一个持久化队列 QD 存放死信
+     */
+    @Bean("queueD")
+    public Queue queueD() {
+        return QueueBuilder.durable("QD").build();
+    }
+
+    /**
+     * 声明队列A绑定X交换机
+     */
+    @Bean
+    public Binding queueaBindingX(@Qualifier("queueA") Queue queueA, @Qualifier("xExchange") DirectExchange xExchange) {
+        return BindingBuilder.bind(queueA).to(xExchange).with("XA");
+    }
+
+    /**
+     * 声明队列B绑定X交换机
+     */
+    @Bean
+    public Binding queuebBindingX(@Qualifier("queueB") Queue queueB, @Qualifier("xExchange") DirectExchange xExchange) {
+        return BindingBuilder.bind(queueB).to(xExchange).with("XB");
+    }
+
+    /**
+     * 声明死信队列 QD 绑定关系
+     */
+    @Bean
+    public Binding queueDBindingD(@Qualifier("queueD") Queue queueD, @Qualifier("yExchange") DirectExchange yExchange) {
+        return BindingBuilder.bind(queueD).to(yExchange).with("YD");
+    }
+
+
+}
+```
+
+发送消息
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class SendMsgController {
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @GetMapping("sendMsg/{message}")
+    public String t1(@PathVariable String message) {
+        rabbitTemplate.convertAndSend("X", "XA", "10s " + message);
+        rabbitTemplate.convertAndSend("X", "XB", "40s " + message);
+        return "ok";
+    }
+}
+```
+
+监听消息
+
+```java
+import com.rabbitmq.client.Channel;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+import java.util.Date;
+
+@Component
+public class DeadLetterQueueConsumer {
+    @RabbitListener(queues = "QD")
+    public void receiveD(Message message, Channel channel) throws IOException {
+        String msg = new String(message.getBody());
+        System.out.println("当前时间：" + new Date().toLocaleString() + ",收到死信队列信息" + msg);
+    }
+}
+```
+
+发送请求
+
+`GET http://localhost:8080/sendMsg/test`
+
+第一条消息在10S后变成了死信消息，然后被消费者消费掉，第二条消息在40S之后变成了死信消息，然后被消费掉，这样一个延时队列就打造完成了。
+
+不过，如果这样使用的话，岂不是每增加一个新的时间需求，就要新增一个队列，这里只有10S和40S两个时间选项，如果需要一个小时后处理，那么就需要增加TTL为一个小时的队列，如果是预定会议室然后提前通知这样的场景，岂不是要增加无数个队列才能满足需求？
+
+新增一个队列QC,绑定关系如下,该队列不设置TTL时间
+
+![image-20240126152333549](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401261523952.png)
+
+```java
+/**
+ * 创建一个持久化队列 QC 绑定 死信交换机 Y 不设置 TTL
+ */
+@Bean("queueC")
+public Queue queueC() {
+    return QueueBuilder.durable("QC").deadLetterExchange("Y").deadLetterRoutingKey("YD").build();
+}
+/**
+ * 声明死信队列 QD 绑定关系
+ */
+@Bean
+public Binding queueCBindingX(@Qualifier("queueC") Queue queueC, @Qualifier("xExchange") DirectExchange xExchange) {
+    return BindingBuilder.bind(queueC).to(xExchange).with("XC");
+}
+```
+
+发送消息时指定过期时间
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+public class SendMsgController {
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @GetMapping("sendMsg/{message}")
+    public String t1(@PathVariable String message) {
+        rabbitTemplate.convertAndSend("X", "XA", "10s " + message);
+        rabbitTemplate.convertAndSend("X", "XB", "40s " + message);
+        // 发送消息时指定过期时间
+        rabbitTemplate.convertAndSend("X", "XC", "2s " + message, correlationData -> {
+            // 指定过期时间为 2s
+            correlationData.getMessageProperties().setExpiration("2000");
+            return correlationData;
+        });
+        return "ok";
+    }
+}
+```
+
+```
+当前时间：2024-1-26 15:36:09,收到死信队列信息2s test
+当前时间：2024-1-26 15:36:17,收到死信队列信息10s test
+当前时间：2024-1-26 15:36:47,收到死信队列信息40s test
+```
+
+### 延时队列延时失效问题
+
+看起来似乎没什么问题，但是在最开始的时候，就介绍过如果使用在消息属性上设置TTL的方式，消息可能并不会按时“死亡“，因为RabbitMQ只会检查第一个消息是否过期，如果过期则丢到死信队列，如果第一个消息的延时时长很长，而第二个消息的延时时长很短，第二个消息并不会优先得到执行。
+
+```java
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Date;
+
+@RestController
+public class SendMsgController {
+
+    @Autowired
+    private RabbitTemplate rabbitTemplate;
+
+    @GetMapping("sendMsg/{message}/{ttlTime}")
+    public String t1(@PathVariable String message, @PathVariable String ttlTime) {
+        // rabbitTemplate.convertAndSend("X", "XA", "10s " + message);
+        // rabbitTemplate.convertAndSend("X", "XB", "40s " + message);
+        // 发送消息时指定过期时间
+        System.out.println("当前时间：" + new Date().toLocaleString() + ",发送消息" + message + ",过期时间" + ttlTime);
+        rabbitTemplate.convertAndSend("X", "XC", "ttlTime " + ttlTime + " : " + message, correlationData -> {
+            // 指定过期时间为 ttlTime
+            correlationData.getMessageProperties().setExpiration(ttlTime);
+            return correlationData;
+        });
+        return "ok";
+    }
+}
+```
+
+结果
+
+```
+当前时间：2024-1-26 15:43:41,发送消息test,过期时间20000
+当前时间：2024-1-26 15:43:45,发送消息test,过期时间2000
+当前时间：2024-1-26 15:44:01,收到死信队列信息ttlTime 20000 : test
+当前时间：2024-1-26 15:44:01,收到死信队列信息ttlTime 2000 : test
+```
+
+上文中提到的问题，确实是一个问题，如果不能实现在消息粒度上的TTL，并使其在设置的TTL时间及时死亡，就无法设计成一个通用的延时队列。那如何解决呢，接下来我们就去解决该问题。
+
+### 安装延时队列插件
+
+[下载地址](https://www.rabbitmq.com/community-plugins.html)
+
+[github](https://github.com/rabbitmq/rabbitmq-delayed-message-exchange)
+
+[v3.12.0](https://github.com/rabbitmq/rabbitmq-delayed-message-exchange/releases)
+
+将下载的 rabbitmq_delayed_message_exchange-3.12.0.ez 放在 plugins 目录
+
+启用插件
+
+```bat
+rabbitmq-plugins.bat enable rabbitmq_delayed_message_exchange
+```
+
+```
+Enabling plugins on node rabbit@DESKTOP-8N02R1N:
+rabbitmq_delayed_message_exchange
+The following plugins have been configured:
+  rabbitmq_delayed_message_exchange
+  rabbitmq_management
+  rabbitmq_management_agent
+  rabbitmq_web_dispatch
+Applying plugin configuration to rabbit@DESKTOP-8N02R1N...
+The following plugins have been enabled:
+  rabbitmq_delayed_message_exchange
+
+set 4 plugins.
+Offline change; changes will take effect at broker restart.
+```
+
+重启应用
+
+![image-20240126165450602](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401261654818.png)
+
+### 问题解决
+
+新增一个队列delayed.queue,一个自定义交换机delayed.exchange，绑定关系如下:
+
+![image-20240126165527653](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401261655713.png)
+
+在我们自定义的交换机中，这是一种新的交换类型，该类型消息支持延迟投递机制 消息传递后并不会立即投递到目标队列中，而是存储在mnesia(一个分布式数据系统)表中，当达到投递时间时，才投递到目标队列中。
+
+配置文件
+
+```java
+/**
+ * 新增一个 自定义交换机 我们在这里定义的是一个延迟交换机
+ */
+@Bean("delayedExchange")
+public CustomExchange delayedExchange() {
+    Map<String, Object> args = new HashMap<>();
+    args.put("x-delayed-type", "direct");
+    return new CustomExchange("delayedExchange",
+            "x-delayed-message",
+            true,
+            false,
+            args);
+}
+
+/**
+ * 创建一个用于延迟交换机的队列
+ */
+@Bean("delayedQueue")
+public Queue delayedQueue() {
+    return QueueBuilder.durable("delayedQueue")
+            .build();
+}
+
+/**
+ * 建立绑定关系
+ */
+@Bean
+public Binding bindingDelayedQueue(@Qualifier("delayedQueue") Queue queue,
+                                   @Qualifier("delayedExchange") CustomExchange delayedExchange) {
+    return BindingBuilder.bind(queue).to(delayedExchange).with("delayedRouting").noargs();
+}
+```
+
+发送消息
+
+```java
+@GetMapping("sendMsg2/{message}/{ttlTime}")
+public String t2(@PathVariable String message, @PathVariable Integer ttlTime) {
+    // 发送消息时指定过期时间
+    System.out.println("当前时间：" + new Date().toLocaleString() + ",发送消息" + message + ",过期时间" + ttlTime);
+    rabbitTemplate.convertAndSend("delayedExchange",
+            "delayedRouting",
+            "ttlTime " + ttlTime + " : " + message,
+            correlationData -> {
+                // 指定过期时间为 ttlTime
+                correlationData.getMessageProperties().setDelay(ttlTime);
+                return correlationData;
+            });
+    return "ok";
+}
+```
+
+接收消息
+
+```java
+@RabbitListener(queues = "delayedQueue")
+public void receiveDelayedQueue(Message message, Channel channel) throws IOException {
+    String msg = new String(message.getBody());
+    System.out.println("当前时间：" + new Date().toLocaleString() + ",收到延迟队列信息" + msg);
+}
+```
+
+结果
+
+```
+当前时间：2024-1-26 17:15:15,发送消息test,过期时间20000
+当前时间：2024-1-26 17:15:18,发送消息test,过期时间2000
+当前时间：2024-1-26 17:15:20,收到延迟队列信息ttlTime 2000 : test
+当前时间：2024-1-26 17:15:35,收到延迟队列信息ttlTime 20000 : test
+```
+
+第二个消息被先消费掉了，符合预期
+
+延时队列在需要延时处理的场景下非常有用，使用RabbitMQ来实现延时队列可以很好的利用RabbitMQ的特性，如：消息可靠发送、消息可靠投递、死信队列来保障消息至少被消费一次以及未被正确处理的消息不会被丢弃。另外，通过RabbitMQ集群的特性，可以很好的解决单点故障问题，不会因为单个节点挂掉导致延时队列不可用或者消息丢失。
+
+当然，延时队列还有很多其它选择，比如利用Java的DelayQueue，利用Redis的zset，利用Quartz或者利用kafka的时间轮，这些方式各有特点,看需要适用的场景
 
 
 
@@ -1551,18 +1957,32 @@ channel.queueDeclare(normalQueue, false, false, false, params);
 
 
 
-## 发布确认
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ## 幂等性
 ## 优先级队列
 ## 惰性队列
 
-# 集群
-## clustering
-## 镜像队列
-## haproxy+keepalive高可用负载均衡
-## federation exchange
-## federation queue
-## shovel
 
 # 整合 spring
 
@@ -2298,9 +2718,232 @@ public class ConsumerMain {
 
 [文档](https://docs.spring.io/spring-boot/docs/current/reference/html/messaging.html#messaging.amqp)
 
+## 创建交换机配置
+
+```java
+import org.springframework.amqp.core.DirectExchange;
+import org.springframework.amqp.core.FanoutExchange;
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.HashMap;
+
+@Configuration
+public class MyRabbitMQCong {
+
+    /**
+     * 直连交换机
+     */
+    @Bean("directExchange")
+    public DirectExchange directExchange() {
+        /*
+         - `java.lang.String` 类型的参数，表示交换机的名称。
+         - `boolean` 类型的参数，表示是否持久化该交换机。如果设置为 `true`，则该交换机在服务器重启后仍然存在；如果设置为 `false`，则该交换机在服务器重启后会被删除。
+         - `boolean` 类型的参数，表示是否自动删除该交换机。如果设置为 `true`，则当没有任何队列与该交换机绑定时，该交换机会被自动删除；如果设置为 `false`，则即使没有队列与该交换机绑定，该交换机也不会被删除。
+         - `java.util.Map<java.lang.String,java.lang.Object>` 类型的参数，表示其他可选参数的键值对。这些参数可以用于配置交换机的属性，如设置交换机的参数、声明交换机的参数等。
+         */
+        return new DirectExchange("directExchange", false, true, new HashMap<>());
+    }
+
+    /**
+     * 主题交换机
+     */
+    @Bean("topicExchange")
+    public TopicExchange topicExchange() {
+        /*
+            1. `java.lang.String` 类型的参数，表示主题交换机的名称。
+            2. `boolean` 类型的参数，表示是否持久化主题交换机。如果设置为`true`，则主题交换机将在服务器重启后继续存在；如果设置为`false`，则主题交换机将在服务器重启后被删除。
+            3. `boolean` 类型的参数，表示是否自动删除主题交换机。如果设置为`true`，则主题交换机在没有任何绑定的情况下将自动删除；如果设置为`false`，则主题交换机将不会自动删除。
+            4. `java.util.Map<java.lang.String,java.lang.Object>` 类型的参数，表示其他配置选项的键值对。可以根据需要设置不同的配置选项。
+         */
+        return new TopicExchange("topicExchange", false, true, new HashMap<>());
+    }
+
+    /**
+     * 广播交换机
+     */
+    @Bean("fanoutExchange")
+    public FanoutExchange fanoutExchange() {
+        /*
+            1. `java.lang.String`类型的参数，表示交换机的名称。
+            2. `boolean`类型的参数，表示是否持久化该交换机。如果设置为`true`，则交换机在服务器重启后仍然存在；如果设置为`false`，则交换机在服务器重启后会被删除。
+            3. `boolean`类型的参数，表示是否自动删除该交换机。如果设置为`true`，则当没有与该交换机绑定的队列时，交换机会被自动删除；如果设置为`false`，则交换机不会自动删除。
+            4. `java.util.Map<java.lang.String,java.lang.Object>`类型的参数，表示交换机的其他属性。这些属性以键值对的形式传递，用于设置交换机的一些额外配置。
+         */
+        return new FanoutExchange("fanoutExchange", false, true, new HashMap<>());
+    }
+
+}
+```
+
+## 定义队列
+
+```java
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class MyRabbitMQCong {
+
+    /**
+     * 声明队列
+     */
+    public Queue queue1() {
+        /*
+            - `java.lang.String`：队列的名称。
+            - `boolean`：指定队列是否持久化。如果设置为`true`，则队列将在服务器重启后保留下来。
+            - `boolean`：指定队列是否排他。如果设置为`true`，则只有创建该队列的连接可以使用它。如果指定队列是排他的，那么同一时间只能有一个消费者可以订阅该队列，其他消费者将无法接收到队列中的消息。相反，如果指定队列不是排他的，那么多个消费者可以同时订阅该队列，每个消费者都可以接收到队列中的消息。
+            - `boolean`：指定队列是否自动删除。如果设置为`true`，则当没有任何消费者连接到该队列时，队列将自动被删除。
+            - `java.util.Map<java.lang.String,java.lang.Object>`：其他可选参数的映射。可以使用这些参数来设置队列的属性。
+         */
+        return new Queue("queue1", false, true, true, new HashMap<>());
+    }
+
+    /**
+     * 声明队列
+     */
+    public Queue queue2() {
+        /*
+            `org.springframework.amqp.core.QueueBuilder` 是 Spring AMQP 框架中的一个类。它是用于构建 AMQP（高级消息队列协议）队列的构建器。
+            `QueueBuilder` 提供了一种方便的方式来创建和配置 AMQP 队列。它可以设置队列的名称、持久性、自动删除、是否独占、是否只能被单个消费者订阅等属性。
+         */
+        Map<String, Object> args = new HashMap<>();
+        args.put("x-dead-letter-exchange","Y_DEAD_LETTER_EXCHANGE");
+        return QueueBuilder.
+                /*
+                    durable(java.lang.String)`是Spring AMQP框架中的一个方法。它用于创建一个持久化的消息队列。
+                    持久化意味着即使在系统重启后，消息队列也会被保留下来，以确保消息的可靠性和持久性。
+                    该方法需要一个字符串参数，用于指定消息队列的名称。
+                    通过调用`durable()`方法，可以创建一个持久化的消息队列，以便在系统重启后仍然存在。这是为了确保消息的可靠传递，即使在系统故障或维护期间。
+                 */
+                durable()
+                /*
+                    设置属性的第一种方式
+                    `org.springframework.amqp.core.QueueBuilder#deadLetterExchange` 是 Spring AMQP 框架中的一个类和方法。
+                    它用于构建一个队列，并指定该队列的死信交换机。
+                 */
+                .deadLetterExchange("Y_DEAD_LETTER_EXCHANGE")
+                /*
+                    设置属性的第二种方式
+                    `org.springframework.amqp.core.QueueBuilder#withArguments` 是 Spring AMQP 框架中的一个方法。
+                    它用于构建 AMQP（高级消息队列协议）队列对象，并设置队列的参数。
+                    通过调用 `withArguments` 方法，我们可以传递一个 `Map<String, Object>` 对象，其中包含了要设置的参数和对应的值。
+                    这些参数可以是 AMQP 协议定义的标准参数，也可以是特定消息中间件（如 RabbitMQ）定义的扩展参数。
+                    使用 `withArguments` 方法，我们可以根据具体需求设置队列的各种参数，例如设置队列的持久化、优先级、最大长度等。
+                    这样可以根据业务需求进行灵活的配置，以满足消息处理的要求。
+                 */
+                .withArguments(args).build();
+    }
+
+}
+```
+
+## 定义绑定关系
+
+```java
+import org.mapstruct.Qualifier;
+import org.springframework.amqp.core.*;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Configuration
+public class MyRabbitMQCong {
 
 
+    /**
+     * 绑定交换机和队列
+     */
+    @Bean
+    public Binding bindings(@Qualifier("queueD") Queue queueD, @Qualifier("yExchange") DirectExchange yExchange) {
+        /*
+            `org.springframework.amqp.core.Binding`是Spring AMQP中的一个类，用于定义消息队列和交换机之间的绑定关系。
+            在消息队列中，消息的发送者将消息发送到交换机，交换机根据一定的规则将消息路由到绑定的消息队列中。`Binding`类就是用来描述这种绑定关系的。
+            绑定关系由以下几个要素组成：
+            `org.springframework.amqp.core.Binding` 是 Spring AMQP 框架中用于创建绑定（Binding）的类。`Binding` 类的构造函数如下：
+            ```java
+            public Binding(String destination, Binding.DestinationType destinationType, String exchange, String routingKey, @Nullable Map<String, Object> arguments)
+```
+            1. `destination`：目标（Destination）的名称，可以是队列（Queue）或交换机（Exchange）的名称。它表示要将绑定应用于的目标实体。
+            2. `destinationType`：目标（Destination）的类型，是一个枚举值 `Binding.DestinationType`。它指定了目标实体的类型，可以是 `QUEUE`（队列）或 `EXCHANGE`（交换机）。
+            3. `exchange`：绑定的交换机（Exchange）的名称。它表示要将绑定应用于的交换机。
+            4. `routingKey`：路由键（Routing Key），用于将消息从交换机路由到队列。它是一个字符串，用于匹配交换机和队列之间的消息路由规则。
+            5. `arguments`：可选的附加参数，是一个键值对的 Map。它可以包含一些额外的配置参数，用于在绑定过程中进行更精细的控制，例如设置 TTL、死信交换机等。
+            通过使用 `Binding` 对象，你可以将交换机和队列进行绑定，从而实现消息的路由和传递。绑定定义了交换机和队列之间的关系，使得消息能够根据路由键被正确地发送到目标队列。
+            请注意，以上解释是基于 Spring AMQP 框架的 `Binding` 类的构造函数参数的一般理解，具体的使用方式和含义可能会根据你的应用场景和配置而有所不同。建议查阅 Spring AMQP 的官方文档以获取更详细的信息和示例。
+         */
+        return new Binding("QueueName",Binding.DestinationType.QUEUE,"exchangeName","",new HashMap<>());
+    }
+    
+    /**
+     * 绑定交换机和队列
+     */
+    @Bean
+    public Binding bindings(@Qualifier("queueD") Queue queueD, @Qualifier("yExchange") DirectExchange yExchange) {
+        // 创建一个队列和交换机的绑定，并设置附加参数
+        String queueName = "myQueue";
+        String exchangeName = "myExchange";
+        String routingKey = "myRoutingKey";
+    
+        Map<String, Object> arguments = new HashMap<>();
+        arguments.put("x-message-ttl", 60000);
+        return BindingBuilder.bind(new Queue(queueName))
+                .to(new TopicExchange(exchangeName))
+                .with(routingKey)
+                .and(arguments);
+        
+        // 创建一个队列和交换机的绑定
+        String queueName = "myQueue";
+        String exchangeName = "myExchange";
+        String routingKey = "myRoutingKey";
+    
+        Binding binding = BindingBuilder.bind(new Queue(queueName))
+                .to(new TopicExchange(exchangeName))
+                .with(routingKey)
+                .noargs();
+    
+        // 创建一个交换机和交换机的绑定
+        String sourceExchangeName = "sourceExchange";
+        String destinationExchangeName = "destinationExchange";
+        String bindingKey = "myBindingKey";
+    
+        Binding binding = BindingBuilder.bind(new FanoutExchange(destinationExchangeName))
+                .to(new FanoutExchange(sourceExchangeName))
+                .with(bindingKey)
+                .noargs();
+    }
+}
+```
 
+## 消息生产者
+
+与 Spring 一致
+
+```java
+RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate.class);
+        // 发送消息 此时我们只需要在发送消息时指定交换机即可
+        rabbitTemplate.convertAndSend("springFanoutExchange","","测试消息");
+```
+
+## 消息消费者
+
+```java
+@Component
+public class DeadLetterQueueConsumer {
+    @RabbitListener(queues = "QD")
+    public void receiveD(Message message, Channel channel) throws IOException {
+        String msg = new String(message.getBody());
+        log.info("当前时间：{},收到死信队列信息{}", new Date().toString(), msg);
+    }
+}
+```
 
 # 安装
 
@@ -2405,3 +3048,12 @@ rabbitmqctl set_permissions -p "/" admin ".*" ".*" ".*"
 ```
 rabbitmqctl list_users
 ```
+
+
+# 集群
+## clustering
+## 镜像队列
+## haproxy+keepalive高可用负载均衡
+## federation exchange
+## federation queue
+## shovel
