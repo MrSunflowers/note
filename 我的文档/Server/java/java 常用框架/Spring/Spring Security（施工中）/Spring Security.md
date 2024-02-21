@@ -359,18 +359,18 @@ public void test01() { // 创建密码解析器
 }
 ```
 
-## Spring Security Web 环境权限认证
+# Spring Security Web 环境权限认证
 
-### 设置登录用户的用户名密码
+## 设置登录用户的用户名密码
 
-#### 方式一：通过配置 application.properties
+### 方式一：通过配置 application.properties
 
 ```properties
 spring.security.user.name=admin
 spring.security.user.password=admin
 ```
 
-#### 方式二：编写类实现接口
+### 方式二：编写类实现接口
 
 声明一个密码处理器 PasswordEncoder
 
@@ -487,7 +487,7 @@ public class LoginService implements UserDetailsService {
 }
 ```
 
-#### 方式三：编写配置类
+### 方式三：编写配置类
 
 ```java
 @Configuration
@@ -501,7 +501,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 }
 ```
 
-### 自定义登录页面
+## 自定义登录页面
 
 添加依赖
 
@@ -660,9 +660,9 @@ protected void configure(HttpSecurity http) throws Exception {
 }
 ```
 
-### 基于角色或权限进行访问控制
+## 基于角色或权限进行访问控制
 
-#### hasAuthority,hasAnyAuthority 方法
+### hasAuthority,hasAnyAuthority 方法
 
 **hasAuthority 方法**
 
@@ -707,7 +707,7 @@ public UserDetails loadUserByUsername(String username) throws UsernameNotFoundEx
 }
 ```
 
-#### hasRole,hasAnyRole 方法
+### hasRole,hasAnyRole 方法
 
 **hasRole 方法**
 
@@ -747,7 +747,7 @@ return new User(username, password,
 
 注意，配置文件中不需要添加`ROLE_`,因为上述的底层代码会自动添加与之进行匹配
 
-#### 自定义403页面
+### 自定义403页面
 
 修改访问配置类
 
@@ -755,7 +755,7 @@ return new User(username, password,
 http.exceptionHandling().accessDeniedPage("/unauth.html");
 ```
 
-### 注解权限控制
+## 注解权限控制
 
 
 使用注解先要开启注解功能
@@ -776,7 +776,7 @@ public class TestSecurityApplication {
 }
 ```
 
-#### @Secured
+### @Secured
 
 判断是否具有角色权限，另外需要注意的是这里匹配的字符串需要添加前缀 `ROLE_`。
 
@@ -788,7 +788,7 @@ public String adminTest() {
 }
 ```
 
-#### @PreAuthorize
+### @PreAuthorize
 
 先开启注解
 
@@ -806,7 +806,7 @@ public String adminTest() {
 }
 ```
 
-#### @PostAuthorize
+### @PostAuthorize
 
 先开启注解
 
@@ -824,7 +824,7 @@ public String adminTest() {
 }
 ```
 
-#### @PostFilter
+### @PostFilter
 
 权限验证之后对数据进行过滤，例如只留下用户名为 admin1 的数据，其中 PostFilter 注解中为 spel 表达式，filterObject 代表用于表示返回结果集中的每个对象，为固定写法
 
@@ -840,7 +840,7 @@ public List<MyUser> getAllUser() {
 }
 ```
 
-#### @PreFilter
+### @PreFilter
 
 进入控制器之前对数据进行过滤
 
@@ -884,4 +884,22 @@ public List<MyUser> getTestPreFilter(@RequestBody List<MyUser> list) {
 ```
 
 [权限表达式](https://docs.spring.io/spring-security/site/docs/5.3.4.RELEASE/reference/html5/#el-access)
+
+# 用户注销
+
+添加配置
+
+```java
+http.logout().logoutUrl("/logout").logoutSuccessUrl("/login.html").permitAll();
+```
+
+退出之后，是无法访问需要登录时才能访问的控制器的！
+
+# 自动登录
+
+实现自动登录功能，例如在登录时选择的 10 天内免登陆功能，关闭浏览器后不需要再次登录
+
+web 环境下可以通过 cookie 技术实现，但因其数据需保存至客户端，安全性无法保证，一般不推荐使用
+
+## 基于数据库的记住我
 
