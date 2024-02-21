@@ -903,3 +903,165 @@ web 环境下可以通过 cookie 技术实现，但因其数据需保存至客�
 
 ## 基于数据库的记住我
 
+实现原理
+
+```mermaid
+graph LR
+A[浏览器]-.请求认证.->B[UsernamePasswordAuthenticationFilter]-.认证成功,将加密token存储至cookie.->C[浏览器]
+B[UsernamePasswordAuthenticationFilter]-.认证成功,将加密token和用户信息存储至数据库.->D[数据库]
+```
+
+再次访问时，获取到请求携带的 cookie 信息，从数据中查询比对，查询到对应信息，认证成功。
+
+查看源码
+
+org.springframework.security.web.authentication.AbstractAuthenticationProcessingFilter#successfulAuthentication
+
+```java
+protected void successfulAuthentication(HttpServletRequest request,
+		HttpServletResponse response, FilterChain chain, Authentication authResult)
+		throws IOException, ServletException {
+	if (logger.isDebugEnabled()) {
+		logger.debug("Authentication success. Updating SecurityContextHolder to contain: "
+				+ authResult);
+	}
+	SecurityContextHolder.getContext().setAuthentication(authResult);
+	rememberMeServices.loginSuccess(request, response, authResult);
+	// Fire event
+	if (this.eventPublisher != null) {
+		eventPublisher.publishEvent(new InteractiveAuthenticationSuccessEvent(
+				authResult, this.getClass()));
+	}
+	successHandler.onAuthenticationSuccess(request, response, authResult);
+}
+```
+
+可以看到在认证成功后，调用了 org.springframework.security.web.authentication.RememberMeServices 中的 loginSuccess 方法，跟进查看可知，框架内 token 的数据库操作类为 org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl
+
+当再次请求时，会经过 org.springframework.security.web.authentication.rememberme.RememberMeAuthenticationFilter 过滤器，在 doFilter 方法中会调用 org.springframework.security.web.authentication.RememberMeServices#autoLogin 方法实现了自动登录功能
+
+### 实现示例
+
+引入依赖
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-jdbc</artifactId>
+</dependency>
+<!--mysql-->
+<dependency>
+    <groupId>mysql</groupId>
+    <artifactId>mysql-connector-java</artifactId>
+    <version>8.0.33</version>
+</dependency>
+```
+
+application.yml
+
+```yml
+server:
+  port: 8111
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://192.168.60.129:3306/SpringSecurity
+    username: root
+    password: root
+```
+
+创建数据库表
+
+```sql
+CREATE TABLE `persistent_logins`
+(
+    `username`  varchar(64) NOT NULL,
+    `series`    varchar(64) NOT NULL,
+    `token`     varchar(64) NOT NULL,
+    `last_used` timestamp   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`series`)
+) ENGINE = InnoDB
+  DEFAULT CHARSET = utf8mb4;
+```
+
+可以不建，会在 JdbcTokenRepositoryImpl 中自动创建
+
+修改配置文件
+
+```java
+import org.example.service.LoginService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.rememberme.JdbcTokenRepositoryImpl;
+import org.springframework.security.web.authentication.rememberme.PersistentTokenRepository;
+import javax.sql.DataSource;
+
+
+@Configuration
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    // 注入数据源
+    @Autowired
+    private DataSource dataSource;
+    @Autowired
+    private LoginService loginService;
+
+    @Override
+    protected void configure(HttpSecurity http) throws Exception {
+        http.formLogin()// 表单登录
+                .loginPage("/login.html") // 配置登录页面路径
+                .loginProcessingUrl("/user/login") // 登录表单提交路径
+
+                .defaultSuccessUrl("/success.html").permitAll() // 登录成功后跳转的页面
+                .failureUrl("/unauth.html") // 登录失败后跳转的页面
+                .and().authorizeRequests().antMatchers("/static/**", "/test/hello", "/user/login").permitAll() // 配置哪些路径可以直接访问，不需要认证
+                .anyRequest().authenticated()
+                .and().csrf().disable() // 关闭 csrf 防护
+        ;
+        http.exceptionHandling().accessDeniedPage("/unauth.html");
+        // 设置 tokenRepository
+        http.rememberMe().tokenRepository(persistentTokenRepository())
+                // 配置令牌有效期
+                .tokenValiditySeconds(600)
+                // 配置用于获取用户详情的服务
+                .userDetailsService(loginService);
+    }
+
+    @Override
+    protected void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(loginService).passwordEncoder(passwordEncoder());
+    }
+
+    // 注入PasswordEncoder 类到spring 容器中
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    // 声明数据库操作实现类
+    @Bean
+    public PersistentTokenRepository persistentTokenRepository() {
+        JdbcTokenRepositoryImpl jdbcTokenRepository = new JdbcTokenRepositoryImpl();
+        // 设置数据源
+        jdbcTokenRepository.setDataSource(dataSource);
+        // 设置启动时自动创建表 自己创建的不需要创建
+        // jdbcTokenRepository.setCreateTableOnStartup(true);
+        return jdbcTokenRepository;
+    }
+
+}
+```
+
+在登录页面添加复选框，这里 name 属性必须为 `remember-me`
+
+```xml
+<input type="checkbox" name="remember-me" />自动登录
+```
+
