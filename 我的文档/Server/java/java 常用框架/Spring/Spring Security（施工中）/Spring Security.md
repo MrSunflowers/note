@@ -1065,3 +1065,180 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 <input type="checkbox" name="remember-me" />自动登录
 ```
 
+# CSRF
+
+跨站请求伪造（英语：Cross-site request forgery），也被称为 one-click attack 或者 session riding，通常缩写为 CSRF 或者 XSRF， 是一种挟制用户在当前已登录的Web应用程序上执行非本意的操作的攻击方法。跟跨网站脚本（XSS）相比，XSS利用的是用户对指定网站的信任，CSRF 利用的是网站对用户网页浏览器的信任。 
+
+跨站请求攻击，简单地说，是攻击者通过一些技术手段欺骗用户的浏览器去访问一个自己曾经认证过的网站并运行一些操作（如发邮件，发消息，甚至财产操作如转账和购买商品）。由于浏览器曾经认证过，所以被访问的网站会认为是真正的用户操作而去运行。这利用了web中用户身份验证的一个漏洞：**简单的身份验证只能保证请求发自某个用户的浏览器，却不能保证请求本身是用户自愿发出的**。 
+
+从 Spring Security 4.0 开始，默认情况下会启用CSRF保护，以防止CSRF攻击应用程序，Spring Security CSRF 会针对 **PATCH，POST，PUT 和 DELETE 方法**进行防护。
+
+[CSRF(跨站请求伪造)](https://blog.csdn.net/leiwuhen92/article/details/128724402)
+
+## 原理
+
+在客户端第一次请求时，生成一个 CSRF token 存储在 session 中，下次客户端请求时携带此 token 进行请求，后端对请求携带的 token 与 session 中的进行比对，验证通过才允许请求
+
+源码实现 org.springframework.security.web.csrf.CsrfFilter#doFilterInternal
+
+```java
+protected void doFilterInternal(HttpServletRequest request,
+		HttpServletResponse response, FilterChain filterChain)
+				throws ServletException, IOException {
+	request.setAttribute(HttpServletResponse.class.getName(), response);
+	CsrfToken csrfToken = this.tokenRepository.loadToken(request);
+	final boolean missingToken = csrfToken == null;
+	if (missingToken) {
+		csrfToken = this.tokenRepository.generateToken(request);
+		this.tokenRepository.saveToken(csrfToken, request, response);
+	}
+	request.setAttribute(CsrfToken.class.getName(), csrfToken);
+	request.setAttribute(csrfToken.getParameterName(), csrfToken);
+	if (!this.requireCsrfProtectionMatcher.matches(request)) {
+		filterChain.doFilter(request, response);
+		return;
+	}
+	String actualToken = request.getHeader(csrfToken.getHeaderName());
+	if (actualToken == null) {
+		actualToken = request.getParameter(csrfToken.getParameterName());
+	}
+	if (!csrfToken.getToken().equals(actualToken)) {
+		if (this.logger.isDebugEnabled()) {
+			this.logger.debug("Invalid CSRF token found for "
+					+ UrlUtils.buildFullRequestUrl(request));
+		}
+		if (missingToken) {
+			this.accessDeniedHandler.handle(request, response,
+					new MissingCsrfTokenException(actualToken));
+		}
+		else {
+			this.accessDeniedHandler.handle(request, response,
+					new InvalidCsrfTokenException(csrfToken, actualToken));
+		}
+		return;
+	}
+	filterChain.doFilter(request, response);
+}
+```
+
+## 示例
+
+pom
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-thymeleaf</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+登录页面
+
+```xml
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <title>用户登录界面</title>
+</head>
+<body class="text-center">
+    <form class="form-signin" th:method="post" th:action="@{/userLogin}">
+        <h1 class="h3 mb-3 font-weight-normal">请登录</h1>
+
+        <input type="text" class="form-control" placeholder="用户名" required="" autofocus="" name="username">
+        <input type="password" class="form-control" placeholder="密码" required="" name="password">
+        <div class="checkbox mb-3">
+            <label>
+                <input type="checkbox" name="rememberme"> 记住我
+            </label>
+        </div>
+        <button class="btn btn-lg btn-primary btn-block" type="submit" >登录</button>
+    </form>
+</body>
+</html>
+```
+
+测试修改页
+
+```xml
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>用户修改</title>
+</head>
+<body>
+<div align="center">
+    <form  method="post" action="update_token">
+<!--     -->
+      <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+        用户名: <input type="text" name="username" /><br />
+        密&nbsp;&nbsp;码: <input type="password" name="password" /><br />
+        <button type="submit">修改</button>
+    </form>
+</div>
+</body>
+</html>
+```
+
+测试结果页
+
+```xml
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>用户修改</title>
+</head>
+<body>
+<div>
+    <span th:text="${_csrf.token}"></span>
+</div>
+</body>
+</html>
+
+```
+
+关闭安全配置的类中的 csrf
+
+```java
+// http.csrf().disable();
+```
+
+CSRFController
+
+```
+@Controller
+public class CSRFController {
+
+     @GetMapping("/toupdate")
+     public String test(Model model){
+         return "csrf/csrfTest";
+     }
+
+    @PostMapping("/update_token")
+    public String getToken() {
+        return "csrf/csrf_token";
+    }
+}
+```
+
+访问 toupdate 
+
+# SpringSecurity微服务权限方案
+
+微服务认证与授权实现思路
+
+认证授权过程分析
+
+1. 如果是基于Session，那么Spring-security会对cookie里的sessionid进行解析，找到服务器存储的session信息，然后判断当前用户是否符合请求的要求。
+2. 如果是基于 token，则是解析出 token，然后将当前请求加入到Spring-security管理的权限信息中去
+
