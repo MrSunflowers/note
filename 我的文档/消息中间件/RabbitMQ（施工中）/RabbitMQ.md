@@ -3533,7 +3533,7 @@ rabbitmqctl list_users
 
 最开始我们介绍了如何安装及运行RabbitMQ服务，不过这些是单机版的，无法满足目前真实应用的要求。如果RabbitMQ服务器遇到内存崩溃、机器掉电或者主板故障等情况，该怎么办？单台RabbitMQ服务器可以满足每秒1000条消息的吞吐量，那么如果应用需要RabbitMQ服务满足每秒10万条消息的吞吐量呢？购买昂贵的服务器来增强单机RabbitMQ务的性能显得捉襟见肘，搭建一个RabbitMQ集群才是解决实际问题的关键.
 
-## 部署
+## 集群部署
 
 准备3台机器
 
@@ -3672,6 +3672,9 @@ http://192.168.60.131:15672/
 
 登录
 
+![image-20240229103711721](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291037259.png)
+
+集群搭建完成
 
 ### 脱离集群节点
 
@@ -3690,10 +3693,100 @@ node1机器上执行，忘记 rabbit@node2 节点
 rabbitmqctl forget_cluster_node rabbit@node2
 ```
 
-
-
 ## 镜像队列
-## haproxy+keepalive高可用负载均衡
+
+当前集群已搭建完成，但在 node1 中创建的队列，在 node2 和 node3 中并不存在，一旦 node1 宕机，将导致数据丢失，此时即需要引入镜像队列，引入镜像队列 (Mirror Queue) 的机制，可以将队列镜像到集群中的其他Broker节点之上，如果集群中的一个节点失效了，队列能自动地切换到镜像中的另一个节点上以保证服务的可用性。
+
+镜像队列 Mirror Queue 是一种消息队列的模式。它通过在不同的节点上创建队列的镜像来提高消息的可靠性和可用性。当消息被发送到队列时，它会被复制到多个节点上的镜像队列中。这样，即使某个节点发生故障，消息仍然可以被其他节点上的镜像队列接收和处理，确保消息的可靠传递。通过使用 Mirror Queue，可以提高系统的容错能力和可伸缩性。
+
+![image-20240229110844816](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291108962.png)
+
+如果RabbitMQ集群中只有一个Broker节点，那么该节点的失效将导致整体服务的临时性不可用，并且也可能会导致消息的丢失。可以将所有消息都设置为持久化，并且对应队列的durable属性也设置为true，但是这样仍然无法避免由于缓存导致的问题：因为消息在发送之后和被写入磁盘井执行刷盘动作之间存在一个短暂却会产生问题的时间窗。通过publisher confirm机制能够确保客户端知道哪些消息己经存入磁盘，尽管如此，一般不希望遇到因单点故障导致的服务不可用。
+
+### 搭建步骤
+
+启动三台集群节点
+
+随便找一个节点添加一个策略 policy
+
+RabbitMQ Policies 是 RabbitMQ 消息队列中的一种机制，用于管理消息的路由和行为。它们允许你定义一组规则，以控制消息的传递和处理。
+
+具体来说，RabbitMQ Policies可以用来实现以下功能：
+
+1. 消息路由：你可以定义规则来指定消息应该如何被路由到不同的队列或交换机。这样，你可以根据消息的特定属性或条件，将其发送到特定的目的地。
+2. 消息过滤：你可以使用规则来过滤消息，只将满足特定条件的消息传递给消费者。这样可以减少不必要的消息传递，提高系统的效率。
+3. 消息优先级：你可以设置规则来指定消息的优先级，以确保重要的消息能够优先处理。
+4. 消息持久化：你可以定义规则来确保消息在发生故障或重启后仍然可靠地保存和传递。
+
+Name:任意名称 mirrior-tow
+Pattern:规则，正则表达式，什么样的队列或交换机需要备份,名字以mirrior为前缀 ^mirrior
+Apply to:应用于什么范围
+
+![image-20240229165242926](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291652623.png)
+
+在 node1 上创建一个队列发送一条消息，队列存在镜像队列
+
+![image-20240229165619770](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291656899.png)
+
+![image-20240229165810614](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291658690.png)
+
+## haproxy+keepalive 高可用负载均衡
+
+在上述示例中，客户端始终只能连接一台MQ服务器，当连接的MQ宕机后即无法使用，此时需要将请求负载至其余机器
+
+![image-20240229170055737](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402291700825.png)
+
+### Haproxy 实现负载均衡
+
+HAProxy 提供高可用性、负载均衡及基于TCP/HTTP应用的代理，支持虚拟主机，它是免费、快速并且可靠的一种解决方案，包括Twitter,Reddit,StackOverflow,GitHub在内的多家知名互联网公司在使用。HAProxy 实现了一种事件驱动、单一进程模型，此模型支持非常大的井发连接数。
+
+nginx,lvs,haproxy之间的区别
+
+nginx、lvs和haproxy是三种常用的负载均衡器，它们的作用都是将请求分发给后端服务器，以提高系统的性能和可靠性。
+
+1. Nginx（引擎X）：
+   - Nginx是一款高性能的开源Web服务器和反向代理服务器。
+   - 它可以处理大量的并发连接，具有较低的内存消耗。
+   - Nginx的设计目标是高并发、高性能和高可靠性。
+   - 它可以作为Web服务器，也可以作为反向代理服务器用于负载均衡。
+
+2. LVS（Linux Virtual Server）：
+   - LVS是一种基于Linux内核的负载均衡技术。
+   - 它通过网络地址转换（NAT）或直接路由（DR）的方式将请求分发给后端服务器。
+   - LVS可以实现四层（传输层）和七层（应用层）的负载均衡。
+   - 它可以根据不同的调度算法（如轮询、加权轮询、最少连接等）来分发请求。
+
+3. HAProxy（High Availability Proxy）：
+   - HAProxy是一款开源的高性能负载均衡器和代理服务器。
+   - 它可以在传输层和应用层进行负载均衡。
+   - HAProxy支持多种负载均衡算法，并且可以根据服务器的健康状况进行动态调整。
+   - 它具有较低的延迟和较高的吞吐量，适用于高并发的Web应用。
+
+总结：
+- Nginx是一款高性能的Web服务器和反向代理服务器，适用于处理大量并发连接。
+- LVS是一种基于Linux内核的负载均衡技术，可以实现四层和七层的负载均衡。
+- HAProxy是一款高性能的负载均衡器和代理服务器，支持多种负载均衡算法和动态调整。
+
+#### 搭建步骤
+
+下载haproxy(在node1和node2)
+
+```
+yum -y install haproxy
+```
+
+修改node1和node2的haproxy.cfg
+
+```
+vi /etc/haproxy/haproxy.cfg
+```
+
+
+
+
+
+
+
 ## federation exchange
 ## federation queue
 ## shovel
