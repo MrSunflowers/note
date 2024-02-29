@@ -3533,7 +3533,165 @@ rabbitmqctl list_users
 
 最开始我们介绍了如何安装及运行RabbitMQ服务，不过这些是单机版的，无法满足目前真实应用的要求。如果RabbitMQ服务器遇到内存崩溃、机器掉电或者主板故障等情况，该怎么办？单台RabbitMQ服务器可以满足每秒1000条消息的吞吐量，那么如果应用需要RabbitMQ服务满足每秒10万条消息的吞吐量呢？购买昂贵的服务器来增强单机RabbitMQ务的性能显得捉襟见肘，搭建一个RabbitMQ集群才是解决实际问题的关键.
 
-## clustering
+## 部署
+
+准备3台机器
+
+1. 分别修改三台机器的 hostname
+
+```shell
+vi /etc/hostname
+```
+
+分别为
+
+node1、node2、node3
+
+hostname 文件内容
+
+```
+node1
+```
+
+2. 配置各个节点的 hosts 文件，让各个节点都能互相识别对方
+
+```shell
+vi /etc/hosts
+```
+
+在下面添加
+
+```
+192.168.60.131 node1
+192.168.60.132 node3
+192.168.60.133 node2
+```
+
+3. 重启机器
+
+4. 确保各个节点的cookie文件使用的是同一个值
+
+在 **node1** 上执行远程操作命令
+
+```shell
+scp /var/lib/rabbitmq/.erlang.cookie root@node2:/var/lib/rabbitmq/.erlang.cookie
+scp /var/lib/rabbitmq/.erlang.cookie root@node3:/var/lib/rabbitmq/.erlang.cookie
+```
+
+5. 启动RabbitMQ服务,顺带启动Erlang虚拟机和RbbitMQ应用服务(在三台节点上分别执行以下命令)
+
+```shell
+rabbitmq-server -detached
+```
+
+6. 在节点2执行
+
+关闭服务
+
+rabbitmqctl stop会将Erlang虚拟机关闭，rabbitmqctl stop_app只关闭RabbitMQ服务
+
+```shell
+rabbitmqctl stop_app
+```
+
+重置服务器状态
+
+```shell
+rabbitmqctl reset
+```
+
+将当前节点加入 node1 节点中
+
+```shell
+rabbitmqctl join_cluster rabbit@node1
+```
+
+启动服务
+
+```shell
+rabbitmqctl start_app
+```
+
+6. 在节点3执行
+
+关闭服务
+
+rabbitmqctl stop会将Erlang虚拟机关闭，rabbitmqctl stop_app只关闭RabbitMQ服务
+
+```shell
+rabbitmqctl stop_app
+```
+
+重置服务器状态
+
+```shell
+rabbitmqctl reset
+```
+
+将当前节点加入 node2 节点中
+
+```shell
+rabbitmqctl join_cluster rabbit@node2
+```
+
+启动服务
+
+```shell
+rabbitmqctl start_app
+```
+
+### 查看集群状态
+
+```shell
+rabbitmqctl cluster_status
+```
+
+### 重新创建账户
+
+```shell
+rabbitmqctl add_user admin admin
+```
+
+设置用户角色
+
+```shell
+rabbitmqctl set_user_tags admin administrator
+```
+
+设置用户权限
+
+```shell
+rabbitmqctl set_permissions -p "/" admin ".*" ".*" ".*"
+```
+
+访问任意节点IP+端口
+
+```
+http://192.168.60.131:15672/
+```
+
+登录
+
+
+### 脱离集群节点
+
+node2 和 node3 机器分别执行
+
+```
+rabbitmqctl stop_app
+rabbitmqctl reset
+rabbitmqctl start_app
+rabbitmqctl cluster_status
+```
+
+node1机器上执行，忘记 rabbit@node2 节点
+
+```
+rabbitmqctl forget_cluster_node rabbit@node2
+```
+
+
+
 ## 镜像队列
 ## haproxy+keepalive高可用负载均衡
 ## federation exchange
