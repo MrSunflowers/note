@@ -3781,12 +3781,14 @@ yum -y install haproxy
 vi /etc/haproxy/haproxy.cfg
 ```
 
-
-
-
-
-
-
 ## federation exchange
+
+(broker北京)，(broker深圳) 彼此之间相距甚远，网络延迟是一个不得不面对的问题。有一个在北京的业务(Client北京) 需要连接(broker北京)，向其中的交换器exchangeA发送消息，此时的网络延迟很小，(Client北京)可以迅速将消息发送至exchangeA中，就算在开启了publisherconfirm机制或者事务机制的情况下，也可以迅速收到确认信息。此时又有个在深圳的业务(Client深圳)需要向exchangeA发送消息，那么(Client深圳) (broker北京)之间有很大的网络延迟，(Client深圳) 将发送消息至exchangeA会经历一定的延迟，尤其是在开启了publisherconfirm机制或者事务机制的情况下，(Client深圳) 会等待很长的延迟时间来接收(broker北京)的确认信息，进而必然造成这条发送线程的性能降低，甚至造成一定程度上的阻塞。
+
+将业务(Client深圳)部署到北京的机房可以解决这个问题，但是如果(Client深圳)调用的另些服务都部署在深圳，那么又会引发新的时延问题，总不见得将所有业务全部部署在一个机房，那么容灾又何以实现？这里使用Federation插件就可以很好地解决这个问题.
+
+"Federation Exchange" 是一个术语，它指的是一种联邦交换机制。在这种机制下，不同的组织或实体可以共享彼此的数据和资源，以实现更高效的合作和协同工作。通过"Federation Exchange"，各个组织可以相互连接和交换信息，而不需要将所有数据集中在一个地方。这种分布式的方式可以提高数据的安全性和隐私保护，并且可以更好地适应不同组织的需求和规模。
+
+
 ## federation queue
 ## shovel
