@@ -83,7 +83,7 @@ RabbitMQ是一个消息中间件：它接受并转发消息。你可以把它当
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202401091115177.jpg)
 
-- Broker：接收和分发消息的应用, RabbitMQ Server 就是 Message Broker
+- Broker：消息代理，接收和分发消息的应用, RabbitMQ Server 就是 Message Broker
 - Virtual host：出于多租户和安全因素设计的, 把 AMQP 的基本组件划分到一个虚拟的分组中, 类似于网络中的namespace概念。当多个不同的用户使用同一个RabbitMQ server提供的服务时, 可以划分出多个vhost, 每个用户在自己的 vhost 创建 exchange／queue 等
 - Connection(链接)：publisher／consumer 和 broker 之间的 TCP 连接
 - Channel(信道)：如果每一次访问 RabbitMQ 都建立一个Connection, 在消息量大的时候建立 TCP Connection的开销将是巨大的, 效率也较低。Channel是在connection内部建立的逻辑连接, 如果应用程序支持多线程, 通常每个thread创建单独的channel进行通讯, AMQP method包含了channel id 帮助客户端和message broker 识别 channel, 所以channel之间是完全隔离的。Channel作为轻量级的Connection极大减少了操作系统建立TCP connection的开销
@@ -3491,6 +3491,18 @@ chkconfig rabbitmq-server on
 ```
 rabbitmq-plugins enable rabbitmq_management
 ```
+
+有坑会报错 ** (throw) {:query, :rabbit@bogon, {:badrpc, :timeout}}
+
+解决方案
+
+第一种方式：首先，获取自己的主机名
+
+命令：hostname
+
+在/etc/hosts文件中追加一行：192.168.136.135 bogon 然后重启
+
+
 
 默认账号密码: guest:guest
 访问地址 ： http://192.168.1.10:15672/
