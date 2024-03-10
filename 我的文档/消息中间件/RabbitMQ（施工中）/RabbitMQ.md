@@ -3337,6 +3337,11 @@ import java.util.Map;
 @Configuration
 public class MyRabbitMQCong {
 
+	@Bean
+    public MessageConverter messageConverter() {
+        // 使用json序列化器来序列化消息，发送消息时，消息对象会被序列化成json格式
+        return new Jackson2JsonMessageConverter();
+    }
 
     /**
      * 绑定交换机和队列
@@ -3348,9 +3353,9 @@ public class MyRabbitMQCong {
             在消息队列中，消息的发送者将消息发送到交换机，交换机根据一定的规则将消息路由到绑定的消息队列中。`Binding`类就是用来描述这种绑定关系的。
             绑定关系由以下几个要素组成：
             `org.springframework.amqp.core.Binding` 是 Spring AMQP 框架中用于创建绑定（Binding）的类。`Binding` 类的构造函数如下：
-            ```java
+            
             public Binding(String destination, Binding.DestinationType destinationType, String exchange, String routingKey, @Nullable Map<String, Object> arguments)
-```
+
             1. `destination`：目标（Destination）的名称，可以是队列（Queue）或交换机（Exchange）的名称。它表示要将绑定应用于的目标实体。
             2. `destinationType`：目标（Destination）的类型，是一个枚举值 `Binding.DestinationType`。它指定了目标实体的类型，可以是 `QUEUE`（队列）或 `EXCHANGE`（交换机）。
             3. `exchange`：绑定的交换机（Exchange）的名称。它表示要将绑定应用于的交换机。
@@ -3414,6 +3419,18 @@ RabbitTemplate rabbitTemplate = context.getBean("rabbitTemplate", RabbitTemplate
 
 ## 消息消费者
 
+### @RabbitListener
+
+```json
+简介：
+	1.用于标注在监听类或监听方法上，接收消息，需要指定监听的队列（数组）
+	2.使用该注解之前，需要在启动类加上该注解：@EnableRabbit
+	3.@RabbitListener即可以标注在方法上又可以标注在类上
+		标注在类上：表示该类是监听类，使得@RabbitHandler注解生效
+		标注在方法上：表示该方法时监听方法，会监听指定队列获得消息
+	4.一般只标注在方法上，并配合@RabbitHandler使用，重载的方式接收不同消息对象
+```
+
 ```java
 @Component
 public class DeadLetterQueueConsumer {
@@ -3424,6 +3441,139 @@ public class DeadLetterQueueConsumer {
     }
 }
 ```
+
+或
+
+```java
+@Service("orderItemService")
+public class OrderItemServiceImpl extends ServiceImpl<OrderItemDao, OrderItemEntity> implements OrderItemService {
+
+    /**
+     * queues：声明需要监听的队列
+     * channel：当前传输数据的通道
+     * 获取实际消息内容有两种方式：
+     *  方式一：在方法参数列表中直接声明出来
+     *  方式二：从请求体中取出消息的二进制形式，然后通过JSON反序列化即可
+     */
+    @RabbitListener(queues = {"hello-java-queue"})
+    public void revieveMessage(Message message, OrderReturnReasonEntity entity, Channel channel) {
+        // 请求体，序列化存储（本例中已使用Jackson2JsonMessageConverter序列化器作JSON序列化存储）
+        byte[] body = message.getBody();
+        // 请求头
+        MessageProperties messageProperties = message.getMessageProperties();
+        // JSON反序列得到消息内容对象
+        OrderReturnReasonEntity reason = JSONObject.parseObject(body, OrderReturnReasonEntity.class);
+        System.out.println("接受到的消息对象" + message);
+        System.out.println("接受到的消息内容" + reason);
+        System.out.println("接受到的消息内容" + entity);
+    }
+}
+```
+
+### @RabbitHandler
+
+```java
+作用：
+	配合@RabbitListener，使用方法重载的方法接收不同的消息类型
+简介：
+	1.用于标注在监听方法上，接收消息，不需要指定监听的队列
+	2.使用该注解之前，需要在启动类加上该注解：@EnableRabbit
+	3.@RabbitListener只可以标注在方法，重载的方式接收不同消息对象
+```
+
+```java
+@Slf4j
+@SpringBootTest
+class GulimallOrderApplicationTests {
+
+    @Autowired
+	RabbitTemplate rabbitTemplate;
+
+    @Test
+    void sendMsg2() {
+        // 该测试案例向同一队列发送了两个不同类型的消息对象
+        // 消息一：
+        OrderReturnReasonEntity message1 = new OrderReturnReasonEntity();// 退货原因
+        message1.setId(1L);
+        message1.setCreateTime(new Date());
+        message1.setName("哈哈");
+        CorrelationData correlationData1 = new CorrelationData(UUID.randomUUID().toString());// 消息ID
+        rabbitTemplate.convertAndSend("hello-java-exchange", "hello.java", message1, correlationData1);
+
+        // 消息二：
+        OrderEntity message2 = new OrderEntity();// 退货原因
+        message2.setId(1L);
+        message2.setCreateTime(new Date());
+        message2.setOrderSn("哈哈");
+        CorrelationData correlationData2 = new CorrelationData(UUID.randomUUID().toString());// 消息ID
+        rabbitTemplate.convertAndSend("hello-java-exchange", "hello.java", message2, correlationData2);
+    }
+}
+```
+
+```java
+@RabbitListener(queues = {"hello-java-queue"})
+@Service("orderItemService")
+public class OrderItemServiceImpl extends ServiceImpl<OrderItemDao, OrderItemEntity> implements OrderItemService {
+
+    /**
+     * 方法重载1
+     */
+    @RabbitHandler
+    public void revieveMessage(Message message, OrderReturnReasonEntity entity, Channel channel) {
+        // 请求体，序列化存储（本例中已使用Jackson2JsonMessageConverter序列化器作JSON序列化存储）
+        byte[] body = message.getBody();
+        // 请求头
+        MessageProperties messageProperties = message.getMessageProperties();
+        // JSON反序列得到消息内容对象
+        OrderReturnReasonEntity reason = JSONObject.parseObject(body, OrderReturnReasonEntity.class);
+        System.out.println("接受到的消息对象" + message);
+        System.out.println("接受到的消息内容" + reason);
+        System.out.println("接受到的消息内容" + entity);
+    }
+
+    /**
+     * 方法重载2
+     */
+    @RabbitHandler
+    public void revieveMessage(Message message, OrderEntity entity, Channel channel) {
+        // 请求体，序列化存储（本例中已使用Jackson2JsonMessageConverter序列化器作JSON序列化存储）
+        byte[] body = message.getBody();
+        // 请求头
+        MessageProperties messageProperties = message.getMessageProperties();
+        // JSON反序列得到消息内容对象
+        OrderEntity reason = JSONObject.parseObject(body, OrderEntity.class);
+        System.out.println("接受到的消息对象" + message);
+        System.out.println("接受到的消息内容" + reason);
+        System.out.println("接受到的消息内容" + entity);
+    }
+}
+```
+
+## AmqpAdmin
+
+也可以使用 org.springframework.amqp.core.AmqpAdmin 来创建队列等信息
+
+`org.springframework.amqp.core.AmqpAdmin`是Spring AMQP框架中的一个类，用于管理AMQP（Advanced Message Queuing Protocol）消息队列的操作。通过这个类，可以方便地进行队列、交换机等AMQP元素的声明、删除等管理操作。
+
+例如
+
+```java 
+
+@Autowired
+AmqpAdmin amqpAdmin;
+
+@Test
+void createQueue() {
+    // 创建队列
+    // String name, boolean durable, boolean exclusive, boolean autoDelete
+    // exclusive：是否排他，true：只有一个连接可以使用此队列，其他连接无法连上此队列
+    Queue queue = new Queue("hello-java-queue", true, false, false);
+    amqpAdmin.declareQueue(queue);
+    log.info("Queue创建[{}]成功", "hello-java-queue");
+}
+```
+
 
 # 安装
 
@@ -3804,3 +3954,8 @@ vi /etc/haproxy/haproxy.cfg
 
 ## federation queue
 ## shovel
+
+# 基于 mq 的分布式事务解决方案
+
+https://zhuanlan.zhihu.com/p/329941683
+
