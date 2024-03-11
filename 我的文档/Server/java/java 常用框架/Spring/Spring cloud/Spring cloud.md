@@ -4916,6 +4916,15 @@ server:
   port: 9000
 ```
 
+### spring security
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-security</artifactId>
+</dependency>
+```
+
 ### mybatis-plus
 
 ```xml
