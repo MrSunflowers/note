@@ -4916,6 +4916,14 @@ server:
   port: 9000
 ```
 
+#### 配置项目上下文路径
+
+```yml
+server:
+  servlet:
+    context-path: urrp
+```
+
 ### spring security
 
 ```xml

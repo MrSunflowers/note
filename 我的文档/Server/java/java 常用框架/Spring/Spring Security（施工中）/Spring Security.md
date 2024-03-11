@@ -1936,50 +1936,16 @@ Spring Security 采取过滤链实现认证与授权，只有当前过滤器通�
 
 ![image-20240308172536629](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403081725706.png)
 
+## 权限访问流程
 
+主要是对 ExceptionTranslationFilter 过滤器和 FilterSecurityInterceptor 过滤器进行介绍
 
+## 请求间共享认证信息
 
+一般认证成功后的用户信息是通过 Session 在多个请求之间共享，那么Spring Security中是如何实现将已认证的用户信息对象 Authentication 与 Session 绑定的进行具体分析。
 
+![image-20240311150239539](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403111502313.png)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# OAuth2.0
-
-## 基于 OAuth2.0 的认证服务器搭建
 
 # 权限模型
 
