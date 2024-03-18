@@ -630,9 +630,238 @@ new Vue({
 在上面的例子中，自定义了一个名为`reverse`的过滤器，用于将文本颠倒显示。
 总之，Vue的过滤器是一种非常方便的数据处理方式，可以在模板中直接使用，使数据的展示更加灵活和易读。通过内置过滤器和自定义过滤器，可以满足各种数据处理需求。
 
+### directives 自定义指令
 
+在Vue.js中，可以通过全局注册和局部注册两种方式来配置自定义指令（Directives）。下面分别介绍这两种注册方式的具体步骤：
+#### 全局注册自定义指令
+1. **创建自定义指令**：
+   ```javascript
+   Vue.directive('custom-directive', {
+       bind(el, binding) {
+           // 指令绑定时的初始化操作
+       },
+       inserted(el, binding) {
+           // 元素插入到父节点时的操作
+       },
+       update(el, binding) {
+           // 元素更新时的操作
+       },
+       componentUpdated(el, binding) {
+           // 组件更新完成时的操作
+       },
+       unbind(el, binding) {
+           // 指令解绑时的清理操作
+       }
+   });
+   ```
+2. **在Vue实例中使用**：
+   ```html
+   <div v-custom-directive></div>
+   ```
+#### 局部注册自定义指令
+1. **创建自定义指令**：
+   ```javascript
+   export default {
+       directives: {
+           'custom-directive': {
+               bind(el, binding) {
+                   // 指令绑定时的初始化操作
+               },
+               inserted(el, binding) {
+                   // 元素插入到父节点时的操作
+               },
+               update(el, binding) {
+                   // 元素更新时的操作
+               },
+               componentUpdated(el, binding) {
+                   // 组件更新完成时的操作
+               },
+               unbind(el, binding) {
+                   // 指令解绑时的清理操作
+               }
+           }
+       }
+   };
+   ```
+2. **在组件中使用**：
+   ```html
+   <template>
+       <div v-custom-directive></div>
+   </template>
+   ```
+   通过以上方式，可以灵活地配置自定义指令，并在需要的地方进行使用。自定义指令的配置对象中可以包含多个钩子函数，用于在不同阶段执行相应的操作，从而实现对DOM元素的定制化控制。
 
+### 生命周期
 
+```
+生命周期：
+	1.又名：生命周期回调函数、生命周期函数、生命周期钩子。
+	2.是什么：Vue在关键时刻帮我们调用的一些特殊名称的函数。
+	3.生命周期函数的名字不可更改，但函数的具体内容是程序员根据需求编写的。
+	4.生命周期函数中的this指向是vm 或 组件实例对象。
+常用的生命周期钩子：
+			1.mounted: 发送ajax请求、启动定时器、绑定自定义事件、订阅消息等【初始化操作】。
+			2.beforeDestroy: 清除定时器、解绑自定义事件、取消订阅消息等【收尾工作】。
+	关于销毁Vue实例
+			1.销毁后借助Vue开发者工具看不到任何信息。
+			2.销毁后自定义事件会失效，但原生DOM事件依然有效。
+			3.一般不会在beforeDestroy操作数据，因为即便操作数据，也不会再触发更新流程了。
+```
+
+Vue.js 组件的生命周期函数一共有 8 个，它们的调用顺序如下：
+
+1. **beforeCreate**：
+   - 在实例初始化之后，数据观测(data observer)和事件配置(event/watcher)之前被调用。在这个阶段，实例的属性和方法还无法访问。
+2. **created**：
+   - 实例已经创建完成之后被调用。在这个阶段，实例已经完成数据观测(data observer)，属性和方法的运算，watch/event 事件回调。但是挂载阶段还未开始，$el 属性目前不可见。
+3. **beforeMount**：
+   - 在挂载开始之前被调用：相关的 render 函数首次被调用。
+4. **mounted**：
+   - 实例已经挂载到 DOM 上后调用，这时 `vm.$el` 可以访问到实例的根 DOM 元素。如果要操作 DOM 元素，最好在这个阶段进行。
+5. **beforeUpdate**：
+   - 数据更新时调用，发生在虚拟 DOM 重新渲染和打补丁之前。
+6. **updated**：
+   - 虚拟 DOM 重新渲染和打补丁之后调用。组件 DOM 已经更新，可以执行依赖于 DOM 的操作。
+7. **beforeDestroy**：
+   - 实例销毁之前调用。在这一步，实例仍然完全可用。
+8. **destroyed**：
+   - 实例销毁后调用。在这一步，只剩下实例的一些属性，但是访问它们会报错。
+
+生命周期函数的调用顺序可以总结为：
+- 创建阶段：beforeCreate -> created
+- 挂载阶段：beforeMount -> mounted
+- 更新阶段：beforeUpdate -> updated
+- 销毁阶段：beforeDestroy -> destroyed
+
+理解生命周期函数的调用顺序有助于开发者更好地控制组件的行为，并在合适的时机执行相应的操作，比如数据初始化、异步操作、DOM 操作等。
+
+![生命周期](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403151513821.png)
+
+```js
+new Vue({
+	el:'#root',
+	data:{
+		n:1
+	},
+	methods: {
+		add(){
+			console.log('add')
+			this.n++
+		}
+	},
+	watch:{
+		n(){
+			console.log('n变了')
+		}
+	},
+	beforeCreate() {
+		console.log('beforeCreate')
+	},
+	created() {
+		console.log('created')
+	},
+	beforeMount() {
+		console.log('beforeMount')
+	},
+	mounted() {
+		console.log('mounted')
+	},
+	beforeUpdate() {
+		console.log('beforeUpdate')
+	},
+	updated() {
+		console.log('updated')
+	},
+	beforeDestroy() {
+		console.log('beforeDestroy')
+	},
+	destroyed() {
+		console.log('destroyed')
+	},
+})
+```
+
+示例
+
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>引出生命周期</title>
+		<!-- 引入Vue -->
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<h2 :style="{opacity}">欢迎学习Vue</h2>
+			<button @click="opacity = 1">透明度设置为1</button>
+			<button @click="stop">点我停止变换</button>
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+
+		 new Vue({
+			el:'#root',
+			data:{
+				opacity:1
+			},
+			methods: {
+				stop(){
+					this.$destroy()
+				}
+			},
+			//Vue完成模板的解析并把初始的真实DOM元素放入页面后（挂载完毕）调用mounted
+			mounted(){
+				console.log('mounted',this)
+				this.timer = setInterval(() => {
+					console.log('setInterval')
+					this.opacity -= 0.01
+					if(this.opacity <= 0) this.opacity = 1
+				},16)
+			},
+			beforeDestroy() {
+				clearInterval(this.timer)
+				console.log('vm即将驾鹤西游了')
+			},
+		})
+
+	</script>
+</html>
+```
+
+### template 模板
+
+在 Vue 中，容器中的内容也可以定义在 template 中，vue 在解析 template 中的内容时，会使用 template 中的内容完全替换掉 el 容器，而直接解析 el 容器时则会保留容器本身的属性，例如 `:x="n"` 
+
+```html
+<!-- 准备好一个容器-->
+<div id="root" :x="n">
+</div>
+<script type="text/javascript">
+	new Vue({
+		el:'#root',
+		template:`
+			<div>
+				<h2>当前的n值是：{{n}}</h2>
+				<button @click="add">点我n+1</button>
+			</div>
+		`,
+		data:{
+			n:1
+		},
+		methods: {
+			add(){
+				console.log('add')
+				this.n++
+			}
+		},
+	})
+</script>
+```
 
 ## 模板语法
 
@@ -975,6 +1204,93 @@ v-pre指令：
 			n:1
 		}
 	})
+</script>
+```
+
+#### 自定义指令
+
+```
+需求1：定义一个v-big指令，和v-text功能类似，但会把绑定的数值放大10倍。
+	需求2：定义一个v-fbind指令，和v-bind功能类似，但可以让其所绑定的input元素默认获取焦点。
+	自定义指令总结：
+			一、定义语法：
+						(1).局部指令：
+									new Vue({															new Vue({
+										directives:{指令名:配置对象}   或   		directives{指令名:回调函数}
+									}) 																		})
+						(2).全局指令：
+										Vue.directive(指令名,配置对象) 或   Vue.directive(指令名,回调函数)
+			二、配置对象中常用的3个回调：
+						(1).bind：指令与元素成功绑定时调用。
+						(2).inserted：指令所在元素被插入页面时调用。
+						(3).update：指令所在模板结构被重新解析时调用。
+			三、备注：
+						1.指令定义时不加v-，但使用时要加v-；
+						2.指令名如果是多个单词，要使用kebab-case命名方式，不要用camelCase命名。
+```
+
+```html
+<!-- 准备好一个容器-->
+<div id="root">
+	<h2>{{name}}</h2>
+	<h2>当前的n值是：<span v-text="n"></span> </h2>
+	<!-- <h2>放大10倍后的n值是：<span v-big-number="n"></span> </h2> -->
+	<h2>放大10倍后的n值是：<span v-big="n"></span> </h2>
+	<button @click="n++">点我n+1</button>
+	<hr/>
+	<input type="text" v-fbind:value="n">
+</div>
+<script type="text/javascript">
+	Vue.config.productionTip = false
+	//定义全局指令
+	/* Vue.directive('fbind',{
+		//指令与元素成功绑定时（一上来）
+		bind(element,binding){
+			element.value = binding.value
+		},
+		//指令所在元素被插入页面时
+		inserted(element,binding){
+			element.focus()
+		},
+		//指令所在的模板被重新解析时
+		update(element,binding){
+			element.value = binding.value
+		}
+	}) */
+	new Vue({
+		el:'#root',
+		data:{
+			name:'尚硅谷',
+			n:1
+		},
+		directives:{
+			//big函数何时会被调用？1.指令与元素成功绑定时（一上来）。2.指令所在的模板被重新解析时。
+			/* 'big-number'(element,binding){
+				// console.log('big')
+				element.innerText = binding.value * 10
+			}, */
+			big(element,binding){
+				console.log('big',this) //注意此处的this是window
+				// console.log('big')
+				element.innerText = binding.value * 10
+			},
+			fbind:{
+				//指令与元素成功绑定时（一上来）
+				bind(element,binding){
+					element.value = binding.value
+				},
+				//指令所在元素被插入页面时
+				inserted(element,binding){
+					element.focus()
+				},
+				//指令所在的模板被重新解析时
+				update(element,binding){
+					element.value = binding.value
+				}
+			}
+		}
+	})
+	
 </script>
 ```
 
@@ -2314,6 +2630,697 @@ v-for指令:
 5. **使用计算属性**：
    - 如果是对列表数据进行某种计算或过滤，可以考虑使用计算属性来处理数据，确保计算属性会随着依赖数据的变化而重新计算。
    如果你遇到了在使用`v-for`渲染列表时修改数据不生效的问题，可以尝试以上方法来解决。通常情况下，遵循Vue的响应式数据更新规则，使用Vue提供的方法来修改数据，就能够保证页面正确地更新。
+
+## 组件
+
+
+### 非单文件组件
+
+在Vue.js中，非单文件组件指的是直接在JavaScript代码中定义Vue组件的方式，而不是使用单文件组件（.vue文件）的形式。非单文件组件通常将组件的模板、脚本和样式都写在同一个JavaScript对象中，这种方式适用于一些简单的组件或者小型项目。
+
+以下是一个简单的非单文件组件的示例：
+
+```javascript
+Vue.component('my-component', {
+    template: `
+        <div>
+            <h1>{{ title }}</h1>
+            <p>{{ content }}</p>
+        </div>
+    `,
+    data() {
+        return {
+            title: 'Hello Vue!',
+            content: 'This is a Vue component.'
+        };
+    }
+});
+```
+
+在这个示例中，我们直接在`Vue.component`方法的第二个参数中定义了一个对象，包含了组件的模板内容（`template`）、数据（`data`）等。这种方式适合于简单的组件，可以在一个文件中直接定义组件的结构和逻辑，便于快速开发和调试。
+非单文件组件的优点包括：
+
+1. **简单快捷**：不需要额外的构建步骤，可以直接在JavaScript中编写组件。
+2. **适用于小型项目**：对于一些小型项目或者简单的组件，非单文件组件是一种轻量级的组织方式。
+3. **学习曲线低**：对于刚开始学习Vue.js的开发者来说，非单文件组件可以更直观地理解组件的结构和使用方式。
+
+然而，随着项目规模的增大和复杂度的提高，使用单文件组件的方式会更加方便管理和维护。单文件组件将模板、脚本和样式分离，使得代码更具可读性和可维护性，同时也支持更丰富的功能，如预处理器、作用域样式等。因此，在大型项目中，推荐使用单文件组件来组织Vue.js应用程序。
+
+#### 1 创建组件
+
+##### Vue.extend (vue 3 已废弃)
+
+在Vue.js中，`Vue.extend`是用来创建Vue构造器的方法。通过`Vue.extend`方法，可以基于现有的Vue实例创建一个新的Vue构造器，从而可以动态地扩展和创建新的Vue组件。
+
+下面是一个简单的示例，演示了如何使用`Vue.extend`方法创建一个新的Vue构造器：
+
+```javascript
+// 创建一个基础的Vue构造器
+var MyBaseComponent = Vue.extend({
+    template: '<div>{{ message }}</div>',
+    data() {
+        return {
+            message: 'Hello from MyBaseComponent!'
+        };
+    }
+});
+// 使用新的Vue构造器创建一个实例
+var myComponentInstance = new MyBaseComponent();
+myComponentInstance.$mount('#app');
+```
+
+在这个示例中，我们首先使用`Vue.extend`方法基于`MyBaseComponent`创建了一个新的Vue构造器，然后通过这个构造器创建了一个新的Vue实例`myComponentInstance`，并将其挂载到`#app`元素上。这样就动态地创建了一个新的Vue组件。
+
+`Vue.extend`方法的主要作用包括：
+1. **创建Vue构造器**：通过`Vue.extend`方法可以创建一个新的Vue构造器，这个构造器可以用来生成新的Vue组件实例。
+2. **继承现有组件**：基于现有的Vue实例或组件，可以通过`Vue.extend`方法创建一个新的Vue构造器，实现组件的继承和扩展。
+3. **动态组件生成**：在某些情况下，需要动态地根据不同的需求创建不同的Vue组件，这时可以使用`Vue.extend`方法来动态生成新的Vue构造器和组件实例。
+
+需要注意的是，使用`Vue.extend`方法创建的新的Vue构造器是可以继续扩展和定制的，可以在新的构造器中添加新的数据、方法等，实现更复杂的组件逻辑。通过灵活运用`Vue.extend`方法，可以更加高效地管理和创建Vue组件。
+
+示例
+
+```js
+//创建school组件
+const school = Vue.extend({
+    name:'school', // 开发者工具中的显示名称,可选填
+	template:`
+		<div class="demo">
+			<h2>学校名称：{{schoolName}}</h2>
+			<h2>学校地址：{{address}}</h2>
+			<button @click="showName">点我提示学校名</button>	
+		</div>
+	`,
+	// el:'#root', //组件定义时，一定不要写el配置项，因为最终所有的组件都要被一个vm管理，由vm决定服务于哪个容器。
+	data(){
+		return {
+			schoolName:'尚硅谷',
+			address:'北京昌平'
+		}
+	},
+	methods: {
+		showName(){
+			alert(this.schoolName)
+		}
+	},
+})
+```
+
+```
+一个简写方式： const school = Vue.extend(options) 可简写为：const school = options
+```
+
+#### 2 注册组件
+
+##### 全局注册组件
+
+```js
+Vue.component('school',school)
+```
+
+##### 局部注册组件
+
+```js
+new Vue({
+	el:'#root',
+	data:{
+		msg:'你好啊！'
+	},
+	//注册组件（局部注册）
+	components:{
+		school:school, // 组件名:组件句柄
+		student
+	}
+})
+```
+
+```
+关于组件名:
+	一个单词组成：
+				第一种写法(首字母小写)：school
+				第二种写法(首字母大写)：School
+	多个单词组成：
+				第一种写法(kebab-case命名)：my-school
+				第二种写法(CamelCase命名)：MySchool (需要Vue脚手架支持)
+	备注：
+			(1).组件名尽可能回避HTML中已有的元素名称，例如：h2、H2都不行。
+			(2).可以使用name配置项指定组件在开发者工具中呈现的名字。
+```
+
+#### 3 使用组件
+
+```html
+<div id="root">
+	<school></school>
+</div>
+```
+
+```
+关于组件标签:
+	第一种写法：<school></school>
+	第二种写法：<school/>
+	备注：不用使用脚手架时，<school/>会导致后续组件不能渲染。
+```
+
+#### 总结
+
+```
+Vue中使用组件的三大步骤：
+			一、定义组件(创建组件)
+			二、注册组件
+			三、使用组件(写组件标签)
+	一、如何定义一个组件？
+				使用Vue.extend(options)创建，其中options和new Vue(options)时传入的那个options几乎一样，但也有点区别；
+				区别如下：
+						1.el不要写，为什么？ ——— 最终所有的组件都要经过一个vm的管理，由vm中的el决定服务哪个容器。
+						2.data必须写成函数，为什么？ ———— 避免组件被复用时，数据存在引用关系。
+				备注：使用template可以配置组件结构。
+	二、如何注册组件？
+					1.局部注册：靠new Vue的时候传入components选项
+					2.全局注册：靠Vue.component('组件名',组件)
+	三、编写组件标签：
+					<school></school>
+```
+
+#### 示例
+
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>基本使用</title>
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			<hello></hello>
+			<hr>
+			<h1>{{msg}}</h1>
+			<hr>
+			<!-- 第三步：编写组件标签 -->
+			<school></school>
+			<hr>
+			<!-- 第三步：编写组件标签 -->
+			<student></student>
+		</div>
+
+		<div id="root2">
+			<hello></hello>
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false
+
+		//第一步：创建school组件
+		const school = Vue.extend({
+			template:`
+				<div class="demo">
+					<h2>学校名称：{{schoolName}}</h2>
+					<h2>学校地址：{{address}}</h2>
+					<button @click="showName">点我提示学校名</button>	
+				</div>
+			`,
+			// el:'#root', //组件定义时，一定不要写el配置项，因为最终所有的组件都要被一个vm管理，由vm决定服务于哪个容器。
+			data(){
+				return {
+					schoolName:'尚硅谷',
+					address:'北京昌平'
+				}
+			},
+			methods: {
+				showName(){
+					alert(this.schoolName)
+				}
+			},
+		})
+
+		//第一步：创建student组件
+		const student = Vue.extend({
+			template:`
+				<div>
+					<h2>学生姓名：{{studentName}}</h2>
+					<h2>学生年龄：{{age}}</h2>
+				</div>
+			`,
+			data(){
+				return {
+					studentName:'张三',
+					age:18
+				}
+			}
+		})
+		
+		//第一步：创建hello组件
+		const hello = Vue.extend({
+			template:`
+				<div>	
+					<h2>你好啊！{{name}}</h2>
+				</div>
+			`,
+			data(){
+				return {
+					name:'Tom'
+				}
+			}
+		})
+		
+		//第二步：全局注册组件
+		Vue.component('hello',hello)
+
+		//创建vm
+		new Vue({
+			el:'#root',
+			data:{
+				msg:'你好啊！'
+			},
+			//第二步：注册组件（局部注册）
+			components:{
+				school,
+				student
+			}
+		})
+
+		new Vue({
+			el:'#root2',
+		})
+	</script>
+</html>
+```
+
+#### 组件的嵌套
+
+在组件中可以嵌套注册使用其他组件，在模板中可以一并解析
+
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>组件的嵌套</title>
+		<!-- 引入Vue -->
+		<script type="text/javascript" src="../js/vue.js"></script>
+	</head>
+	<body>
+		<!-- 准备好一个容器-->
+		<div id="root">
+			
+		</div>
+	</body>
+
+	<script type="text/javascript">
+		Vue.config.productionTip = false //阻止 vue 在启动时生成生产提示。
+
+		//定义student组件
+		const student = Vue.extend({
+			name:'student', // 开发者工具中的显示名称
+			template:`
+				<div>
+					<h2>学生姓名：{{name}}</h2>	
+					<h2>学生年龄：{{age}}</h2>	
+				</div>
+			`,
+			data(){
+				return {
+					name:'尚硅谷',
+					age:18
+				}
+			}
+		})
+		
+		//定义school组件
+		const school = Vue.extend({
+			name:'school',
+			template:`
+				<div>
+					<h2>学校名称：{{name}}</h2>	
+					<h2>学校地址：{{address}}</h2>	
+					<student></student>
+				</div>
+			`,
+			data(){
+				return {
+					name:'尚硅谷',
+					address:'北京'
+				}
+			},
+			//注册组件（局部）
+			components:{
+				student
+			}
+		})
+
+		//定义hello组件
+		const hello = Vue.extend({
+			template:`<h1>{{msg}}</h1>`,
+			data(){
+				return {
+					msg:'欢迎来到尚硅谷学习！'
+				}
+			}
+		})
+		
+		//定义app组件
+		const app = Vue.extend({
+			template:`
+				<div>	
+					<hello></hello>
+					<school></school>
+				</div>
+			`,
+			components:{
+				school,
+				hello
+			}
+		})
+
+		//创建vm
+		new Vue({
+			template:'<app></app>',
+			el:'#root',
+			//注册组件（局部）
+			components:{app}
+		})
+	</script>
+</html>
+```
+
+#### 关于组件
+
+1. school组件本质是一个名为VueComponent的构造函数，且不是程序员定义的，是Vue.extend生成的。
+
+![image-20240315175535282](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403151755428.png)
+
+2. 我们只需要写`<school/>`或`<school></school>`，Vue解析时会帮我们创建school组件的实例对象，
+	即Vue帮我们执行的：`new VueComponent(options)`。
+3. 特别注意：**每次调用Vue.extend，返回的都是一个全新的VueComponent！！！！**
+4. 关于this指向：
+		(1).组件配置中：
+					data函数、methods中的函数、watch中的函数、computed中的函数 它们的this均是【VueComponent实例对象】。
+		(2).new Vue(options)配置中：
+					data函数、methods中的函数、watch中的函数、computed中的函数 它们的this均是【Vue实例对象】。
+5. VueComponent的实例对象，以后简称vc（也可称之为：组件实例对象）。
+	Vue的实例对象，以后简称vm。
+
+![image-20240318143101706](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403181431844.png)
+
+#### 关于原型对象
+
+```js
+//1. 定义一个构造函数
+function Demo(){
+	this.a = 1
+	this.b = 2
+}
+//2. new 一个Demo的实例对象
+const d = new Demo()
+
+console.log(Demo.prototype) // Demo.prototype 为显示原型属性
+console.log(d.__proto__) // d.__proto__ 为隐式原型属性
+console.log(Demo.prototype === d.__proto__) // ture 而 显示原型属性 与 隐式原型属性 相同
+// 所以程序员可以通过显示原型属性操作原型对象，例如在 显示原型属性上 追加一个x属性，值为99，则在 隐式原型属性 上也可以访问，这样即可实现通过 隐式原型属性 来操控 对象实例的 隐式原型属性
+Demo.prototype.x = 99
+console.log('@',d.__proto__.x) // 99
+console.log('@',d.x) // 也可以这样访问
+```
+
+此种设计模式同样在vue中有所体现，就表现在一个重要的内置关系：`VueComponent.prototype.__proto__ === Vue.prototype`，为什么要有这个关系：让组件实例对象（vc）可以访问到 Vue原型上的属性、方法。
+
+即 VueComponent 实例继承了 Vue ，在 Vue.prototype 中定义的属性，都可以在 VueComponent 实例中使用
+
+### 单文件组件
+
+#### vue 文件命名规范
+
+1. 纯小写 test.vue
+2. 首字母大写 Test.vue (推荐)
+3. 多单词命名1 my-test.vue
+4. 多单词命名2 MyTest.vue (推荐)
+
+#### 文件结构
+
+```vue
+<template>
+	// 组件结构
+</template>
+
+<script>
+	// 组件交互代码
+</script>
+
+<style>
+	// 组件样式
+</style>
+```
+
+这里需要注意的是，因为组件是给其他功能引用的，所以需要将模块导出出去，即会用到 es 6 的导出语法  
+
+示例
+
+```vue
+<template>
+	<div class="demo">
+		<h2>学校名称：{{name}}</h2>
+		<h2>学校地址：{{address}}</h2>
+		<button @click="showName">点我提示学校名</button>	
+	</div>
+</template>
+
+<script>
+	 export const school = Vue.extend({
+		name:'School',
+		data(){
+			return {
+				name:'尚硅谷',
+				address:'北京昌平'
+			}
+		},
+		methods: {
+			showName(){
+				alert(this.name)
+			}
+		},
+	})
+</script>
+
+<style>
+	.demo{
+		background-color: orange;
+	}
+</style>
+```
+
+#### 导出模块
+
+其中 script 中的脚本可以有三种导出方式
+
+##### 1. 命名导出（Named Exports）：
+使用`export`关键字可以将变量、函数、类等内容进行命名导出，其他模块可以通过名称引入这些导出的内容。示例如下：
+```javascript
+// 导出变量
+export const name = 'Alice';
+export const age = 30;
+// 导出函数
+export function greet() {
+    return `Hello, ${name}!`;
+}
+// 导出类
+export class Person {
+    constructor(name, age) {
+        this.name = name;
+        this.age = age;
+    }
+}
+```
+其他模块可以通过以下方式引入命名导出的内容：
+```javascript
+import { name, age, greet, Person } from './myModule';
+```
+##### 2. 默认导出（Default Export）：
+使用`export default`关键字可以将模块中的内容设定为默认导出，一个模块只能有一个默认导出。示例如下：
+```javascript
+// 默认导出一个函数
+export default function sayHello(name) {
+    return `Hello, ${name}!`;
+}
+```
+其他模块可以通过以下方式引入默认导出的内容：
+```javascript
+import sayHello from './myModule';
+```
+##### 3. 统一导出（Exporting All in One）：
+使用`export *`关键字可以将一个模块中的所有内容统一导出，其他模块可以一次性引入所有导出的内容。示例如下：
+```javascript
+// 导出所有内容
+export * from './myModule';
+```
+其他模块可以通过以下方式一次性引入所有导出的内容：
+```javascript
+import * as myModule from './myModule';
+```
+##### 4. 导出时重命名：
+在导出时，可以使用`as`关键字对导出的内容进行重命名，方便在引入时使用不同的名称。示例如下：
+```javascript
+// 导出并重命名
+export { name as myName, age as myAge } from './myModule';
+```
+其他模块可以通过重命名后的名称引入导出的内容：
+```javascript
+import { myName, myAge } from './myModule';
+```
+
+其中，命名导出（Named Exports）和默认导出（Default Export）是两种常用的导出方式，它们之间有一些区别：
+
+命名导出（Named Exports）：
+- 可以导出多个变量、函数、类等内容，每个导出都需要使用`export`关键字单独导出。
+- 在其他模块中，需要使用解构赋值或者直接引用导出的名称来引入具体的导出内容。
+- 适用于需要导出多个内容的情况，可以更灵活地组织和管理模块中的内容。
+
+默认导出（Default Export）：
+- 一个模块只能有一个默认导出，使用`export default`关键字导出。
+- 在其他模块中，可以直接通过`import`语句引入默认导出的内容，不需要使用大括号或者指定名称。
+- 适用于导出一个主要的内容或者模块，简化了引入默认导出内容的语法。
+
+##### 区别总结：
+- 命名导出适用于需要导出多个内容的情况，可以灵活地导出多个变量、函数、类等。
+- 默认导出适用于导出一个主要的内容或模块，简化了引入默认导出内容的语法。
+- 在使用时，命名导出需要使用解构赋值或者指定名称来引入内容，而默认导出可以直接引入默认导出的内容。
+
+##### 示例
+
+方式一：按名称导出
+
+```js
+export const school = Vue.extend({
+		name:'School',
+		data(){
+			return {
+				name:'尚硅谷',
+				address:'北京昌平'
+			}
+		},
+		methods: {
+			showName(){
+				alert(this.name)
+			}
+		},
+	})
+```
+
+导入：
+
+```js
+import { school } from 'some-path/vueFileName';
+console.log(school); // 
+```
+
+方式二：统一导出
+
+```js
+ const school = Vue.extend({
+		name:'School',
+		data(){
+			return {
+				name:'尚硅谷',
+				address:'北京昌平'
+			}
+		},
+		methods: {
+			showName(){
+				alert(this.name)
+			}
+		},
+	})
+    export {school}
+```
+
+导入：
+
+```js
+import { school } from 'some-path/vueFileName';
+console.log(school); // 
+```
+
+方式三：默认导出
+
+```js
+ const school = Vue.extend({
+		name:'School',
+		data(){
+			return {
+				name:'尚硅谷',
+				address:'北京昌平'
+			}
+		},
+		methods: {
+			showName(){
+				alert(this.name)
+			}
+		},
+	})
+export default school
+```
+
+导入：
+
+```js
+import  用默认导出，你不需要提供名称，因为你可以自己想怎么定义都行  from 'some-path/vueFileName';
+console.log(用默认导出，你不需要提供名称，因为你可以自己想怎么定义都行); // 
+```
+
+#### 示例
+
+由于以上 `Vue.extend` 可以省略，最终可得
+
+```vue
+<template>
+	<div class="demo">
+		<h2>学校名称：{{name}}</h2>
+		<h2>学校地址：{{address}}</h2>
+		<button @click="showName">点我提示学校名</button>	
+	</div>
+</template>
+
+<script>
+	 export default {
+		name:'School',
+		data(){
+			return {
+				name:'尚硅谷',
+				address:'北京昌平'
+			}
+		},
+		methods: {
+			showName(){
+				alert(this.name)
+			}
+		},
+	}
+</script>
+
+<style>
+	.demo{
+		background-color: orange;
+	}
+</style>
+```
+
+#### a
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
