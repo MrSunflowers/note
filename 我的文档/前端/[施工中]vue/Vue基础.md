@@ -3270,9 +3270,9 @@ import  用默认导出，你不需要提供名称，因为你可以自己想怎
 console.log(用默认导出，你不需要提供名称，因为你可以自己想怎么定义都行); // 
 ```
 
-#### 示例
-
 由于以上 `Vue.extend` 可以省略，最终可得
+
+#### School.vue
 
 ```vue
 <template>
@@ -3307,9 +3307,98 @@ console.log(用默认导出，你不需要提供名称，因为你可以自己�
 </style>
 ```
 
-#### a
+#### Student.vue
 
+```vue
+<template>
+	<div>
+		<h2>学生姓名：{{name}}</h2>
+		<h2>学生年龄：{{age}}</h2>
+	</div>
+</template>
 
+<script>
+	 export default {
+		name:'Student',
+		data(){
+			return {
+				name:'张三',
+				age:18
+			}
+		}
+	}
+</script>
+```
+
+#### App 组件
+
+在 Vue.js 中，一个应用程序通常由多个组件组成，而 App.vue 就是这些组件中的最顶层的根组件。它管理了所有的组件，所以需要在其中引入并注册所有组件。
+
+1. **定义根组件**：`App.vue` 文件定义了应用程序的根组件，即应用程序的最顶层组件，其他组件通常嵌套在根组件内部。
+2. **组织应用程序结构**：`App.vue` 文件可以包含应用程序的整体结构，包括页面布局、导航栏、侧边栏等，起到组织和管理应用程序结构的作用。
+3. **引入其他组件**：`App.vue` 文件可以引入其他 Vue 组件，通过在模板中引用这些组件来构建应用程序的界面和功能。
+4. **定义路由视图**：在使用 Vue Router 进行路由管理时，`App.vue` 文件通常会包含 `<router-view>` 标签，用来显示当前路由对应的组件内容。
+5. **全局样式和逻辑**：可以在 `App.vue` 文件中定义全局的样式和逻辑，以确保这些样式和逻辑能够应用到整个应用程序中。
+6. **提供应用程序配置**：`App.vue` 文件也可以包含应用程序的配置信息，比如应用程序的名称、图标、主题等，以及全局的配置选项。
+
+`App.vue` 文件在 Vue.js 应用程序中扮演着非常重要的角色，它是整个应用程序的入口和根组件，负责组织和管理应用程序的结构、样式和逻辑，同时也起到连接其他组件的作用，是应用程序的核心所在。
+
+App.vue
+
+```vue
+<template>
+	<div>
+		<School></School>
+		<Student></Student>
+	</div>
+</template>
+
+<script>
+	//引入组件
+	import School from './School.vue'
+	import Student from './Student.vue'
+
+	export default {
+		name:'App',
+		components:{
+			School,
+			Student
+		}
+	}
+</script>
+```
+
+#### main.js
+
+```js
+import App from './App.vue'
+
+new Vue({
+	el:'#root',
+	template:`<App></App>`,
+	components:{App},
+})
+```
+
+#### index.html
+
+```html
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="UTF-8" />
+		<title>练习一下单文件组件的语法</title>
+	</head>
+	<body>
+		<!-- 准备一个容器 -->
+		<div id="root"></div>
+		<script type="text/javascript" src="../js/vue.js"></script>
+		<script type="text/javascript" src="./main.js"></script>
+	</body>
+</html>
+```
+
+以上代码实际上在浏览器中并不能运行，因为浏览器并不支持 ES6 和 vue 的语法，需要在脚手架中启动
 
 
 
