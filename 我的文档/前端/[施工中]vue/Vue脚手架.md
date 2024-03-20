@@ -155,7 +155,7 @@ new Vue({
 
 ![image-20240319175450458](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403191754607.png)
 
-其中的 vue.js 才是完整的 vue，即 vue.runtime.esm.js 中并没有包含模板解析器
+其中的 vue.js 才是完整的 vue，即 vue.runtime.esm.js 中并没有包含模板解析器，原因是在脚手架中，模板解析器相当于是编译器的存在，在项目打包编译后即不需要了
 
 之前写的
 
@@ -171,7 +171,7 @@ new Vue({
 
 并不能直接运行，因为缺少了模板解析器
 
-解决方法一：
+**解决方法一**
 
 引入完整的 vue
 
@@ -180,7 +180,7 @@ import Vue from 'vue/dist/vue.js'
 ```
 
 
-解决方法二：
+**解决方法二**
 
 使用 render 函数解析 template 模板
 
@@ -245,3 +245,18 @@ render: function(createElement) {
 </html>
 ```
 
+## vue.config.js
+
+[配置参考 | Vue CLI (vuejs.org)](https://cli.vuejs.org/zh/config/)
+
+`vue.config.js` 是一个可选的配置文件，用于配置 Vue 项目的构建配置。通过在项目根目录下创建 `vue.config.js` 文件，您可以对 Vue 项目的构建过程进行自定义配置，包括但不限于开发服务器配置、构建输出配置、Webpack 配置等。
+下面是一些常见的配置选项，您可以在 `vue.config.js` 文件中进行设置：
+1. **publicPath**: 设置应用部署的基本 URL。默认情况下，Vue CLI 会假设您的应用是部署在一个域名的根路径下，如果您的应用部署在子路径下，可以通过设置 `publicPath` 来指定子路径。
+   
+2. **outputDir**: 设置构建输出的目录。默认情况下，Vue CLI 会将构建生成的文件输出到 `dist` 目录下，您可以通过设置 `outputDir` 来指定输出目录。
+3. **devServer**: 配置开发服务器。您可以在 `devServer` 中设置各种选项，如端口号、代理、热重载等。
+4. **configureWebpack**: 如果您需要对 Webpack 进行更深层次的配置，可以通过 `configureWebpack` 选项来添加自定义的 Webpack 配置。
+5. **chainWebpack**: 如果您需要对 Webpack 配置进行链式修改，可以使用 `chainWebpack` 选项。通过 `chainWebpack`，您可以在原有的 Webpack 配置基础上进行更细粒度的修改。
+6. **css**: 在 `css` 选项中，您可以设置一些关于 CSS 相关的配置，如是否开启 CSS source map、是否启用 CSS Modules 等。
+7. **pluginOptions**: 如果您需要配置一些 Vue CLI 插件的选项，可以在 `pluginOptions` 中进行设置。
+以上是一些常见的配置选项，您可以根据项目需求在 `vue.config.js` 文件中进行相应的配置。通过自定义 `vue.config.js` 文件，您可以更灵活地控制 Vue 项目的构建过程，满足项目的特定需求。
