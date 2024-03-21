@@ -3420,3 +3420,39 @@ new Vue({
 
 shift+刷新
 
+## checkBox 动态勾选
+
+在 html 中 
+
+```
+<input type="checkbox" checked  />
+```
+
+即为默认勾选
+
+```
+<input type="checkbox"   />
+```
+
+即为默认不勾选
+
+在 vue 中可以通过绑定一个动态的 boolean 值来动态决定一个属性是否添加
+```
+<input type="checkbox" :checked="true" /> // 添加
+<input type="checkbox" :checked="false" /> // 不添加
+```
+
+绑定到变量上，和检测状态变化函数
+
+```
+<input type="checkbox" :checked="todo.done" @change="handleCheck(todo.id)" />
+```
+
+方式二：
+
+由于 todo.done 是 boolean 值，所以也可以写作下面方式
+
+```
+<input type="checkbox" v-model="todo.done"  />
+```
+
