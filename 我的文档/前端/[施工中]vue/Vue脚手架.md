@@ -329,6 +329,280 @@ var title = document.getElementById('title');
 
 **当然原生的获取方式也同样可以支持**
 
+# 组件自定义事件 $emit
+
+在Vue中，自定义事件是一种用于组件之间通信的重要机制。通过自定义事件，一个组件可以向其父组件发送消息，从而实现组件之间的数据传递和交互。以下是关于Vue中自定义事件的详细说明：
+
+1. **触发自定义事件**：
+   - 在子组件中，可以使用`$emit`方法来触发自定义事件，并向父组件传递数据。例如：
+     ```javascript
+     // 子组件中触发自定义事件
+     this.$emit('custom-event-name', data);
+     ```
+  
+2. **监听自定义事件**：
+   - 在父组件中，可以使用`v-on`指令（简写为`@`）来监听子组件触发的自定义事件，并执行相应的处理逻辑。例如：
+     ```html
+     <!-- 父组件中监听自定义事件 -->
+     <child-component @custom-event-name="handleCustomEvent"></child-component>
+     ```
+     ```javascript
+     // 在父组件中定义处理自定义事件的方法
+     methods: {
+       handleCustomEvent(data) {
+         // 处理接收到的数据
+       }
+     }
+     ```
+3. **传递参数**：
+   - 在触发自定义事件时，可以传递额外的参数给父组件。这些参数可以是任意类型的数据，比如字符串、对象等。
+4. **事件修饰符**：
+   - Vue还提供了事件修饰符，用于控制事件的行为。例如，`.stop`修饰符可以阻止事件冒泡，`.prevent`修饰符可以阻止默认行为，`.once`修饰符可以让事件只触发一次等。
+
+### 第一种绑定方式
+
+组件自定义事件不同于 DOM 的事件，是 vue 提供的，绑定在**组件实例对象**身上的事件
+
+给组件绑定一个自定义事件
+
+```xml
+<child-component @custom-event-name="handleCustomEvent"></child-component>
+```
+
+因为是给子组件绑定的事件，所以事件的触发需要在子组件内部使用`$emit`方法来触发
+
+```javascript
+// 子组件中触发自定义事件
+this.$emit('custom-event-name', data);
+```
+
+示例
+
+```vue
+<template>
+  <div id="app">
+    <MyTest @getSubDate="getSubDate" />
+  </div>
+</template>
+
+<script>
+import MyTest from "@/components/MyTest";
+export default {
+  name: 'App',
+  components: {MyTest},
+  methods:{
+    getSubDate(date){
+      console.log("获取到子组件的数据@"+date)
+    }
+  }
+}
+</script>
+```
+
+```vue
+<template>
+  <div class="todo-header">
+    <input type="button" @click="sendDate" value="发送数据"/>
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MyTest',
+  data() {
+    return {}
+  },
+  methods: {
+    sendDate() {
+      this.$emit('getSubDate','123')
+    }
+  }
+}
+</script>
+```
+
+### 第二种绑定方式
+
+先获取到子组件的实例对象(`this.$refs.child-component`)，然后在组件挂载到DOM上的时候(生命周期 mounted 回调)，使用 `$on` 手动挂载 `this.$refs.child-component.$on('custom-event-name',this.handleCustomEvent)`
+
+```xml
+<template>
+  <div id="app">
+    <MyTest ref="MyTest"  />
+  </div>
+</template>
+
+<script>
+import MyTest from "@/components/MyTest";
+export default {
+  name: 'App',
+  components: {MyTest},
+  methods:{
+    getSubDate(date){
+      console.log("获取到子组件的数据@"+date)
+    }
+  },
+  mounted() {
+    this.$refs.MyTest.$on('getSubDate',this.getSubDate)
+  }
+}
+</script>
+```
+
+自定义事件同样也支持事件修饰符
+
+Vue还提供了事件修饰符，用于控制事件的行为。例如，`.stop`修饰符可以阻止事件冒泡，`.prevent`修饰符可以阻止默认行为，`.once`修饰符可以让事件只触发一次等。
+
+```xml
+<MyTest @getSubDate.stop="getSubDate" />
+this.$refs.MyTest.$once('getSubDate',this.getSubDate)
+```
+
+### 解绑自定义事件
+
+```js
+this.$off('atguigu')
+```
+
+### 组件绑定原生DOM事件
+
+组件上要绑定原生DOM事件，必需要使用`native`修饰符。
+
+```xml
+<Student @click.native="show"/>
+```
+
+注意：通过
+
+```js
+this.$refs.xxx.$on('atguigu',回调)
+```
+
+绑定自定义事件时，回调<span style="color:red">要么配置在methods中</span>，<span style="color:red">要么用箭头函数</span>，否则this指向会出问题！
+
+# 全局事件总线
+
+全局事件总线是一种在Vue.js应用程序中用于跨组件通信的模式。它允许您在应用程序中的**任何组件之间进行事件的广播和监听**，而不需要通过父子组件关系传递数据。全局事件总线通常基于Vue实例作为中介，用于处理组件之间的通信。
+
+本质是通过一个中间人来传递自定义事件，此时就用到了动态绑定自定义事件 
+
+以下是使用全局事件总线的基本步骤：
+
+1. **创建全局事件总线**：在Vue应用程序中，您可以创建一个新的Vue实例作为全局事件总线，即中间人。通常，您可以在单独的JavaScript文件中创建这个Vue实例，并导出它以便其他组件使用。
+   ```javascript
+   // EventBus.js
+   import Vue from 'vue';
+   export const EventBus = new Vue();
+   ```
+
+2. **触发事件**：在任何组件中，您可以通过全局事件总线实例触发事件，并传递需要的数据。
+   ```javascript
+   // ComponentA.vue
+   import { EventBus } from './EventBus.js';
+   // 触发事件并传递数据
+   EventBus.$emit('event-name', eventData);
+   ```
+
+3. **监听事件**：在其他组件中，您可以通过全局事件总线实例监听事件，并定义处理逻辑。
+   ```javascript
+   // ComponentB.vue
+   import { EventBus } from './EventBus.js';
+   // 监听事件
+   EventBus.$on('event-name', (data) => {
+     // 处理接收到的数据
+   });
+   ```
+
+通过全局事件总线，不同组件之间可以实现解耦，灵活地进行通信，从而简化组件之间的交互。然而，需要注意的是，全局事件总线可能会导致一些难以维护的问题，比如事件命名冲突、难以追踪数据流等，因此在使用时需要谨慎考虑。
+
+示例：
+
+1. **创建全局事件总线**：首先创建一个名为`EventBus.js`的文件，用于定义全局事件总线。
+```javascript
+// EventBus.js
+import Vue from 'vue';
+export const EventBus = new Vue();
+```
+
+2. **组件A**：在组件A中触发一个事件，并传递数据。
+```vue
+<!-- ComponentA.vue -->
+<template>
+  <div>
+    <button @click="sendMessage">发送消息到组件B</button>
+  </div>
+</template>
+<script>
+import { EventBus } from './EventBus.js';
+export default {
+  methods: {
+    sendMessage() {
+      EventBus.$emit('message-from-component-a', 'Hello from Component A!');
+    }
+  }
+}
+</script>
+```
+
+3. **组件B**：在组件B中监听事件，并处理接收到的数据。
+```vue
+<!-- ComponentB.vue -->
+<template>
+  <div>
+    <p>组件B</p>
+    <p>接收到的消息：{{ message }}</p>
+  </div>
+</template>
+<script>
+import { EventBus } from './EventBus.js';
+export default {
+  data() {
+    return {
+      message: ''
+    };
+  },
+  created() {
+    EventBus.$on('message-from-component-a', (data) => {
+      this.message = data;
+    });
+  }
+}
+</script>
+```
+在这个示例中，组件A中的按钮点击事件会触发一个名为`message-from-component-a`的事件，并传递字符串数据。组件B在创建时监听这个事件，接收到数据后更新页面显示。通过全局事件总线，组件A和组件B之间实现了解耦的通信。
+
+也可以自身作为事件总线
+
+```js
+new Vue({
+	......
+	beforeCreate() {
+		Vue.prototype.$bus = this //安装全局事件总线，$bus就是当前应用的vm
+	},
+    ......
+}) 
+```
+
+使用 
+
+```js
+methods(){
+  demo(data){......}
+}
+......
+mounted() {
+  this.$bus.$on('xxxx',this.demo)
+}
+```
+
+提供数据：
+
+```
+this.$bus.$emit('xxxx',数据)
+```
+
+最好在beforeDestroy钩子中，用$off去解绑<span style="color:red">当前组件所用到的</span>事件。
+
 # 组件通信
 
 ## 获取子组件实例对象
@@ -433,7 +707,9 @@ export default {
 
 ## 子->父传参
 
-可以借助上述特性来实现
+### 回调函数实现
+
+可以借助上述特性来实现，将父组件中的函数传递给子组件调用，实现传参
 
 示例
 
@@ -487,43 +763,107 @@ export default {
 </script>
 ```
 
+### 自定义事件实现
 
+示例
 
+```vue
+<template>
+  <div id="app">
+    <MyTest @getSubDate="getSubDate" />
+  </div>
+</template>
 
+<script>
+import MyTest from "@/components/MyTest";
+export default {
+  name: 'App',
+  components: {MyTest},
+  methods:{
+    getSubDate(date){
+      console.log("获取到子组件的数据@"+date)
+    }
+  }
+}
+</script>
+```
 
+```vue
+<template>
+  <div class="todo-header">
+    <input type="button" @click="sendDate" value="发送数据"/>
+  </div>
+</template>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+<script>
+export default {
+  name: 'MyTest',
+  data() {
+    return {}
+  },
+  methods: {
+    sendDate() {
+      this.$emit('getSubDate','123')
+    }
+  }
+}
+</script>
+```
 
 ## 兄弟组件通信
 
-### 方式一：状态提升
+参考全局事件总线
 
+# 消息订阅与发布（pubsub）
+
+`pubsub-js`是一个基于发布/订阅模式的轻量级JavaScript库，用于在应用程序内部实现组件之间的解耦通信。通过`pubsub-js`，您可以在不直接引用或了解其他组件的情况下，实现组件之间的消息传递和事件触发。这种模式使得组件之间的通信更加灵活和简单。
+
+以下是`pubsub-js`的一些主要特点和用法：
+
+1. **发布/订阅模式**：`pubsub-js`基于发布/订阅模式，其中一个组件可以发布（publish）一个事件，而其他组件可以订阅（subscribe）这个事件并接收通知。
+2. **全局事件总线**：`pubsub-js`实际上创建了一个全局的事件总线，所有组件都可以通过这个事件总线进行事件的发布和订阅。
+3. **解耦性**：使用`pubsub-js`可以帮助您实现组件之间的解耦，因为组件无需直接引用或调用其他组件，只需要通过事件名称进行通信。
+4. **灵活性**：`pubsub-js`允许您定义任意的事件名称，并且支持传递数据给订阅者，使得通信更加灵活和定制化。
+5. **轻量级**：`pubsub-js`是一个非常轻量级的库，易于集成到任何JavaScript应用程序中，并且不会给应用程序增加过多的负担。
+
+下面是一个简单的示例，演示了如何在Vue.js应用程序中使用`pubsub-js`进行组件通信：
+
+安装pubsub：`npm i pubsub-js`
+
+```javascript
+// 安装 pubsub-js
+// npm install pubsub-js
+// 在组件A中发布事件
+import PubSub from 'pubsub-js';
+export default {
+  methods: {
+    sendMessage() {
+      PubSub.publish('message-from-component-a', 'Hello from Component A!');
+    }
+  }
+}
 ```
+
+```javascript
+// 在组件B中订阅事件
+import PubSub from 'pubsub-js';
+export default {
+  data() {
+    return {
+      message: ''
+    };
+  },
+  created() {
+    PubSub.subscribe('message-from-component-a', (msg, data) => {
+      this.message = data;
+    });
+  }
+}
 ```
 
+通过`pubsub-js`，组件A可以发布一个名为`message-from-component-a`的事件，并传递数据，而组件B可以订阅这个事件，并接收到数据后更新页面显示。这样就实现了组件之间的解耦通信。
 
+最好在 beforeDestroy 钩子中，用 `PubSub.unsubscribe(pid)` 去<span style="color:red">取消订阅。</span>
 
 # 局部样式 scoped
 
@@ -781,3 +1121,329 @@ import plugins from './plugins'
 //应用（使用）插件
 Vue.use(plugins,1,2,3)
 ```
+
+# 异步更新 $nextTick
+
+1. 语法：```this.$nextTick(回调函数)```
+2. 作用：在下一次 DOM 更新结束后执行其指定的回调。
+3. 什么时候用：当改变数据后，要基于更新后的新DOM进行某些操作时，要在nextTick所指定的回调函数中执行。
+
+`$nextTick`是Vue.js提供的一个异步更新DOM的方法，它可以让您在下次DOM更新循环结束之后执行特定的操作。在Vue.js中，DOM更新是异步执行的，当数据发生变化时，Vue会将DOM更新放入队列中，然后在下一个事件循环中批量更新DOM，这样可以提高性能和效率。
+
+下面是关于`$nextTick`的详细介绍：
+
+1. 作用
+- **等待DOM更新完成**：使用`$nextTick`可以确保您在Vue实例数据发生变化后，等待Vue完成DOM更新之后再执行特定的操作，确保操作在DOM更新完成后执行。
+- **处理DOM相关操作**：适合用于需要操作DOM元素的情况，比如获取DOM元素的尺寸、位置等信息，或者在更新后操作DOM元素。
+
+2. 使用方法
+
+```javascript
+this.$nextTick(function () {
+  // 在DOM更新完成后执行的操作
+});
+```
+
+3. 示例
+
+```vue
+<template>
+  <div>
+    <p>当前计数：{{ count }}</p>
+    <button @click="incrementCount">增加计数</button>
+  </div>
+</template>
+<script>
+export default {
+  data() {
+    return {
+      count: 0
+    };
+  },
+  methods: {
+    incrementCount() {
+      this.count++;
+      this.$nextTick(() => {
+        // DOM更新完成后操作
+        console.log('DOM已更新，当前计数为：', this.count);
+      });
+    }
+  }
+}
+</script>
+```
+
+4. 注意事项
+- **异步更新**：`$nextTick`是异步执行的，因此操作会在下一个DOM更新循环中执行。
+- **避免频繁使用**：尽量避免在大量数据变化时频繁使用`$nextTick`，以免影响性能。
+
+5. 应用场景
+- **操作DOM元素**：获取更新后的DOM元素尺寸、位置等信息。
+- **Vue生命周期钩子中**：在Vue生命周期钩子中使用`$nextTick`，确保在DOM更新完成后执行操作。
+
+# Vue封装的过度与动画
+
+1. 作用：在插入、更新或移除 DOM元素时，在合适的时候给元素添加样式类名。
+
+2. 写法：
+
+   1. 准备好样式：
+
+      - 元素进入的样式：
+        1. v-enter：进入的起点
+        2. v-enter-active：进入过程中
+        3. v-enter-to：进入的终点
+      - 元素离开的样式：
+        1. v-leave：离开的起点
+        2. v-leave-active：离开过程中
+        3. v-leave-to：离开的终点
+
+   2. 使用```<transition>```包裹要过度的元素，并配置name属性：
+
+      ```vue
+      <transition name="hello">
+      	<h1 v-show="isShow">你好啊！</h1>
+      </transition>
+      ```
+
+   3. 备注：若有多个元素需要过度，则需要使用：```<transition-group>```，且每个元素都要指定```key```值。
+
+# 请求发送
+
+## axios
+
+[Axios中文文档 | Axios中文网 (axios-http.cn)](https://www.axios-http.cn/)
+
+在Vue.js项目中，通常会使用Axios来进行HTTP请求，Axios是一个基于Promise的现代化HTTP库，可以在浏览器和Node.js中使用。下面是关于Vue中Axios的简单介绍和使用方法：
+
+### 安装 Axios
+可以使用npm或者yarn来安装Axios：
+```bash
+npm install axios
+```
+或
+```bash
+yarn add axios
+```
+### 引入 Axios
+在Vue项目中，可以在`main.js`或者需要使用Axios的组件中引入Axios：
+```javascript
+import axios from 'axios';
+```
+### 发送 GET 请求
+```javascript
+axios.get('https://api.example.com/data')
+  .then(response => {
+    console.log(response.data);
+  })
+  .catch(error => {
+    console.error(error);
+  });
+```
+### 发送 POST 请求
+```javascript
+axios.post('https://api.example.com/data', {
+    key: 'value'
+  })
+  .then(response => {
+    console.log(response.data);
+  })
+  .catch(error => {
+    console.error(error);
+  });
+```
+### 在 Vue 组件中使用 Axios
+```vue
+<template>
+  <div>
+    <ul>
+      <li v-for="item in items" :key="item.id">{{ item.name }}</li>
+    </ul>
+  </div>
+</template>
+<script>
+import axios from 'axios';
+export default {
+  data() {
+    return {
+      items: []
+    };
+  },
+  mounted() {
+    axios.get('https://api.example.com/items')
+      .then(response => {
+        this.items = response.data;
+      })
+      .catch(error => {
+        console.error(error);
+      });
+  }
+}
+</script>
+```
+### 设置全局默认配置
+你也可以在Vue项目中设置全局默认配置，比如设置基本的URL、请求头等：
+```javascript
+axios.defaults.baseURL = 'https://api.example.com';
+axios.defaults.headers.common['Authorization'] = 'Bearer token';
+```
+### 拦截器
+Axios还提供了拦截器（interceptors）功能，可以在请求或响应被处理前拦截它们：
+```javascript
+axios.interceptors.request.use(config => {
+  // 在请求发送之前做些什么
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
+axios.interceptors.response.use(response => {
+  // 对响应数据做些什么
+  return response;
+}, error => {
+  return Promise.reject(error);
+});
+```
+
+# vue 脚手架配置代理
+
+一般可以用作解决跨越问题
+
+## 方法一
+
+​	在vue.config.js中添加如下配置：
+
+```js
+devServer:{
+  proxy:"http://localhost:5000"
+}
+```
+
+说明：
+
+1. 优点：配置简单，请求资源时直接发给前端（8080）即可。
+2. 缺点：不能配置多个代理，不能灵活的控制请求是否走代理。
+3. 工作方式：若按照上述配置代理，当请求了前端不存在的资源时，那么该请求会转发给服务器 （优先匹配前端资源）
+
+## 方法二
+
+​	编写vue.config.js配置具体代理规则：
+
+```js
+module.exports = {
+	devServer: {
+      proxy: {
+      '/api1': {// 匹配所有以 '/api1'开头的请求路径
+        target: 'http://localhost:5000',// 代理目标的基础路径
+        changeOrigin: true,
+        pathRewrite: {'^/api1': ''}
+      },
+      '/api2': {// 匹配所有以 '/api2'开头的请求路径
+        target: 'http://localhost:5001',// 代理目标的基础路径
+        changeOrigin: true,
+        pathRewrite: {'^/api2': ''}
+      }
+    }
+  }
+}
+/*
+   changeOrigin设置为true时，服务器收到的请求头中的host为：localhost:5000
+   changeOrigin设置为false时，服务器收到的请求头中的host为：localhost:8080
+   changeOrigin默认值为true
+*/
+```
+
+说明：
+
+1. 优点：可以配置多个代理，且可以灵活的控制请求是否走代理。
+2. 缺点：配置略微繁琐，请求资源时必须加前缀。
+
+# 插槽
+
+1. 作用：让父组件可以向子组件指定位置插入html结构，也是一种组件间通信的方式，适用于 <strong style="color:red">父组件 ===> 子组件</strong> 。
+
+2. 分类：默认插槽、具名插槽、作用域插槽
+
+3. 使用方式：
+
+   1. 默认插槽：
+
+      ```vue
+      父组件中：
+              <Category>
+                 <div>html结构1</div>
+              </Category>
+      子组件中：
+              <template>
+                  <div>
+                     <!-- 定义插槽 -->
+                     <slot>插槽默认内容...</slot>
+                  </div>
+              </template>
+      ```
+
+   2. 具名插槽：
+
+      ```vue
+      父组件中：
+              <Category>
+                  <template slot="center">
+                    <div>html结构1</div>
+                  </template>
+      
+                  <template v-slot:footer>
+                     <div>html结构2</div>
+                  </template>
+              </Category>
+      子组件中：
+              <template>
+                  <div>
+                     <!-- 定义插槽 -->
+                     <slot name="center">插槽默认内容...</slot>
+                     <slot name="footer">插槽默认内容...</slot>
+                  </div>
+              </template>
+      ```
+
+   3. 作用域插槽：
+
+      1. 理解：<span style="color:red">数据在组件的自身，但根据数据生成的结构需要组件的使用者来决定。</span>（games数据在Category组件中，但使用数据所遍历出来的结构由App组件决定）
+
+      2. 具体编码：
+
+         ```vue
+         父组件中：
+         		<Category>
+         			<template scope="scopeData">
+         				<!-- 生成的是ul列表 -->
+         				<ul>
+         					<li v-for="g in scopeData.games" :key="g">{{g}}</li>
+         				</ul>
+         			</template>
+         		</Category>
+         
+         		<Category>
+         			<template slot-scope="scopeData">
+         				<!-- 生成的是h4标题 -->
+         				<h4 v-for="g in scopeData.games" :key="g">{{g}}</h4>
+         			</template>
+         		</Category>
+         子组件中：
+                 <template>
+                     <div>
+                         <slot :games="games"></slot>
+                     </div>
+                 </template>
+         		
+                 <script>
+                     export default {
+                         name:'Category',
+                         props:['title'],
+                         //数据在子组件自身
+                         data() {
+                             return {
+                                 games:['红色警戒','穿越火线','劲舞团','超级玛丽']
+                             }
+                         },
+                     }
+                 </script>
+         ```

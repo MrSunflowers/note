@@ -3456,3 +3456,57 @@ shift+刷新
 <input type="checkbox" v-model="todo.done"  />
 ```
 
+## 浏览器本地存储
+
+1. 存储内容大小一般支持5MB左右（不同浏览器可能还不一样）
+
+2. 浏览器端通过 Window.sessionStorage 和 Window.localStorage 属性来实现本地存储机制。
+
+3. 相关API：
+
+    1. ```xxxxxStorage.setItem('key', 'value');```
+        				该方法接受一个键和值作为参数，会把键值对添加到存储中，如果键名存在，则更新其对应的值。
+
+    2. ```xxxxxStorage.getItem('person');```
+
+        ​		该方法接受一个键名作为参数，返回键名对应的值。
+
+    3. ```xxxxxStorage.removeItem('key');```
+
+        ​		该方法接受一个键名作为参数，并把该键名从存储中删除。
+
+    4. ``` xxxxxStorage.clear()```
+
+        ​		该方法会清空存储中的所有数据。
+
+- `Window.sessionStorage`：会话存储，数据在当前会话期间可用，当会话结束时数据会被清除。
+- `Window.localStorage`：本地存储，数据会永久保存在浏览器中，除非显式删除或浏览器清除缓存。
+
+您可以使用这两个属性来存储和获取数据，例如：
+```javascript
+// 使用 sessionStorage 存储数据
+sessionStorage.setItem('key', 'value');
+const value = sessionStorage.getItem('key');
+// 使用 localStorage 存储数据
+localStorage.setItem('key', 'value');
+const value = localStorage.getItem('key');
+```
+
+4. 备注：
+
+    1. SessionStorage存储的内容会随着浏览器窗口关闭而消失。
+    2. LocalStorage存储的内容，需要手动清除才会消失。
+    3. ```xxxxxStorage.getItem(xxx)```如果xxx对应的value获取不到，那么getItem的返回值是null。
+    4. ```JSON.parse(null)```的结果依然是null。
+
+5. 相关应用
+
+		1. **搜索关键字缓存**：利用浏览器本地存储记录用户搜索过的关键字
+		1. **阅读进度保存**：对于阅读类网站或应用，您可以使用本地存储来保存用户的阅读进度，以便用户在下次访问时继续阅读。
+		1. **表单数据缓存**：当用户在填写表单时，您可以使用本地存储来缓存表单数据，以防用户意外关闭页面或刷新页面时丢失已填写的内容。
+		1. **用户偏好设置**：您可以使用本地存储来保存用户的偏好设置，例如主题颜色、语言选择、字体大小等，以便在用户下次访问时自动应用这些设置。
+
+## 常用动画库
+
+Animate.css
+
