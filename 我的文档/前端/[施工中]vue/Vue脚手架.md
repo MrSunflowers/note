@@ -1304,9 +1304,153 @@ axios.interceptors.response.use(response => {
 });
 ```
 
+## vue-resource
+
+Vue.js官方推荐使用`axios`来处理HTTP请求，而不推荐使用`vue-resource`。`vue-resource`是Vue.js官方推出的一个插件，用于处理HTTP请求，但自Vue 2.0版本起，Vue.js官方不再继续更新和维护`vue-resource`，而是推荐使用更加强大和流行的`axios`库来处理HTTP请求。因此，建议在Vue项目中使用`axios`来代替`vue-resource`。
+
+### Vue-resource简介
+
+`vue-resource`是Vue.js官方推出的一个处理HTTP请求的**插件**，它基于Promise对象实现，可以在Vue实例中方便地进行HTTP请求。`vue-resource`提供了一些简单易用的API，例如`this.$http.get`、`this.$http.post`等，用于发送GET、POST等类型的请求。
+
+### 主要特点
+- **基于Promise**：`vue-resource`使用Promise对象处理异步请求，支持链式调用，便于处理异步操作。
+- **拦截器**：可以使用拦截器对请求和响应进行处理，方便添加全局的请求拦截器和响应拦截器。
+- **全局配置**：可以全局配置请求的默认参数，如请求头、超时时间等。
+- **RESTful风格**：`vue-resource`支持RESTful风格的API，方便进行CRUD操作。
+
+### 安装和使用
+1. 安装`vue-resource`：
+```bash
+npm install vue-resource --save
+```
+2. 在Vue项目中使用`vue-resource`：
+```javascript
+// main.js
+import Vue from 'vue';
+import VueResource from 'vue-resource';
+Vue.use(VueResource);
+// 发送一个GET请求
+Vue.http.get('https://api.example.com/data')
+  .then(response => {
+    // 处理请求成功的响应
+  })
+  .catch(error => {
+    // 处理请求失败的情况
+  });
+```
+### 总结
+
+尽管`vue-resource`是一个方便的HTTP请求插件，但由于官方不再维护和更新，推荐使用`axios`或其他现代的HTTP库来处理HTTP请求。`axios`是一个功能强大且流行的HTTP客户端库，具有更多的功能和更好的支持。
+
+## xhr
+
+在Vue中使用XMLHttpRequest（XHR）发送请求并不是Vue.js推荐的方式，通常推荐使用现代的HTTP客户端库，比如`axios`、`fetch`等。
+### 使用XMLHttpRequest发送请求的基本步骤：
+1. 创建一个XMLHttpRequest对象：
+```javascript
+var xhr = new XMLHttpRequest();
+```
+2. 设置请求的方法、URL和是否异步：
+```javascript
+xhr.open('GET', 'https://api.example.com/data', true); // 第三个参数true表示异步请求
+```
+3. 监听请求状态变化：
+```javascript
+xhr.onreadystatechange = function() {
+  if (xhr.readyState === 4 && xhr.status === 200) {
+    // 请求成功
+    var responseData = xhr.responseText;
+    // 处理响应数据
+  } else {
+    // 请求失败或正在处理中
+  }
+};
+```
+4. 发送请求：
+```javascript
+xhr.send();
+```
+### 示例代码：
+```javascript
+var xhr = new XMLHttpRequest();
+xhr.open('GET', 'https://api.example.com/data', true);
+xhr.onreadystatechange = function() {
+  if (xhr.readyState === 4 && xhr.status === 200) {
+    var responseData = xhr.responseText;
+    // 处理响应数据
+  } else {
+    // 处理请求失败或其他情况
+  }
+};
+xhr.send();
+```
+### 注意事项：
+- 使用XHR发送请求相对原始和底层，需要手动处理请求、响应和错误处理逻辑。
+- XHR在处理复杂请求时可能会变得复杂，而现代的HTTP客户端库（如`axios`）提供了更简洁和易用的API。
+- Vue.js推荐使用`axios`等现代HTTP客户端库来处理HTTP请求，这些库提供了更多功能和更好的支持。
+总的来说，尽管可以使用XHR发送请求，但在实际开发中，推荐使用现代的HTTP客户端库来简化HTTP请求的处理。
+
+## fetch
+
+在Vue中使用`fetch`发送请求是一种现代的方法，它是基于Promise的API，用于替代传统的XMLHttpRequest（XHR）。`fetch`提供了一种更简洁和现代化的方式来处理HTTP请求。下面是在Vue中如何使用`fetch`发送请求的详细说明：
+### 使用Fetch发送请求的基本步骤：
+1. 发起GET请求：
+```javascript
+fetch('https://api.example.com/data')
+  .then(response => {
+    return response.json(); // 将响应数据转换为JSON格式
+  })
+  .then(data => {
+    // 处理获取到的数据
+  })
+  .catch(error => {
+    // 处理请求错误
+  });
+```
+2. 发起POST请求：
+```javascript
+fetch('https://api.example.com/data', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json'
+  },
+  body: JSON.stringify(data) // 将数据转换为JSON格式
+})
+  .then(response => {
+    return response.json();
+  })
+  .then(data => {
+    // 处理获取到的数据
+  })
+  .catch(error => {
+    // 处理请求错误
+  });
+```
+### 示例代码：
+```javascript
+fetch('https://api.example.com/data')
+  .then(response => {
+    return response.json();
+  })
+  .then(data => {
+    // 处理获取到的数据
+  })
+  .catch(error => {
+    // 处理请求错误
+  });
+```
+### 注意事项：
+- `fetch`返回一个Promise对象，可以使用`.then()`和`.catch()`来处理请求的成功和失败情况。
+- 默认情况下，`fetch`不会发送或接收任何cookies，如果需要发送cookies，可以添加`credentials: 'include'`选项。
+- `fetch`不会自动发送或接收JSON数据，需要手动处理数据格式转换，比如使用`response.json()`方法。
+- 在处理请求头、请求参数等方面，`fetch`相对于传统的XHR更为简洁和现代。
+总的来说，`fetch`是一个现代化的方式来处理HTTP请求，相对于传统的XHR更简洁和易用。在Vue项目中，你可以使用`fetch`来发送HTTP请求，并根据返回的Promise对象处理响应数据。
+
+## JQuery
+
 # vue 脚手架配置代理
 
-一般可以用作解决跨越问题
+当前端项目（Vue项目）通过Ajax请求访问不同域名的接口时，由于浏览器的同源策略限制，可能会导致跨域问题，即浏览器拒绝发送跨域请求。但服务器与服务器之间的请求一般不存在跨域问题，所以可以搭建一台与vue在同一域名下的代理服务器进行代理数据请求，从而避免跨域问题。
 
 ## 方法一
 
@@ -1359,6 +1503,8 @@ module.exports = {
 
 # 插槽
 
+在 vue 中，组件标签除了自闭合 `<Category/>` 的形式外，还可以写成块级标签形式 `<Category></Category>` ，其中块级标签形式中可以编写正常的 html 编码，在子组件中使用`<slot></slot>`作为占位符，在解析时，会用`<Category></Category>`中的html代码块替换子组件中的`<slot></slot>`占位符，这就是插槽
+
 1. 作用：让父组件可以向子组件指定位置插入html结构，也是一种组件间通信的方式，适用于 <strong style="color:red">父组件 ===> 子组件</strong> 。
 
 2. 分类：默认插槽、具名插槽、作用域插槽
@@ -1368,7 +1514,7 @@ module.exports = {
    1. 默认插槽：
 
       ```vue
-      父组件中：
+      父组件中( Category 为子组件)：
               <Category>
                  <div>html结构1</div>
               </Category>
@@ -1447,3 +1593,358 @@ module.exports = {
                      }
                  </script>
          ```
+
+# vuex
+
+在Vue中实现集中式状态（数据）管理的一个**Vue插件**，对vue应用中多个组件的共享状态进行集中式的管理（读/写），也是一种组件间通信的方式，且适用于任意组件间通信。
+
+当组件越来越多时，比如一份数据要共享给多个组件，并要实时监控数据的变化，此时使用全局事件总线传递数据过于复杂，vuex 专门解决该类问题
+
+Vuex 是一个专门为 Vue.js 应用程序开发的状态管理模式库。它允许您在应用程序中集中管理所有组件的状态，并提供了一种可预测性的方式来管理状态的变化。以下是关于 Vuex 的详细介绍：
+
+## 何时使用
+
+1. 当多个组件需要共享数据
+2. 不同组件行为需要变更同一状态
+
+## 核心概念：
+
+![vuex](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403251708361.png)
+
+1. **State（状态）**：一个Object对象，用于**存储**应用程序中的共享状态**数据**，类似于组件中的 data 属性。
+2. **Getters（获取器）**：用于从 state 中派生出一些状态，类似于组件中的计算属性。
+3. **Mutations（变更）**：用于修改 state 中的数据，但是只能进行同步操作。(真正修改数据的动作)
+4. **Actions（动作）**：用于提交 mutations (指在编程中用于改变数据的操作)，可以包含异步操作。(可理解为真正修改数据之前要做的事情，例如修改数据的值需要从其他服务异步获取，获取的步骤就应在该步骤进行)
+5. **Modules（模块）**：允许将 store 分割成模块，每个模块拥有自己的 state、getters、mutations 和 actions。
+6. **Store (存储容器)**：图中并未体现，是 Actions，Mutations和State的管理者
+
+
+## 安装 Vuex：
+
+版本对应关系
+
+vue2==>Vuex3
+
+vue3==>Vuex4
+
+可以使用 npm 或 yarn 安装 Vuex：
+
+```bash
+npm install vuex@3
+```
+
+## 基本用法：
+
+1. **引入并使用 Vuex**： 当引入后在`new Vue`时即可传入一个`store`配置项
+2. **创建 Store**：创建一个 Vuex store 并指定 state、getters、mutations 和 actions。
+3. **在 Vue 应用中使用**：在 Vue 应用的根实例中引入 store，并通过 `store` 选项注入到所有子组件中。
+
+## 示例代码：
+
+```javascript
+// store.js
+import Vue from 'vue';
+import Vuex from 'vuex';
+Vue.use(Vuex);
+const store = new Vuex.Store({
+  //准备state对象——保存具体的数据
+  state: {
+    count: 0
+  },
+  //准备mutations对象——修改state中的数据
+  mutations: {
+    increment(state) {
+      state.count++;
+    }
+  },
+  //准备actions对象——响应组件中用户的动作
+  actions: {
+    incrementAsync({ commit }) {
+      setTimeout(() => {
+        commit('increment');
+      }, 1000);
+    }
+  },
+  getters: {
+    doubleCount(state) {
+      return state.count * 2;
+    }
+  }
+});
+export default store;
+```
+
+```javascript
+// main.js
+import Vue from 'vue';
+import App from './App.vue';
+import store from './store';
+new Vue({
+  store,
+  render: h => h(App)
+}).$mount('#app');
+```
+
+```vue
+<!-- App.vue -->
+<template>
+  <div>
+    <p>{{ $store.state.count }}</p>
+    <p>{{ $store.getters.doubleCount }}</p>
+    <button @click="increment">Increment</button>
+  </div>
+</template>
+<script>
+export default {
+  methods: {
+    increment() {
+      this.$store.commit('increment');
+    }
+  }
+};
+</script>
+```
+
+## Vuex 的优点：
+
+- **集中式存储**：所有的状态都存储在一个单一的对象中，方便管理和维护。
+- **状态管理**：可预测的状态管理，便于调试和追踪状态变化。
+- **组件通信**：方便组件之间共享状态和通信。
+- **插件化**：可以方便地使用插件来拓展功能。
+
+
+## 搭建vuex环境
+
+1. 创建文件：```src/store/index.js```
+
+   ```js
+   //引入Vue核心库
+   import Vue from 'vue'
+   //引入Vuex
+   import Vuex from 'vuex'
+   //应用Vuex插件
+   Vue.use(Vuex)
+   
+   //准备actions对象——响应组件中用户的动作
+   const actions = {}
+   //准备mutations对象——修改state中的数据
+   const mutations = {}
+   //准备state对象——保存具体的数据
+   const state = {}
+   
+   //创建并暴露store
+   export default new Vuex.Store({
+   	actions,
+   	mutations,
+   	state
+   })
+   ```
+
+2. 在```main.js```中创建vm时传入```store```配置项
+
+   ```js
+   ......
+   //引入store
+   import store from './store'
+   ......
+   
+   //创建vm
+   new Vue({
+   	el:'#app',
+   	render: h => h(App),
+   	store
+   })
+   ```
+
+## 基本使用
+
+1. 初始化数据、配置```actions```、配置```mutations```，操作文件```store.js```
+
+   ```js
+   //引入Vue核心库
+   import Vue from 'vue'
+   //引入Vuex
+   import Vuex from 'vuex'
+   //引用Vuex
+   Vue.use(Vuex)
+   
+   const actions = {
+       //响应组件中加的动作
+   	jia(context,value){
+   		// console.log('actions中的jia被调用了',miniStore,value)
+   		context.commit('JIA',value)
+   	},
+   }
+   
+   const mutations = {
+       //执行加
+   	JIA(state,value){
+   		// console.log('mutations中的JIA被调用了',state,value)
+   		state.sum += value
+   	}
+   }
+   
+   //初始化数据
+   const state = {
+      sum:0
+   }
+   
+   //创建并暴露store
+   export default new Vuex.Store({
+   	actions,
+   	mutations,
+   	state,
+   })
+   ```
+
+2. 组件中读取vuex中的数据：```$store.state.sum```
+
+3. 组件中修改vuex中的数据：```$store.dispatch('action中的方法名',数据)``` 或 ```$store.commit('mutations中的方法名',数据)```
+
+   >  备注：若没有网络请求或其他业务逻辑，组件中也可以越过actions，即不写```dispatch```，直接编写```commit```
+
+## getters的使用
+
+1. 概念：当state中的数据需要经过加工后再使用时，可以使用getters加工。
+
+2. 在```store.js```中追加```getters```配置
+
+   ```js
+   ......
+   
+   const getters = {
+   	bigSum(state){
+   		return state.sum * 10
+   	}
+   }
+   
+   //创建并暴露store
+   export default new Vuex.Store({
+   	......
+   	getters
+   })
+   ```
+
+3. 组件中读取数据：```$store.getters.bigSum```
+
+## 四个map方法的使用
+
+1. <strong>mapState方法：</strong>用于帮助我们映射```state```中的数据为计算属性
+
+   ```js
+   computed: {
+       //借助mapState生成计算属性：sum、school、subject（对象写法）
+        ...mapState({sum:'sum',school:'school',subject:'subject'}),
+            
+       //借助mapState生成计算属性：sum、school、subject（数组写法）
+       ...mapState(['sum','school','subject']),
+   },
+   ```
+
+2. <strong>mapGetters方法：</strong>用于帮助我们映射```getters```中的数据为计算属性
+
+   ```js
+   computed: {
+       //借助mapGetters生成计算属性：bigSum（对象写法）
+       ...mapGetters({bigSum:'bigSum'}),
+   
+       //借助mapGetters生成计算属性：bigSum（数组写法）
+       ...mapGetters(['bigSum'])
+   },
+   ```
+
+3. <strong>mapActions方法：</strong>用于帮助我们生成与```actions```对话的方法，即：包含```$store.dispatch(xxx)```的函数
+
+   ```js
+   methods:{
+       //靠mapActions生成：incrementOdd、incrementWait（对象形式）
+       ...mapActions({incrementOdd:'jiaOdd',incrementWait:'jiaWait'})
+   
+       //靠mapActions生成：incrementOdd、incrementWait（数组形式）
+       ...mapActions(['jiaOdd','jiaWait'])
+   }
+   ```
+
+4. <strong>mapMutations方法：</strong>用于帮助我们生成与```mutations```对话的方法，即：包含```$store.commit(xxx)```的函数
+
+   ```js
+   methods:{
+       //靠mapActions生成：increment、decrement（对象形式）
+       ...mapMutations({increment:'JIA',decrement:'JIAN'}),
+       
+       //靠mapMutations生成：JIA、JIAN（对象形式）
+       ...mapMutations(['JIA','JIAN']),
+   }
+   ```
+
+> 备注：mapActions与mapMutations使用时，若需要传递参数需要：在模板中绑定事件时传递好参数，否则参数是事件对象。
+
+## 模块化+命名空间
+
+1. 目的：让代码更好维护，让多种数据分类更加明确。
+
+2. 修改```store.js```
+
+   ```javascript
+   const countAbout = {
+     namespaced:true,//开启命名空间
+     state:{x:1},
+     mutations: { ... },
+     actions: { ... },
+     getters: {
+       bigSum(state){
+          return state.sum * 10
+       }
+     }
+   }
+   
+   const personAbout = {
+     namespaced:true,//开启命名空间
+     state:{ ... },
+     mutations: { ... },
+     actions: { ... }
+   }
+   
+   const store = new Vuex.Store({
+     modules: {
+       countAbout,
+       personAbout
+     }
+   })
+   ```
+
+3. 开启命名空间后，组件中读取state数据：
+
+   ```js
+   //方式一：自己直接读取
+   this.$store.state.personAbout.list
+   //方式二：借助mapState读取：
+   ...mapState('countAbout',['sum','school','subject']),
+   ```
+
+4. 开启命名空间后，组件中读取getters数据：
+
+   ```js
+   //方式一：自己直接读取
+   this.$store.getters['personAbout/firstPersonName']
+   //方式二：借助mapGetters读取：
+   ...mapGetters('countAbout',['bigSum'])
+   ```
+
+5. 开启命名空间后，组件中调用dispatch
+
+   ```js
+   //方式一：自己直接dispatch
+   this.$store.dispatch('personAbout/addPersonWang',person)
+   //方式二：借助mapActions：
+   ...mapActions('countAbout',{incrementOdd:'jiaOdd',incrementWait:'jiaWait'})
+   ```
+
+6. 开启命名空间后，组件中调用commit
+
+   ```js
+   //方式一：自己直接commit
+   this.$store.commit('personAbout/ADD_PERSON',person)
+   //方式二：借助mapMutations：
+   ...mapMutations('countAbout',{increment:'JIA',decrement:'JIAN'}),
+   ```
