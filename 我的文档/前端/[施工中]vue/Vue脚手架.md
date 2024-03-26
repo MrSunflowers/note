@@ -2253,6 +2253,7 @@ routes:[
 			component:News
 		},
 		{
+            path:'message'
 			component:Message,
 			children:[
 				{
