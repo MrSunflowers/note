@@ -1635,8 +1635,8 @@ npm install vuex@3
 
 ## 基本用法：
 
-1. **引入并使用 Vuex**： 当引入后在`new Vue`时即可传入一个`store`配置项
-2. **创建 Store**：创建一个 Vuex store 并指定 state、getters、mutations 和 actions。
+1. **引入并使用 Vuex**： 当引入后在 `new Vue` 时即可传入一个 `store` 配置项。
+2. **创建 Store 配置**：创建一个 Vuex store 并指定 state、getters、mutations 和 actions。
 3. **在 Vue 应用中使用**：在 Vue 应用的根实例中引入 store，并通过 `store` 选项注入到所有子组件中。
 
 ## 示例代码：
@@ -1645,6 +1645,7 @@ npm install vuex@3
 // store.js
 import Vue from 'vue';
 import Vuex from 'vuex';
+// use vuex 必须在 new Vuex.Store 之前执行
 Vue.use(Vuex);
 const store = new Vuex.Store({
   //准备state对象——保存具体的数据
@@ -1756,6 +1757,8 @@ export default {
    })
    ```
 
+![image-20240326101526367](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403261015868.png)
+
 ## 基本使用
 
 1. 初始化数据、配置```actions```、配置```mutations```，操作文件```store.js```
@@ -1803,6 +1806,9 @@ export default {
 
    >  备注：若没有网络请求或其他业务逻辑，组件中也可以越过actions，即不写```dispatch```，直接编写```commit```
 
+$store.dispatch 调用 actions 中的方法，这一动作类似调用 service 方法，业务逻辑写在 actions 这一步，在 actions 中也可以调用 dispatch 继续调用 actions 的其他方法
+$store.commit 调用 mutations 中的方法，这一动作类似调用 dao 方法，数据更新写在 mutations 这一步
+
 ## getters的使用
 
 1. 概念：当state中的数据需要经过加工后再使用时，可以使用getters加工。
@@ -1829,55 +1835,136 @@ export default {
 
 ## 四个map方法的使用
 
-1. <strong>mapState方法：</strong>用于帮助我们映射```state```中的数据为计算属性
+在 Vuex 中，`mapState`、`mapGetters`、`mapActions` 和 `mapMutations` 是用于简化 Vuex 状态管理的辅助函数，可以帮助我们在组件中更方便地访问和操作 Vuex 中的状态、getters、actions 和 mutations。
 
-   ```js
-   computed: {
-       //借助mapState生成计算属性：sum、school、subject（对象写法）
-        ...mapState({sum:'sum',school:'school',subject:'subject'}),
-            
-       //借助mapState生成计算属性：sum、school、subject（数组写法）
-       ...mapState(['sum','school','subject']),
-   },
-   ```
+下面详细介绍它们的作用和使用方法：
 
-2. <strong>mapGetters方法：</strong>用于帮助我们映射```getters```中的数据为计算属性
+### 1. `mapState`
 
-   ```js
-   computed: {
-       //借助mapGetters生成计算属性：bigSum（对象写法）
-       ...mapGetters({bigSum:'bigSum'}),
-   
-       //借助mapGetters生成计算属性：bigSum（数组写法）
-       ...mapGetters(['bigSum'])
-   },
-   ```
+- **作用**：将 store 中的状态映射到组件的计算属性中，使得组件能够直接访问这些状态，而无需通过 `this.$store.state.xxx` 的方式。即可直接访问 `xxx` 属性
 
-3. <strong>mapActions方法：</strong>用于帮助我们生成与```actions```对话的方法，即：包含```$store.dispatch(xxx)```的函数
+- **使用方法**：
 
-   ```js
-   methods:{
-       //靠mapActions生成：incrementOdd、incrementWait（对象形式）
-       ...mapActions({incrementOdd:'jiaOdd',incrementWait:'jiaWait'})
-   
-       //靠mapActions生成：incrementOdd、incrementWait（数组形式）
-       ...mapActions(['jiaOdd','jiaWait'])
-   }
-   ```
+```javascript
+import { mapState } from 'vuex';
+computed: {
+  ...mapState({
+    // 将 store 中的 count 状态映射为组件的 count 计算属性
+    count: state => state.count
+  })
+}
+```
 
-4. <strong>mapMutations方法：</strong>用于帮助我们生成与```mutations```对话的方法，即：包含```$store.commit(xxx)```的函数
+或
 
-   ```js
-   methods:{
-       //靠mapActions生成：increment、decrement（对象形式）
-       ...mapMutations({increment:'JIA',decrement:'JIAN'}),
-       
-       //靠mapMutations生成：JIA、JIAN（对象形式）
-       ...mapMutations(['JIA','JIAN']),
-   }
-   ```
+```js
+computed: {
+    //借助mapState生成计算属性：sum、school、subject（对象写法）
+     ...mapState({sum:'sum',school:'school',subject:'subject'}),
+         
+    //借助mapState生成计算属性：sum、school、subject（数组写法）
+    ...mapState(['sum','school','subject']),
+},
+```
+
+使用示例
+
+```vue
+{{sum}}
+```
+
+### 2. `mapGetters`
+
+- **作用**：将 store 中的 getters 映射到组件的计算属性中，使得组件能够直接访问这些 getters，而无需通过 `this.$store.getters.xxx` 的方式。
+
+- **使用方法**：
+
+```javascript
+import { mapGetters } from 'vuex';
+computed: {
+  ...mapGetters({
+    // 将 store 中的 doubleCount getter 映射为组件的 doubleCount 计算属性
+    doubleCount: 'doubleCount'
+  })
+}
+```
+
+或
+
+```js
+computed: {
+    //借助mapGetters生成计算属性：bigSum（对象写法）
+    ...mapGetters({bigSum:'bigSum'}),
+
+    //借助mapGetters生成计算属性：bigSum（数组写法）
+    ...mapGetters(['bigSum'])
+},
+```
+
+### 3. `mapActions`
+
+- **作用**：将 store 中的 actions 映射到组件的 methods 中，使得组件能够直接调用这些 actions，而无需通过 `this.$store.dispatch('xxx')` 的方式。
+
+- **使用方法**：
+
+```javascript
+import { mapActions } from 'vuex';
+methods: {
+  ...mapActions({
+    // 将 store 中的 increment action 映射为组件的 increment 方法
+    increment: 'increment'
+  })
+}
+```
+
+或
+
+```js
+methods:{
+    //靠mapActions生成：incrementOdd、incrementWait（对象形式）
+    ...mapActions({incrementOdd:'jiaOdd',incrementWait:'jiaWait'})
+
+    //靠mapActions生成：incrementOdd、incrementWait（数组形式）
+    ...mapActions(['jiaOdd','jiaWait'])
+}
+```
+
+### 4. `mapMutations`
+
+- **作用**：将 store 中的 mutations 映射到组件的 methods 中，使得组件能够直接调用这些 mutations，而无需通过 `this.$store.commit('xxx')` 的方式。
+
+- **使用方法**：
+```javascript
+import { mapMutations } from 'vuex';
+methods: {
+  ...mapMutations({
+    // 将 store 中的 increment mutation 映射为组件的 increment 方法
+    increment: 'increment'
+  })
+}
+```
+
+或
+
+ ```js
+methods:{
+    //靠mapActions生成：increment、decrement（对象形式）
+    ...mapMutations({increment:'JIA',decrement:'JIAN'}),
+    
+    //靠mapMutations生成：JIA、JIAN（对象形式）
+    ...mapMutations(['JIA','JIAN']),
+}
+ ```
+
+调用方法时直接调用即可
+
+```js
+this.JIA(1);
+```
 
 > 备注：mapActions与mapMutations使用时，若需要传递参数需要：在模板中绑定事件时传递好参数，否则参数是事件对象。
+
+通过使用这些辅助函数，我们可以简化组件与 Vuex 之间的交互流程，减少重复代码的编写，提高代码的可读性和维护性。这些函数使得我们可以更加便捷地在组件中访问和操作 Vuex 中的状态、getters、actions 和 mutations。
 
 ## 模块化+命名空间
 
@@ -1948,3 +2035,260 @@ export default {
    //方式二：借助mapMutations：
    ...mapMutations('countAbout',{increment:'JIA',decrement:'JIAN'}),
    ```
+
+# 路由
+
+在 Vue.js 中，路由（Router）是用于管理不同页面之间跳转和导航的机制。具体来说，Vue Router 是 Vue.js 官方提供的路由管理器，用于实现单页面应用（SPA）中的路由控制。
+
+1. 理解： 一个路由（route）就是一组映射关系（key - value），多个路由需要路由器（router）进行管理。
+2. 前端路由：key是路径，value是组件。
+
+## 基本使用
+
+### 安装 Vue Router：
+
+版本对应关系
+
+vue2==>vue-router3
+vue3==>vue-router4
+
+```shell
+npm install vue-router@3
+```
+
+### 创建路由实例
+
+```js
+import Vue from 'vue';
+//引入VueRouter
+import VueRouter from 'vue-router'
+//引入Luyou 组件
+import About from '../components/About'
+import Home from '../components/Home'
+//应用插件
+Vue.use(VueRouter)
+//创建router实例对象，去管理一组一组的路由规则
+const router = new VueRouter({
+	routes:[
+		{
+			path:'/about',
+			component:About
+		},
+		{
+			path:'/home',
+			component:Home
+		}
+	]
+})
+//暴露router
+export default router
+```
+
+### 在 Vue 实例中使用路由
+
+```js
+new Vue({
+  router,
+  render: h => h(App)
+}).$mount('#app');
+```
+
+### 在组件中使用路由
+
+原始 html 中我们使用 a 标签实现页面的跳转，Vue 中借助 `<router-link>` 标签实现路由的切换
+
+在组件中使用 `<router-link>` 组件实现路由导航，使用 `<router-view>` 组件显示当前路由对应的组件。
+
+实现切换（active-class可配置高亮样式）
+
+```vue
+<router-link active-class="active" to="/about">About</router-link>
+```
+
+指定展示位置
+
+```vue
+<router-view></router-view>
+```
+
+示例
+
+```html
+<div class="todo-header">
+  <router-link to="/gre">MyTestGre</router-link>
+  <router-link to="/red">MyTestRed</router-link>
+  <router-view></router-view>
+</div>
+```
+
+### 几个注意点
+
+1. 路由组件通常存放在```pages```文件夹，一般组件通常存放在```components```文件夹。
+2. 通过切换，“隐藏”了的路由组件，默认是被销毁掉的，需要的时候再去挂载。
+3. 每个组件都有自己的```$route```属性，里面存储着自己的路由信息。
+4. 整个应用只有一个router，可以通过组件的```$router```属性获取到。
+
+## 多级路由
+
+1. 配置路由规则，使用children配置项：
+
+```js
+routes:[
+	{
+		path:'/about',
+		component:About,
+	},
+	{
+		path:'/home',
+		component:Home,
+		children:[ //通过children配置子级路由
+			{
+				path:'news', //此处一定不要写：/news
+				component:News
+			},
+			{
+				path:'message',//此处一定不要写：/message
+				component:Message
+			}
+		]
+	}
+]
+```
+
+2. 跳转（要写完整路径）：
+
+```xml
+<router-link to="/home/news">News</router-link>
+```
+
+## 路由的query参数
+
+1. 传递参数
+
+```vue
+<!-- 跳转并携带query参数，to的字符串写法 -->
+<router-link :to="/home/message/detail?id=666&title=你好">跳转</router-link>
+				
+<!-- 跳转并携带query参数，to的对象写法 -->
+<router-link 
+	:to="{
+		path:'/home/message/detail',
+		query:{
+		   id:666,
+            title:'你好'
+		}
+	}"
+>跳转</router-link>
+```
+
+2. 路由组件中接收参数：
+
+```xml
+<div class="box">
+    {{$route.query.id}}
+    {{$route.query.title}}
+</div>
+```
+
+## 命名路由
+
+1. 作用：可以简化路由的跳转。
+
+2. 如何使用
+
+   1. 给路由命名：
+
+      ```js
+      {
+      	path:'/demo',
+      	component:Demo,
+      	children:[
+      		{
+      			path:'test',
+      			component:Test,
+      			children:[
+      				{
+                        name:'hello' //给路由命名
+      					path:'welcome',
+      					component:Hello,
+      				}
+      			]
+      		}
+      	]
+      }
+      ```
+
+   2. 简化跳转：
+
+      ```vue
+      <!--简化前，需要写完整的路径 -->
+      <router-link to="/demo/test/welcome">跳转</router-link>
+      
+      <!--简化后，直接通过名字跳转 -->
+      <router-link :to="{name:'hello'}">跳转</router-link>
+      
+      <!--简化写法配合传递参数 -->
+      <router-link 
+      	:to="{
+      		name:'hello',
+      		query:{
+      		   id:666,
+                  title:'你好'
+      		}
+      	}"
+      >跳转</router-link>
+      ```
+
+## 路由的params参数
+
+1. 配置路由，声明接收params参数
+
+```js
+{
+	path:'/home',
+	component:Home,
+	children:[
+		{
+			path:'news',
+			component:News
+		},
+		{
+			component:Message,
+			children:[
+				{
+					name:'xiangqing',
+					path:'detail/:id/:title', //使用占位符声明接收params参数
+					component:Detail
+				}
+			]
+		}
+	]
+}
+```
+
+2. 传递参数
+
+```vue
+<!-- 跳转并携带params参数，to的字符串写法 -->
+<router-link :to="/home/message/detail/666/你好">跳转</router-link>
+				
+<!-- 跳转并携带params参数，to的对象写法 -->
+<router-link 
+	:to="{
+		name:'xiangqing',
+		params:{
+		   id:666,
+           title:'你好'
+		}
+	}"
+>跳转</router-link>
+```
+
+> 特别注意：路由携带params参数时，若使用to的对象写法，则不能使用path配置项，必须使用name配置！
+
+3. 接收参数：
+
+```js
+$route.params.id
+$route.params.title
+```
