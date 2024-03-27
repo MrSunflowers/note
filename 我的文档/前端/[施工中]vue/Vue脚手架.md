@@ -2293,3 +2293,519 @@ routes:[
 $route.params.id
 $route.params.title
 ```
+
+## 路由的props配置
+
+作用：让路由组件更方便的收到参数
+
+```js
+{
+	name:'xiangqing',
+	path:'detail/:id',
+	component:Detail,
+
+	//第一种写法：props值为对象，该对象中所有的key-value的组合最终都会通过props传给Detail组件
+	// props:{a:900}
+
+	//第二种写法：props值为布尔值，布尔值为true，则把路由收到的所有params参数通过props传给Detail组件
+	// props:true
+	
+	//第三种写法：props值为函数，该函数返回的对象中每一组key-value都会通过props传给Detail组件
+	props(route){
+		return {
+			id:route.query.id,
+			title:route.query.title
+		}
+	}
+}
+```
+
+示例
+
+在配置路由的时候，配置props
+
+```js
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import MyTestGre from "@/components/MyTestGre";
+import MyTestRed from "@/components/MyTestRed";
+Vue.use(VueRouter);
+export default new VueRouter({
+    routes: [
+        {
+            name:'testName',
+            path: '/gre',
+            component: MyTestGre,
+            props(route) {
+                return {
+                    id:route.query.id,
+                    title:route.query.title
+                }
+            }
+        },
+        {
+            path: '/red',
+            component: MyTestRed
+        }
+    ]
+})
+```
+
+接收参数使用 props 接收
+
+```vue
+<template>
+  <div class="box">
+    {{id}}
+    {{title}}
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MyTestGre',
+  props:{
+    id:{
+      type:String
+    },title:{
+      type:String
+    }
+  },
+  data() {
+    return {}
+  },
+  methods: {
+  }
+}
+</script>
+
+<style scoped>
+.box{
+  width: 20px;
+  height: 20px;
+  background-color: green;
+}
+</style>
+```
+
+## <router-link> 的replace属性
+
+1. 作用：控制路由跳转时操作浏览器历史记录的模式
+2. 浏览器的历史记录有两种写入方式：分别为```push```和```replace```，```push```是追加历史记录，```replace```是替换当前记录。路由跳转时候默认为```push```
+3. 如何开启```replace```模式：```<router-link replace .......>News</router-link>```
+
+## 编程式路由导航
+
+作用：不借助```<router-link> ```实现路由跳转，让路由跳转更加灵活，例如使用button
+
+示例编码
+
+```js
+//$router的两个API
+this.$router.push({
+	name:'xiangqing',
+		params:{
+			id:xxx,
+			title:xxx
+		}
+})
+
+this.$router.replace({
+	name:'xiangqing',
+		params:{
+			id:xxx,
+			title:xxx
+		}
+})
+this.$router.forward() //前进
+this.$router.back() //后退
+this.$router.go() //可前进也可后退
+```
+
+示例：
+
+```vue
+<template>
+  <div class="todo-header">
+    <input type="button" @click="gre" value="gre"/>
+    <input type="button" @click="red" value="red"/>
+    <router-view></router-view>
+  </div>
+</template>
+
+<script>
+export default {
+  components:{
+  },
+  name: 'MyTest',
+  data() {
+    return {}
+  },
+  methods: {
+    gre() {
+      this.$router.push({
+          path:'/gre',
+          params:{
+            id:666,
+            title:'test'
+          }
+      })
+    },
+    red() {
+      this.$router.push({
+        path:'/red'
+      })
+    }
+  }
+}
+</script>
+```
+
+## 缓存路由组件
+
+作用：让不展示的路由组件保持挂载，不被销毁。用于有输入数据的情况，切走的时候在切回来数据丢失
+
+具体编码：
+
+```vue
+<keep-alive include="可选的，指定要缓存的组件名称，不写默认缓存所有"> 
+    <router-view></router-view>
+</keep-alive>
+```
+
+数组形式
+
+```vue
+<keep-alive :include="['组件1','组件2']"> 
+    <router-view></router-view>
+</keep-alive>
+```
+
+## 两个新的生命周期钩子
+
+1. 作用：**路由组件所独有的两个钩子**，用于捕获路由组件的激活状态。可用于在组件失活时释放资源
+2. 具体名字：
+   1. ```activated```路由组件被激活时触发。
+   2. ```deactivated```路由组件失活时触发。
+
+## 路由守卫
+
+作用：对路由进行权限控制
+
+分类：全局守卫、独享守卫、组件内守卫
+
+在 Vue Router 中，`beforeRouteEnter` 是组件内的路由守卫之一，用于在进入当前组件之前执行一些逻辑。`beforeRouteEnter` 钩子函数有三个参数，分别是 `to`、`from` 和 `next`，下面对这三个参数进行详细说明：
+1. **to**：
+   `to` 参数表示即将进入的目标路由对象，包含了目标路由的路由信息，例如路径、参数、元信息等。`to` 参数是一个 Route 对象，具有以下常用属性：
+   - `to.path`：目标路由的路径
+   - `to.params`：目标路由的参数
+   - `to.query`：目标路由的查询参数
+   - `to.meta`：目标路由的元信息
+2. **from**：
+   `from` 参数表示当前导航正要离开的路由对象，包含了当前路由的信息。`from` 参数也是一个 Route 对象，具有类似的属性：
+   - `from.path`：当前路由的路径
+   - `from.params`：当前路由的参数
+   - `from.query`：当前路由的查询参数
+   - `from.meta`：当前路由的元信息
+3. **next**：
+   `next` 参数是一个函数，用于进入下一个钩子。在 `beforeRouteEnter` 钩子函数中，必须调用 `next` 函数来确保组件成功加载。`next` 函数有以下用法：
+   - `next()`：继续导航，进入当前组件
+   - `next(false)`：中断当前导航
+   - `next('/')`：跳转到一个不同的路径
+   - `next(error)`：传递一个错误给 `router.onError` 处理
+通过使用这三个参数，您可以在 `beforeRouteEnter` 钩子函数中实现各种逻辑，例如根据路由信息进行数据加载、权限验证等操作。确保在 `beforeRouteEnter` 钩子函数中调用 `next` 函数，以便正确地控制路由导航。
+
+### 全局守卫
+
+示例：
+
+在创建路由时添加方法
+
+```js
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import MyTestGre from "@/components/MyTestGre";
+import MyTestRed from "@/components/MyTestRed";
+
+Vue.use(VueRouter);
+const router = new VueRouter({
+    routes: [
+        {
+            name: 'testName',
+            path: '/gre',
+            component: MyTestGre,
+            props(route) {
+                return {
+                    id: route.query.id,
+                    title: route.query.title
+                }
+            }
+        },
+        {
+            path: '/red',
+            component: MyTestRed
+        }
+    ]
+})
+
+router.beforeEach()
+router.afterEach()
+
+export default router;
+```
+
+具体的方法
+
+```js
+//全局前置守卫：初始化时执行、每次路由切换前执行
+router.beforeEach((to,from,next)=>{
+	console.log('beforeEach',to,from)
+	if(to.meta.isAuth){ //判断当前路由是否需要进行权限控制
+		if(localStorage.getItem('school') === 'atguigu'){ //权限控制的具体规则
+			next() //放行
+		}else{
+			alert('暂无权限查看')
+			// next({name:'guanyu'})
+		}
+	}else{
+		next() //放行
+	}
+})
+
+//全局后置守卫：初始化时执行、每次路由切换后执行
+router.afterEach((to,from)=>{
+	console.log('afterEach',to,from)
+	if(to.meta.title){ 
+		document.title = to.meta.title //修改网页的title
+	}else{
+		document.title = 'vue_test'
+	}
+})
+```
+
+### 独享守卫
+
+**独享守卫只有前置没有后置**
+
+```js
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import MyTestGre from "@/components/MyTestGre";
+import MyTestRed from "@/components/MyTestRed";
+
+Vue.use(VueRouter);
+const router = new VueRouter({
+    routes: [
+        {
+            name: 'testName',
+            path: '/gre',
+            component: MyTestGre,
+            props(route) {
+                return {
+                    id: route.query.id,
+                    title: route.query.title
+                }
+            }
+        },
+        {
+            path: '/red',
+            component: MyTestRed,
+            beforeEnter(){}
+        }
+    ]
+})
+
+export default router;
+
+```
+
+```js
+beforeEnter(to,from,next){
+	console.log('beforeEnter',to,from)
+	if(to.meta.isAuth){ //判断当前路由是否需要进行权限控制
+		if(localStorage.getItem('school') === 'atguigu'){
+			next()
+		}else{
+			alert('暂无权限查看')
+			// next({name:'guanyu'})
+		}
+	}else{
+		next()
+	}
+}
+```
+
+### 组件内守卫
+
+```vue
+<template>
+  <div class="box">
+    {{id}}
+    {{title}}
+    <input type="text">
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MyTestGre',
+  props:{
+    id:{
+      type:String
+    },title:{
+      type:String
+    }
+  },
+  data() {
+    return {}
+  },
+  methods: {
+  },
+  beforeRouteEnter(){
+     // 组件内守卫
+  }
+}
+</script>
+
+<style scoped>
+.box{
+  width: 20px;
+  height: 20px;
+  background-color: green;
+}
+</style>
+```
+
+进入守卫：通过路由规则，**进入该组件时**被调用
+离开守卫：通过路由规则，**离开该组件时**被调用
+
+```js
+//进入守卫：通过路由规则，进入该组件时被调用
+beforeRouteEnter (to, from, next) {
+},
+//离开守卫：通过路由规则，离开该组件时被调用
+beforeRouteLeave (to, from, next) {
+}
+```
+
+## meta
+
+在配置路由的时候，可以将自定义属性放在meta里，用于后续判断使用
+
+```js
+import Vue from 'vue';
+import VueRouter from 'vue-router';
+import MyTestGre from "@/components/MyTestGre";
+import MyTestRed from "@/components/MyTestRed";
+
+Vue.use(VueRouter);
+const router = new VueRouter({
+    routes: [
+        {
+            name: 'testName',
+            path: '/gre',
+            component: MyTestGre,
+            props(route) {
+                return {
+                    id: route.query.id,
+                    title: route.query.title
+                }
+            }
+        },
+        {
+            path: '/red',
+            component: MyTestRed,
+            meta:{
+                isAuth:true
+            }
+        }
+    ]
+})
+
+export default router;
+```
+
+组件中获取meta，比如meta.isAuth = true 时才进行权限校验
+
+```vue
+<template>
+  <div class="box">
+    {{id}}
+    {{title}}
+    <input type="text">
+  </div>
+</template>
+
+<script>
+export default {
+  name: 'MyTestGre',
+  props:{
+    id:{
+      type:String
+    },title:{
+      type:String
+    }
+  },
+  data() {
+    return {}
+  },
+  methods: {
+  },
+  beforeRouteEnter(to, from, next){
+    console.log(to.meta)
+    console.log(from.meta)
+    console.log(next)
+  }
+}
+</script>
+
+<style scoped>
+.box{
+  width: 20px;
+  height: 20px;
+  background-color: green;
+}
+</style>
+```
+
+
+## 路由器的两种工作模式
+
+1. 对于一个url来说，什么是hash值？———— '#'及其后面的内容就是hash值。
+2. hash值不会包含在 HTTP 请求中，即：hash值不会带给服务器。
+3. hash模式：
+   1. 地址中永远带着#号，不美观 。
+   2. 若以后将地址通过第三方手机app分享，若app校验严格，则地址会被标记为不合法。
+   3. 兼容性较好。
+4. history模式：
+   1. 地址干净，美观 。
+   2. 兼容性和hash模式相比略差。
+   3. 应用部署上线时需要后端人员支持，解决刷新页面服务端404的问题。
+
+```js
+const router = new VueRouter({
+    mode:'history',
+    routes: [
+        
+    ]
+})
+```
+
+# 项目打包
+
+npm run build
+
+dist 文件夹
+
+# vue 常用组件库
+
+移动端
+
+1. vant
+2. cube UI
+3. mint UI
+
+PC端
+
+1. element UI
+2. IView UI
