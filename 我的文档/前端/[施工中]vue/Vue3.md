@@ -355,6 +355,39 @@ export default {
 
 ### 3.watchEffect函数
 
+`watchEffect`是一个用于监听响应式数据变化并执行副作用函数的函数。它类似于Vue 2中的`watch`，但不需要显式地指定要监听的数据，而是自动追踪副作用函数中使用的响应式数据，并在这些数据发生变化时重新运行副作用函数。
+
+下面是`watchEffect`的基本用法和特点：
+
+基本用法
+```javascript
+import { watchEffect } from 'vue';
+watchEffect(() => {
+  console.log('响应式数据发生变化');
+});
+```
+
+特点
+
+1. **自动追踪依赖**: `watchEffect`会自动追踪副作用函数中使用的响应式数据，并在这些数据变化时重新执行副作用函数。
+2. **立即执行**: 初次调用`watchEffect`时，会立即执行副作用函数一次，以收集初始的依赖关系。
+3. **副作用函数返回值**: 如果在副作用函数中返回一个清理函数，这个清理函数会在下次运行副作用函数之前被调用，可以用于清理副作用。
+
+示例
+```javascript
+import { reactive, watchEffect } from 'vue';
+const state = reactive({
+  count: 0
+});
+watchEffect(() => {
+  console.log(`Count: ${state.count}`);
+});
+// 修改响应式数据，会触发副作用函数执行
+state.count++;
+```
+
+`watchEffect`是一个非常方便的工具，特别适用于那些只需要关注数据变化并执行副作用的场景。如果你需要更精细的控制，比如指定特定的数据进行监听，可以考虑使用`watch`函数。
+
 - watch的套路是：既要指明监视的属性，也要指明监视的回调。
 
 - watchEffect的套路是：不用指明监视哪个属性，监视的回调中用到哪个属性，那就监视哪个属性。
@@ -373,63 +406,10 @@ export default {
   })
   ```
 
+
 ## 8.生命周期
 
-<div style="border:1px solid black;width:380px;float:left;margin-right:20px;"><strong>vue2.x的生命周期</strong><img src="https://cn.vuejs.org/images/lifecycle.png" alt="lifecycle_2" style="zoom:33%;width:1200px" /></div><div style="border:1px solid black;width:510px;height:985px;float:left"><strong>vue3.0的生命周期</strong><img src="https://v3.cn.vuejs.org/images/lifecycle.svg" alt="lifecycle_2" style="zoom:33%;width:2500px" /></div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-1
+![lifecycle_zh-CN.FtDDVyNA](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403280933176.png)
 
 - Vue3.0中可以继续使用Vue2.x中的生命周期钩子，但有有两个被更名：
   - ```beforeDestroy```改名为 ```beforeUnmount```
@@ -448,23 +428,124 @@ export default {
 
 - 什么是hook？—— 本质是一个函数，把setup函数中使用的Composition API进行了封装。
 
-- 类似于vue2.x中的mixin。
+- 类似于vue2.x中的mixin。一般放在hooks文件夹
 
 - 自定义hook的优势: 复用代码, 让setup中的逻辑更清楚易懂。
 
+示例：
 
+usePoint.js
+
+```js
+import {reactive,onMounted,onBeforeUnmount} from 'vue'
+export default function (){
+	//实现鼠标“打点”相关的数据
+	let point = reactive({
+		x:0,
+		y:0
+	})
+
+	//实现鼠标“打点”相关的方法
+	function savePoint(event){
+		point.x = event.pageX
+		point.y = event.pageY
+		console.log(event.pageX,event.pageY)
+	}
+
+	//实现鼠标“打点”相关的生命周期钩子
+	onMounted(()=>{
+		window.addEventListener('click',savePoint)
+	})
+
+	onBeforeUnmount(()=>{
+		window.removeEventListener('click',savePoint)
+	})
+
+	return point
+}
+```
+
+引入
+
+```html
+<script>
+	import {ref} from 'vue'
+	import usePoint from '../hooks/usePoint'
+	export default {
+		name: 'Demo',
+		setup(){
+			//数据
+			let sum = ref(0)
+			let point = usePoint()
+			
+
+			//返回一个对象（常用）
+			return {sum,point}
+		}
+	}
+</script>
+```
 
 ## 10.toRef
 
-- 作用：创建一个 ref 对象，其value值指向另一个对象中的某个属性。
+- 作用：在不改变引用的情况下，将一个已存在的变量包装成为响应式对象，例如创建一个 ref 对象，其value值指向另一个对象中的某个属性。
 - 语法：```const name = toRef(person,'name')```
 - 应用:   要将响应式对象中的某个属性单独提供给外部使用时。
-
-
 - 扩展：```toRefs``` 与```toRef```功能一致，但可以批量创建多个 ref 对象，语法：```toRefs(person)```
 
+示例：
 
-# 其它 Composition API
+```html
+<template>
+	<h4>{{person}}</h4>
+	<h2>姓名：{{name}}</h2>
+	<h2>年龄：{{age}}</h2>
+	<h2>薪资：{{job.j1.salary}}K</h2>
+	<button @click="name+='~'">修改姓名</button>
+	<button @click="age++">增长年龄</button>
+	<button @click="job.j1.salary++">涨薪</button>
+</template>
+
+<script>
+	import {ref,reactive,toRef,toRefs} from 'vue'
+	export default {
+		name: 'Demo',
+		setup(){
+			//数据
+			let person = reactive({
+				name:'张三',
+				age:18,
+				job:{
+					j1:{
+						salary:20
+					}
+				}
+			})
+
+			// const name1 = person.name
+			// console.log('%%%',name1)
+
+			// const name2 = toRef(person,'name')
+			// console.log('####',name2)
+
+			const x = toRefs(person)
+			console.log('******',x)
+
+			//返回一个对象（常用）
+			return {
+				person,
+				// name:toRef(person,'name'),
+				// age:toRef(person,'age'),
+				// salary:toRef(person.job.j1,'salary'),
+				...toRefs(person)
+			}
+		}
+	}
+</script>
+```
+
+
+# 其它组合式 API (Composition API)
 
 ## 1.shallowReactive 与 shallowRef
 
@@ -475,11 +556,105 @@ export default {
   -  如果有一个对象数据，结构比较深, 但变化时只是外层属性变化 ===> shallowReactive。
   -  如果有一个对象数据，后续功能不会修改该对象中的属性，而是生新的对象来替换 ===> shallowRef。
 
+示例
+
+```html
+<template>
+	<h4>当前的x.y值是：{{x.y}}</h4>
+	<button @click="x={y:888}">点我替换x</button>
+	<button @click="x.y++">点我x.y++</button>
+	<hr>
+	<h4>{{person}}</h4>
+	<h2>姓名：{{name}}</h2>
+	<h2>年龄：{{age}}</h2>
+	<h2>薪资：{{job.j1.salary}}K</h2>
+	<button @click="name+='~'">修改姓名</button>
+	<button @click="age++">增长年龄</button>
+	<button @click="job.j1.salary++">涨薪</button>
+</template>
+
+<script>
+	import {ref,reactive,toRef,toRefs,shallowReactive,shallowRef} from 'vue'
+	export default {
+		name: 'Demo',
+		setup(){
+			//数据
+			// let person = shallowReactive({ //只考虑第一层数据的响应式
+			let person = reactive({
+				name:'张三',
+				age:18,
+				job:{
+					j1:{
+						salary:20
+					}
+				}
+			})
+			let x = shallowRef({
+				y:0
+			})
+			console.log('******',x)
+
+			//返回一个对象（常用）
+			return {
+				x,
+				person,
+				...toRefs(person)
+			}
+		}
+	}
+</script>
+```
+
 ## 2.readonly 与 shallowReadonly
 
 - readonly: 让一个响应式数据变为只读的（深只读）。
 - shallowReadonly：让一个响应式数据变为只读的（浅只读）。
 - 应用场景: 不希望数据被修改时。
+
+```html
+<template>
+	<h4>当前求和为：{{sum}}</h4>
+	<button @click="sum++">点我++</button>
+	<hr>
+	<h2>姓名：{{name}}</h2>
+	<h2>年龄：{{age}}</h2>
+	<h2>薪资：{{job.j1.salary}}K</h2>
+	<button @click="name+='~'">修改姓名</button>
+	<button @click="age++">增长年龄</button>
+	<button @click="job.j1.salary++">涨薪</button>
+</template>
+
+<script>
+	import {ref,reactive,toRefs,readonly,shallowReadonly} from 'vue'
+	export default {
+		name: 'Demo',
+		setup(){
+			//数据
+			let sum = ref(0)
+			let person = reactive({
+				name:'张三',
+				age:18,
+				job:{
+					j1:{
+						salary:20
+					}
+				}
+			})
+
+			person = readonly(person)
+			// person = shallowReadonly(person)
+			// sum = readonly(sum)
+			// sum = shallowReadonly(sum)
+
+			//返回一个对象（常用）
+			return {
+				sum,
+				...toRefs(person)
+			}
+		}
+	}
+</script>
+```
 
 ## 3.toRaw 与 markRaw
 
@@ -492,13 +667,78 @@ export default {
     1. 有些值不应被设置为响应式的，例如复杂的第三方类库等。
     2. 当渲染具有不可变数据源的大列表时，跳过响应式转换可以提高性能。
 
+```html
+<template>
+	<h4>当前求和为：{{sum}}</h4>
+	<button @click="sum++">点我++</button>
+	<hr>
+	<h2>姓名：{{name}}</h2>
+	<h2>年龄：{{age}}</h2>
+	<h2>薪资：{{job.j1.salary}}K</h2>
+	<h3 v-show="person.car">座驾信息：{{person.car}}</h3>
+	<button @click="name+='~'">修改姓名</button>
+	<button @click="age++">增长年龄</button>
+	<button @click="job.j1.salary++">涨薪</button>
+	<button @click="showRawPerson">输出最原始的person</button>
+	<button @click="addCar">给人添加一台车</button>
+	<button @click="person.car.name+='!'">换车名</button>
+	<button @click="changePrice">换价格</button>
+</template>
+
+<script>
+	import {ref,reactive,toRefs,toRaw,markRaw} from 'vue'
+	export default {
+		name: 'Demo',
+		setup(){
+			//数据
+			let sum = ref(0)
+			let person = reactive({
+				name:'张三',
+				age:18,
+				job:{
+					j1:{
+						salary:20
+					}
+				}
+			})
+
+			function showRawPerson(){
+				const p = toRaw(person)
+				p.age++
+				console.log(p)
+			}
+
+			function addCar(){
+				let car = {name:'奔驰',price:40}
+				person.car = markRaw(car)
+			}
+
+			function changePrice(){
+				person.car.price++
+				console.log(person.car.price)
+			}
+
+			//返回一个对象（常用）
+			return {
+				sum,
+				person,
+				...toRefs(person),
+				showRawPerson,
+				addCar,
+				changePrice
+			}
+		}
+	}
+</script>
+```
+
 ## 4.customRef
 
 - 作用：创建一个自定义的 ref，并对其依赖项跟踪和更新触发进行显式控制。
 
 - 实现防抖效果：
 
-  ```vue
+  ```html
   <template>
   	<input type="text" v-model="keyword">
   	<h3>{{keyword}}</h3>
@@ -539,11 +779,7 @@ export default {
   </script>
   ```
 
-  
-
 ## 5.provide 与 inject
-
-<img src="https://v3.cn.vuejs.org/images/components_provide.png" style="width:300px" />
 
 - 作用：实现<strong style="color:#DD5145">祖与后代组件间</strong>通信
 
@@ -580,7 +816,7 @@ export default {
 - isReadonly: 检查一个对象是否是由 `readonly` 创建的只读代理
 - isProxy: 检查一个对象是否是由 `reactive` 或者 `readonly` 方法创建的代理
 
-# Composition API 的优势
+# 组合式 API (Composition API) 的优势
 
 ## 1.Options API 存在的问题
 
@@ -669,7 +905,7 @@ export default {
 
 - 使用步骤：
 
-  - 异步引入组件
+  - 异步引入组件，例如图片资源加载较慢，可以先展示其他组件，等图片加载完成后展示图片
 
     ```js
     import {defineAsyncComponent} from 'vue'
@@ -683,9 +919,11 @@ export default {
     	<div class="app">
     		<h3>我是App组件</h3>
     		<Suspense>
+                <!-- 正常情况下展示内容 -->
     			<template v-slot:default>
     				<Child/>
     			</template>
+     			<!-- 未加载完成时加载的内容 -->
     			<template v-slot:fallback>
     				<h3>加载中.....</h3>
     			</template>
