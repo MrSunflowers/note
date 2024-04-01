@@ -37,6 +37,27 @@
           </mappings>
         </serverdata>
       </paths>
+      <paths name="kubernetes_kubeadm_master">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="kubernetes_kubeadm_node1">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
+      <paths name="kubernetes_kubeadm_node2">
+        <serverdata>
+          <mappings>
+            <mapping local="$PROJECT_DIR$" web="/" />
+          </mappings>
+        </serverdata>
+      </paths>
       <paths name="mysql5.7.36">
         <serverdata>
           <mappings>

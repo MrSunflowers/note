@@ -3,7 +3,7 @@
   <component name="WebServers">
     <option name="servers">
       <webServer id="940dc7e1-b838-4e12-ab0b-150ca4bb51d0" name="101.43.208.215">
-        <fileTransfer accessType="SFTP" host="101.43.208.215" port="22" sshConfigId="c19f6660-2449-4ede-9d97-9697ea485bce" sshConfig="root@101.43.208.215:22 password">
+        <fileTransfer accessType="SFTP" host="192.168.60.138" port="22" sshConfigId="2b3e4292-c375-4c72-8740-495235a97be0" sshConfig="kubernetes_kubeadm_node2">
           <advancedOptions>
             <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="20000" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>

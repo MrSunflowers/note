@@ -6,7 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/deployment.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/deployment.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/webServers.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/webServers.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/架构设计与解决方案/K8S(施工中)/Kubernetes.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/架构设计与解决方案/K8S(施工中)/Kubernetes.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -107,6 +109,7 @@
       <workItem from="1704871326851" duration="828000" />
       <workItem from="1704872263697" duration="183000" />
       <workItem from="1709252112272" duration="3060000" />
+      <workItem from="1711693511926" duration="7639000" />
     </task>
     <servers />
   </component>
