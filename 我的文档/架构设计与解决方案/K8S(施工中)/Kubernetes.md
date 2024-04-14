@@ -547,6 +547,24 @@ kubectl port-forward <pod-name> 8080:80
 
 K8s 集群中对资源管理和资源对象编排部署都可以通过声明样式（YAML）文件来解决，也就是可以把需要对资源对象操作编辑到 YAML 格式文件中，我们把这种文件叫做**资源清单文件**，通过 kubectl 命令直接使用资源清单文件就可以实现对大量的资源对象进行编排部署了。
 
+## 常用字段
+
+必须存在的属性
+
+![image-20240414222027673](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142220742.png)
+
+spec 主要对象
+
+![image-20240414222129668](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142221749.png)
+
+![image-20240414222201880](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222941.png)
+
+![image-20240414222225699](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222757.png)
+
+额外的参数
+
+![image-20240414222306367](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142223434.png)
+
 ## YAML 文件格式
 
 1. **基本规则**：
@@ -582,6 +600,7 @@ K8s 集群中对资源管理和资源对象编排部署都可以通过声明样�
        string
      ```
 7. **引用**：
+   
    - 可以使用 `&` 定义锚点（Anchor）和 `*` 引用锚点，实现数据的引用和重用。
 8. **特殊值**：
    - **布尔值**：`true` 和 `false`。
@@ -891,14 +910,37 @@ kubectl get deploy nginx -o yaml
 - 运行多个紧密相关的容器，共享资源。
 - 提供一个抽象层，使得应用程序可以独立于底层基础设施运行。
 
+## Pod 的分类
 
-## 为什么要引入 pod
+在 Kubernetes 中，除了普通 Pod，还存在一种叫做“静态 Pod”的特殊类型 Pod。
+
+1. **普通 Pod**：
+
+   - 普通 Pod 是用户直接通过 Kubernetes API 创建的 Pod，它们通常是通过 Deployment、StatefulSet、DaemonSet 等控制器对象创建和管理的。
+   - 普通 Pod 的配置信息（如容器镜像、资源限制、环境变量等）通常存储在 etcd 中，并由 Kubernetes Master 负责调度和管理。
+   - 普通 Pod 可以跨节点调度，根据调度策略在集群中的任意节点上运行。
+   - 普通Pod 一旦被创建，就会被放入到etcd 中存储，随后会被Kubernetes Master 调度到某个具体的Node 上并进行绑定，随后该Pod 对应的Node 上的kubelet 进程实例化成一组相关的Docker 容器并启动起来。在默认情况下，当Pod 里某个容器停止时，Kubernetes 会自动检测到这个问题并且重新启动这个Pod 里某所有容器， 如果Pod 所在的Node 宕机，则会将这个Node 上的所有Pod 重新调度到其它节点上。
+
+2. **静态 Pod**：
+   - 静态 Pod 是直接由 kubelet 在节点上管理和运行的 Pod，不需要通过 Kubernetes API 创建，也不受 Kubernetes Master 控制。
+   - 静态 Pod 的配置文件通常存储在节点的特定目录中（如 `/etc/kubernetes/manifests`），kubelet 会定期检测该目录下的配置文件，并根据配置文件启动 Pod。
+   - 静态 Pod 通常用于在节点启动时运行一些系统级别的服务或辅助容器，如网络代理、日志收集器等。
+   - 静态 Pod 与节点一一对应，只能在其所在的节点上运行，不支持跨节点调度。
+   - 静态Pod 是由kubelet 进行管理的仅存在于特定Node 上的Pod,它们不能通过API Server进行管理，无法与ReplicationController、Deployment 或DaemonSet 进行关联，并且kubelet 也无法对它们进行健康检查。
+
+总的来说，普通 Pod 是通过 Kubernetes API 创建和管理的，可以跨节点调度；而静态 Pod 是由 kubelet 直接在节点上管理的，只能在其所在的节点上运行。选择使用哪种类型的 Pod 取决于应用场景和需求，可以根据具体情况来决定使用普通 Pod 还是静态 Pod。
+
+## pod 特性
 
 为什么要引入pod的概念，而不是直接使用容器（docker）作为最小单元
 
-### pod 是多进程设计，docker 是单进程设计
+- 每个 Pod 都是应用的一个实例，有专用的 IP
+- 一个 Pod 可以有多个容器，彼此间共享网络和存储资源，每个 Pod 中有一个 Pause 容器保存所有的容器状态， 通过管理 pause 容器，达到管理 pod 中所有容器的效果
+- **同一个 Pod 中的容器总会被调度到相同 Node 节点**，不同节点间 Pod 的通信基于虚拟二层网络技术实现
 
-#### 单进程设计
+pod 是多进程设计，docker 是单进程设计
+
+### 单进程设计
 
 单进程设计是指在一个系统或应用程序中，每个实例只运行一个主要的进程。这个主要的进程通常是应用程序的核心，负责执行应用程序的主要功能。单进程设计通常用于简化系统结构、提高系统的稳定性和可维护性。
 
@@ -916,15 +958,16 @@ kubectl get deploy nginx -o yaml
 
 因此，一个 Docker 容器可以运行一个或多个镜像，但是在一个容器中通常建议只运行一个主要的进程，以符合 Docker 鼓励的容器设计原则。这样可以更好地利用 Docker 的轻量级、隔离性和易管理性，提高应用程序的部署效率和运行稳定性。
 
-#### 多进程设计
+### 多进程设计
 
 - Pod 是 Kubernetes 中最小的部署单元，可以包含一个或多个容器。**Pod 中的容器共享网络命名空间和存储卷**，它们可以在同一个 Pod 中共同协作、相互通信。
 - Pod 中的多个容器可以被看作是多个进程的集合，这些进程可以共享同一个网络环境和文件系统，它们可以相互协作、共享资源。这种设计可以更好地支持复杂应用组件之间的交互和协同工作。
-- Pod 中的容器可以共享同一个网络命名空间和存储卷，它们可以通过 localhost 相互通信，共享数据。这种设计可以简化容器之间的通信和数据共享。
+- Pod 中的容器可以共享同一个网络命名空间和存储卷，它们可以通过 localhost 相互通信，共享数据。这种设计可以简化容器之间的通信和数据共享。所以一个 Pod 内的多个容器之间可以通过 localhost 来进行通信,所需要注意的是不同容器要注意不要有端口冲突即可。不同的 Pod 有不同的 IP,不同 Pod 内的多个容器之前通信，不可以使用 IPC（如果没有特殊指定的话）通信，通常情况下使用 Pod的 IP 进行通信
+- 一个 Pod 里的多个容器可以共享存储卷，这个存储卷会被定义为 Pod 的一部分，并且可以挂载到该 Pod 里的所有容器的文件系统上。
 
 ### 亲密性应用
 
-Pod 的存在为了支持部署亲密性应用，即那些需要在同一主机上共享资源、网络和存储的应用程序。这种部署方式可以使相关的应用程序能够更紧密地协作、通信和共享资源，提高应用程序之间的亲密性和协同工作效率。
+Pod 的存在也为了支持部署亲密性应用，即那些需要在同一主机上共享资源、网络和存储的应用程序。这种部署方式可以使相关的应用程序能够更紧密地协作、通信和共享资源，提高应用程序之间的亲密性和协同工作效率。
 
 举例来说明，假设有一个 Web 应用程序，它由一个前端容器和一个后端容器组成，前端容器负责处理用户请求和展示界面，后端容器负责处理业务逻辑和数据存储。这两个容器之间需要频繁通信和共享数据，为了实现它们之间的亲密性，可以将它们打包在同一个 Pod 中。
 
@@ -934,13 +977,15 @@ Pod 的存在为了支持部署亲密性应用，即那些需要在同一主机�
 
 总的来说，Pod 的存在为了支持亲密性应用，使得相关的容器能够更紧密地协作、通信和共享资源。通过将需要紧密协作的容器放在同一个 Pod 中，可以提高应用程序之间的亲密性和协同工作效率，从而更好地支持复杂应用程序的部署和管理。
 
+### 生命周期短暂
+
+Pod 属于生命周期比较短暂的组件，比如，当 Pod 所在节点发生故障，那么该节点上的 Pod会被调度到其他节点，但需要注意的是，被重新调度的 Pod 是一个全新的 Pod,跟之前的Pod 没有半毛钱关系。
+
 ## 共享网络
 
+K8s 集群中的所有 Pod 都在同一个共享网络地址空间中，也就是说每个 Pod 都可以通过其他 Pod 的 IP 地址来实现访问。
 
-## 共享存储
-
-
-## Pause 容器
+### Pause 容器
 
 Pod 是 Kubernetes 中非常重要的概念，它为容器化应用程序的部署和管理提供了灵活性和便利性，同时也为容器之间的**通信和数据共享**提供了便利。
 
@@ -954,3 +999,586 @@ Pod 是 Kubernetes 中非常重要的概念，它为容器化应用程序的部�
 
 因此，Pause 容器可以看作是 Pod 中的“中介者”，负责协调和管理 Pod 中的其他容器，确保它们能够顺利地进行网络通信和协同工作。
 
+## 共享存储
+
+在 pod 的日常使用中，一般会产生很多数据，其中比较重要的就是日志数据和业务数据
+
+假设有一个 Pod 包含两个容器，一个是 Web 服务器容器用于提供 Web 服务，另一个是日志收集器容器用于收集 Web 服务器的日志。这两个容器需要共享一个存储卷，使得 Web 服务器生成的日志文件可以被日志收集器容器读取并处理。
+
+在 Kubernetes 中，可以通过定义一个 Volume，并将这个 Volume 挂载到 Pod 中的多个容器中来实现共享存储。以下是一个 YAML 示例：
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: shared-storage-pod
+spec:
+  volumes: # 定义数据卷
+    - name: shared-storage
+      emptyDir: {}
+  containers:
+    - name: web-server
+      image: web-server-image
+      volumeMounts: # 挂载数据卷
+        - name: shared-storage
+          mountPath: /logs
+    - name: log-collector
+      image: log-collector-image
+      volumeMounts:
+        - name: shared-storage
+          mountPath: /logs
+```
+
+在这个示例中，我们定义了一个名为 shared-storage 的 Volume，并将其挂载到 Pod 中的两个容器中。Web 服务器容器将日志文件写入 /logs 目录，而日志收集器容器则从相同的 /logs 目录中读取日志文件进行处理。
+
+通过这种方式，Web 服务器容器和日志收集器容器就可以共享同一个存储卷，实现了它们之间的数据共享。当 Pod 被调度到同一个节点上时，它们可以共享存储卷中的数据，实现了容器之间的共享存储机制。
+
+共享存储还有一个重要用途，假设当前 pod 中存在三个节点，node1，node2 和 node3，当节点node1宕机时，可以将node1中运行的应用漂移到node2中，但node2中并没有node1运行时的数据，即不知道node1节点宕机时再做什么
+
+如果在 Pod 中使用共享存储，例如通过持久卷（Persistent Volume）来存储应用程序的数据，那么即使节点 node1 宕机，数据仍然可以保留在共享存储中。当容器编排系统检测到节点故障并将 Pod 调度到节点 node2 时，应用程序可以重新挂载共享存储，并继续访问之前存储在共享存储中的数据，实现故障转移和恢复。
+
+在这种情况下，共享存储充当了数据持久性的角色，确保了即使在节点故障时，数据仍然可靠地被访问和使用。这样可以提高应用程序的可靠性和可用性，减少因节点故障而导致的业务中断。
+
+因此，共享存储在容器编排系统中不仅可以用于容器之间的数据共享和协同工作，还可以用于实现容器的高可用性和故障恢复，确保应用程序数据的持久性和一致性，从而提高整个系统的稳定性和可靠性。
+
+## Pod 的基本使用方法
+
+在kubernetes 中对运行容器的要求为：容器的主程序需要一直在前台运行，而不是后台运行。应用需要改造成前台运行的方式。如果我们创建的Docker 镜像的启动命令是后台执行程序，则在kubelet 创建包含这个容器的pod 之后运行完该命令，即认为Pod 已经结束，将立刻销毁该Pod。如果为该Pod 定义了RC，则创建、销毁会陷入一个无限循环的过程中。Pod 可以由1 个或多个容器组合而成。
+
+### 单容器 pod
+
+下面是是一个简单的 Pod 配置文件，描述了一个由一个容器组成的 Pod，其中运行的容器使用的是 Tomcat 镜像，并暴露了端口 8000。
+
+下面是这个 Pod 配置文件的详细解释：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mytomcat
+  labels:
+    name: mytomcat
+spec:
+  containers:
+    - name: mytomcat
+      image: tomcat
+      ports:
+        - containerPort: 8000
+```
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本。
+- `kind: Pod`：定义了这个配置文件描述的对象是一个 Pod。
+- `metadata`：定义了 Pod 的元数据，包括名称和标签。
+  - `name: mytomcat`：指定了 Pod 的名称为 `mytomcat`。
+  - `labels`：为 Pod 添加了一个标签，标签名为 `name`，值为 `mytomcat`。
+- `spec`：定义了 Pod 的规格，包括容器的配置信息。
+  - `containers`：指定了 Pod 中运行的容器列表。
+    - `name: mytomcat`：定义了容器的名称为 `mytomcat`。
+    - `image: tomcat`：指定了容器所使用的镜像为 Tomcat。
+    - `ports`：定义了容器需要暴露的端口列表。
+      - `containerPort: 8000`：指定了容器监听的端口为 8000，允许其他服务通过该端口访问容器内的应用程序。
+
+通过这个 Pod 配置文件，Kubernetes 将会创建一个名为 `mytomcat` 的 Pod，其中运行一个使用 Tomcat 镜像的容器，并且该容器会监听并暴露 8000 端口，以便外部服务可以访问其中运行的应用程序。
+
+### 多容器 pod
+
+下面是一个描述了两个紧密耦合的容器的 Pod 配置文件。其中一个容器运行 Tomcat，另一个运行 Redis。
+
+下面是对这个 Pod 配置文件的详细解释：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myweb
+  labels:
+    name: tomcat-redis
+spec:
+  containers:
+    - name: tomcat
+      image: tomcat
+      ports:
+        - containerPort: 8080
+    - name: redis
+      image: redis
+      ports:
+        - containerPort: 6379
+```
+- `apiVersion: v1`：指定了 Kubernetes API 的版本。
+- `kind: Pod`：定义了这个配置文件描述的对象是一个 Pod。
+- `metadata`：定义了 Pod 的元数据，包括名称和标签。
+  - `name: myweb`：指定了 Pod 的名称为 `myweb`。
+  - `labels`：为 Pod 添加了一个标签，标签名为 `name`，值为 `tomcat-redis`。
+- `spec`：定义了 Pod 的规格，包括容器的配置信息。
+  - `containers`：指定了 Pod 中运行的容器列表。
+    - `name: tomcat`：定义了第一个容器的名称为 `tomcat`。
+      - `image: tomcat`：指定了第一个容器所使用的镜像为 Tomcat。
+      - `ports`：定义了第一个容器需要暴露的端口列表。
+        - `containerPort: 8080`：指定了第一个容器监听的端口为 8080，允许其他服务通过该端口访问容器内的应用程序。
+    - `name: redis`：定义了第二个容器的名称为 `redis`。
+      - `image: redis`：指定了第二个容器所使用的镜像为 Redis。
+      - `ports`：定义了第二个容器需要暴露的端口列表。
+        - `containerPort: 6379`：指定了第二个容器监听的端口为 6379，允许其他服务通过该端口访问容器内的 Redis 数据库。
+
+通过这个 Pod 配置文件，Kubernetes 将会创建一个名为 `myweb` 的 Pod，其中包含了两个容器，一个运行 Tomcat，另一个运行 Redis，它们可以相互通信并共同组成一个完整的应用程序环境。
+
+### 常用命令
+
+#### 创建 Pod
+
+您可以使用上面提供的 Pod 配置文件（xxx.yaml）通过 kubectl 命令创建 Pod。请将上面提供的 Pod 配置文件的内容保存到一个名为 xxx.yaml 的文件中，然后运行以下命令：
+```bash
+kubectl create -f xxx.yaml
+```
+这将会使用该配置文件创建一个名为 myweb 的 Pod，其中包含了两个容器，一个运行 Tomcat，另一个运行 Redis。kubectl 命令会将该 Pod 的描述发送给 Kubernetes 集群，然后集群会根据描述创建相应的 Pod。
+
+#### 查看
+
+1. 查看 Pod 的基本信息：
+```bash
+kubectl get pod <Pod_name>
+```
+这个命令将显示指定 Pod 的基本信息，例如 Pod 的名称、状态、创建时间等。
+2. 查看 Pod 的详细信息：
+```bash
+kubectl get pod <Pod_name> -o wide
+```
+这个命令将显示指定 Pod 的详细信息，包括 Pod 的 IP 地址、节点信息、启动时间等。
+3. 查看 Pod 的描述信息：
+```bash
+kubectl describe pod <Pod_name>
+```
+这个命令将显示指定 Pod 的详细描述信息，包括容器状态、事件、标签、注释等。
+
+请将 `<Pod_name>` 替换为您创建的 Pod 的实际名称。通过这些命令，您可以查看创建的 Pod 的各种信息，以便进行进一步的调试和管理。
+
+#### 删除
+
+您可以使用以下两种方法删除 Pod：
+
+1. 通过 Pod 配置文件删除：
+```bash
+kubectl delete -f pod_name.yaml
+```
+这将使用指定的 Pod 配置文件（pod_name.yaml）中定义的描述来删除 Pod。
+2. 通过 Pod 名称删除：
+```bash
+kubectl delete pod <pod_name>
+```
+或者，如果您想删除所有 Pod，可以运行以下命令：
+```bash
+kubectl delete pod --all
+```
+请确保将 `<pod_name>` 替换为要删除的 Pod 的实际名称。这些命令将会删除指定的 Pod，清理集群中的资源。
+
+## Pod 的生命周期
+
+Pod 的生命周期描述了从创建到销毁的整个过程，包括各个阶段的状态和可能的转换。以下是普通 Pod 的典型生命周期：
+
+1. **Pending（等待中）**：
+   - 当 Pod 被创建后，它将进入 Pending 状态。在此阶段，Kubernetes 正在为 Pod 查找合适的节点，并进行调度。
+2. **Running（运行中）**：
+   - 一旦 Pod 被调度到节点并且容器已经被实例化并运行起来，它就会进入 Running 状态。在这个阶段，Pod 中的容器正在正常运行。
+3. **Succeeded（已成功）**：
+   - 如果 Pod 中的所有容器成功完成它们的任务，并且不再需要运行，那么 Pod 将进入 Succeeded 状态。这通常发生在批处理任务或定时作业完成后。
+4. **Failed（已失败）**：
+   - 如果 Pod 中的任何一个容器以错误状态退出，或者 Pod 中的应用程序遇到了错误，那么 Pod 将进入 Failed 状态。这意味着 Pod 中的至少一个容器已经停止运行。
+5. **Unknown（未知）**：
+   - 如果无法获取 Pod 的状态信息，例如由于与节点通信失败，那么 Pod 将进入 Unknown 状态。这可能是由于网络问题或节点故障引起的。
+6. **Terminating（终止中）**：
+   - 当用户发出删除 Pod 的请求时，或者 Pod 被控制器对象（如 Deployment）更新时，Pod 将进入 Terminating 状态。在这个阶段，Kubernetes 将停止 Pod 中的容器，并且清理与 Pod 相关的资源。
+7. **Terminated（已终止）**：
+   - 一旦 Pod 的所有容器都被成功停止并且相关资源已经清理完毕，Pod 将进入 Terminated 状态。此时，Pod 的生命周期结束。
+
+通过了解 Pod 的生命周期及其各个阶段的含义，可以更好地监控和管理应用程序的运行状态，及时发现并处理潜在的问题。
+
+## pod 的镜像拉取策略配置 imagePullPolicy
+
+Pod 镜像拉取策略指定 Kubernetes 如何处理容器镜像的拉取行为。在 Kubernetes 中，容器镜像可以从本地或远程镜像仓库拉取，而拉取策略则决定了 Kubernetes 如何处理这些镜像。
+
+以下是 Kubernetes 中常见的三种镜像拉取策略：
+
+1. **Always（始终）**：这是默认的镜像拉取策略。当容器需要启动时，始终会尝试从指定的镜像仓库拉取最新的镜像。即使本地已经存在相同的镜像，也会强制拉取最新版本。这种策略适用于确保使用最新版本的应用程序，但可能会增加网络流量和拉取时间。
+2. **IfNotPresent（若不存在）**：这种策略会先检查本地是否已经存在所需的镜像。如果本地已经有相同的镜像，则不会拉取新的镜像；只有在本地不存在该镜像时才会从镜像仓库拉取。这种策略适用于提高容器启动速度和减少网络流量，但可能会导致容器使用过时的镜像版本。
+3. **Never（从不）**：这种策略表示不会从任何镜像仓库拉取镜像，只使用本地已经存在的镜像。如果本地不存在所需的镜像，则容器启动将失败。这种策略适用于离线环境或需要完全控制镜像版本的情况。
+
+举例来说，如果设置了 Pod 的镜像拉取策略为 `Always`，并且容器指定了镜像为 `nginx:latest`，那么每次容器启动时都会尝试从镜像仓库拉取最新的 `nginx` 镜像。如果设置为 `IfNotPresent`，则只有在本地不存在 `nginx` 镜像时才会拉取，否则直接使用本地镜像。
+
+假设我们有一个 Pod，其中包含一个名为 `nginx-container` 的容器，该容器使用 `nginx:latest` 镜像。现在我们来设置不同的镜像拉取策略并说明它们的影响。
+
+1. **Always（始终）**：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx:latest
+      imagePullPolicy: Always
+```
+
+在这个示例中，我们将镜像拉取策略设置为 `Always`。无论本地是否存在 `nginx:latest` 镜像，每次 Pod 启动时都会尝试从镜像仓库拉取最新的 `nginx` 镜像。这会确保始终使用最新的镜像版本，但可能会增加网络流量和拉取时间。
+
+2. **IfNotPresent（若不存在）**：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx:latest
+      imagePullPolicy: IfNotPresent
+```
+
+在这个示例中，我们将镜像拉取策略设置为 `IfNotPresent`。如果本地已经存在 `nginx:latest` 镜像，则不会拉取新的镜像；只有在本地不存在该镜像时才会从镜像仓库拉取。这样可以提高容器启动速度和减少网络流量。
+
+3. **Never（从不）**：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+spec:
+  containers:
+    - name: nginx-container
+      image: nginx:latest
+      imagePullPolicy: Never
+```
+
+在这个示例中，我们将镜像拉取策略设置为 `Never`。这意味着不会从任何镜像仓库拉取镜像，只使用本地已经存在的 `nginx:latest` 镜像。如果本地不存在该镜像，则容器启动将失败。
+
+## pod 的资源限制配置 resources
+
+Pod 的资源限制是 Kubernetes 中用于控制容器使用资源的重要机制，通过资源限制可以确保容器在运行时不会占用过多的计算资源，从而保障集群中其他应用的正常运行。**资源限制通常包括 CPU 和内存两种类型**。
+
+以下是关于 Pod 资源限制的详细说明：
+1. **CPU 资源限制**：
+   - **CPU 请求（CPU Requests）**：指定容器运行所需的最小 CPU 资源量。Kubernetes 将尝试为容器分配至少所请求的 CPU 资源量。如果节点上可用的 CPU 资源不足，容器可能会等待或被抢占。
+   - **CPU 限制（CPU Limits）**：指定容器允许使用的最大 CPU 资源量。即使节点上有更多的 CPU 可用，容器也不会使用超过所设置的 CPU 限制。如果容器尝试使用超过限制的 CPU 资源量，会被 Kubernetes 终止或限制。
+2. **内存资源限制**：
+   - **内存请求（Memory Requests）**：指定容器运行所需的最小内存资源量。Kubernetes 将尝试为容器分配至少所请求的内存资源量。如果节点上可用的内存资源不足，容器可能会等待或被抢占。
+   - **内存限制（Memory Limits）**：指定容器允许使用的最大内存资源量。即使节点上有更多的内存可用，容器也不会使用超过所设置的内存限制。如果容器尝试使用超过限制的内存资源量，会被 Kubernetes 终止或限制。
+
+在 Pod 的 YAML 配置文件中，可以通过 `resources` 字段来设置资源请求和资源限制。以下是一个示例：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+  - name: my-container
+    image: nginx
+    resources: # 配置资源限制
+      requests:
+        memory: "64Mi"
+        cpu: "250m"
+      limits:
+        memory: "128Mi"
+        cpu: "500m"
+```
+
+在上述示例中，`my-container` 容器的资源请求为 64Mi 内存和 250m CPU，资源限制为 128Mi 内存和 500m CPU。这样设置可以确保容器在运行时不会超出所需的资源范围，同时也有助于避免资源竞争和影响其他容器的正常运行。
+
+在 Kubernetes 中，CPU 的单位是 millicores（毫核），通常用 `m` 表示。一个完整的 CPU 核心被表示为 1000m 或 1 核。因此，`cpu: "250m"` 表示容器请求使用 250 毫核的 CPU 资源，即 0.25 个 CPU 核心。
+当设置容器的 CPU 请求和限制时，使用毫核单位可以更精细地控制容器对 CPU 资源的需求。例如，如果一个节点有 4 个 CPU 核心，那么该节点的总 CPU 容量为 4000m。在这种情况下，一个请求为 `cpu: "250m"` 的容器只会占用节点总 CPU 容量的 0.25/4 = 6.25%。
+
+在 Kubernetes 中，内存的单位是 Mebibytes（MiB），通常用 `Mi` 表示。一个 Mebibyte 等于 1024 Kibibytes，即 1024 * 1024 字节。因此，`memory: "128Mi"` 表示容器请求使用 128 Mebibytes 的内存资源，即约 134,217,728 字节或约 128 兆字节。
+设置容器的内存请求和限制可以帮助 Kubernetes 管理容器在运行时所需的内存资源。通过指定内存请求和限制，可以确保容器在运行时不会过度消耗内存资源，避免因内存不足导致容器崩溃或影响集群中其他应用程序的正常运行。
+
+## pod 的重启策略配置 restartPolicy
+
+Pod 的 `restartPolicy` 是用来指定容器在终止后的重启策略的属性。`restartPolicy` 可以在 Pod 的规范（spec）中进行配置，有三种可选值：
+1. **Always**：
+   - 当容器终止后，无论退出状态是什么，都会被 Kubernetes 自动重启。
+   - 适用于需要容器持续运行的情况，确保容器随时可用。
+2. **OnFailure**：
+   - 当容器以非零状态退出（即失败）时，Kubernetes 会自动重启容器。
+   - 适用于希望容器在失败时重启，但在正常退出时不重启的情况。
+3. **Never**：
+   - 容器终止后不会被自动重启，无论退出状态是什么。
+   - 适用于一次性任务或不需要自动重启的容器。例如批量任务
+
+**注意**：
+- 如果 Pod 中的所有容器都以非零状态退出，并且 `restartPolicy` 设置为 `Always`，Pod 将不断重启，可能会陷入无限循环。因此，在设置 `restartPolicy` 时需要谨慎考虑。
+- `restartPolicy` 仅适用于 Pod 级别，而不是容器级别。一个 Pod 中的所有容器都遵循相同的 `restartPolicy`。
+
+以下是一个示例 Pod 配置，展示了如何使用不同的 `restartPolicy` 值：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  restartPolicy: Always
+  containers:
+  - name: my-container
+    image: nginx:latest
+```
+在这个示例中，`restartPolicy` 被设置为 `Always`，这意味着当容器终止后，不论退出状态如何，Kubernetes 都会自动重启容器。这对于需要容器持续运行的情况非常有用，例如 Web 服务器等。
+另一个示例：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  restartPolicy: OnFailure
+  containers:
+  - name: my-container
+    image: my-app:latest
+```
+在这个示例中，`restartPolicy` 被设置为 `OnFailure`，这意味着当容器以非零状态退出（即失败）时，Kubernetes 会自动重启容器。这对于希望容器在失败时重启，但在正常退出时不重启的情况非常有用，例如运行任务的容器。
+最后一个示例：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  restartPolicy: Never
+  containers:
+  - name: my-container
+    image: my-once-job:latest
+```
+在这个示例中，`restartPolicy` 被设置为 `Never`，这意味着容器终止后不会被自动重启，无论退出状态是什么。这对于一次性任务或不需要自动重启的容器非常有用。
+
+常见的状态转换
+
+![image-20240414223355130](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142233190.png)
+
+# Label 标签
+
+标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的元数据中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
+
+标签的作用有以下几个方面：
+
+1. **标识和分类**：标签可以帮助用户对资源对象进行分类和标识。例如，可以为一组 Pod 添加相同的标签，以表示它们属于同一个应用程序或服务。
+2. **选择器**：标签可以用作选择器，用于在 Kubernetes 中选择特定的资源对象。例如，可以使用标签选择器来指定一个 Service 只路由到具有特定标签的 Pod。
+3. **管理和操作**：标签可以用于组织和管理资源对象。例如，可以使用标签来确定哪些 Pod 属于一个特定的部署，并对它们进行扩展、缩减或更新操作。
+4. **路由和策略**：标签可以用于定义路由规则和访问策略。例如，可以基于标签定义网络策略，限制特定标签的 Pod 之间的通信。
+
+Label 的最常见的用法是使用metadata.labels 字段，来为对象添加Label，通过
+spec.selector 来引用对象
+
+## 示例
+
+Labels（标签）和 Label Selectors（标签选择器）是 Kubernetes 中非常重要的概念，它们允许您对资源对象进行分组管理，并在需要时选择特定的资源对象。
+
+Labels 是键值对的形式，附加到 Kubernetes 资源对象（如 Pod、ReplicationController、Service 等）的元数据中。Label 可以是任何字符串，但是建议使用具有描述性的名称来帮助识别和组织资源对象。
+
+Label Selectors 则是用于选择具有特定标签集合的资源对象的机制。它们用于定义一组标签的条件，以便从集群中选择相应的资源对象。Label Selectors 可以用于多种 Kubernetes 资源对象，如 Service、ReplicaSet、ReplicationController 等。
+
+下面是一个简单的示例，演示了如何在 Pod 和 Service 中使用 Labels 和 Label Selectors：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    app: nginx       # 将标签 "app=nginx" 附加到 Pod 上
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx       # 指定 Label Selector，选择具有标签 "app=nginx" 的 Pod
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+```
+
+在这个示例中，Pod "nginx-pod" 被附加了一个标签 "app=nginx"。而 Service "nginx-service" 的 Selector 字段指定了一个 Label Selector，选择具有标签 "app=nginx" 的 Pod。
+
+这样一来，Service 将流量路由到具有相应标签的 Pod 上，实现了服务发现和负载均衡的功能。Labels 和 Label Selectors 的结合使用为 Kubernetes 中的资源对象提供了强大的分组和选择机制，使得管理和操作集群中的应用变得更加灵活和高效。
+
+# Controller 控制器
+
+p62
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+## 健康检查
+
+在 Kubernetes 中，健康检查（Health Checks）是用来监视容器的健康状态并确保容器正常运行的重要机制。健康检查主要分为两种：存活检查（Liveness Probe）和就绪检查（Readiness Probe）。以下是关于 Pod 中健康检查的详细说明：
+1. **存活检查（Liveness Probe）**：
+   - 存活检查用于确定容器是否仍在运行。如果存活检查失败，Kubernetes 将重启容器。
+   - 存活检查失败的情况包括容器崩溃、死锁、应用程序无响应等。
+   - 存活检查可以通过以下三种方式进行：
+     - HTTP 探测：通过向容器发送 HTTP 请求并检查响应状态码来确定容器是否存活。
+     - TCP 探测：通过尝试建立 TCP 连接来确定容器是否存活。
+     - Exec 探测：通过在容器内部执行命令并检查返回状态码来确定容器是否存活。
+2. **就绪检查（Readiness Probe）**：
+   - 就绪检查用于确定容器是否已准备好接收流量。如果就绪检查失败，容器将被从服务的负载均衡中移除。
+   - 就绪检查可以确保容器在接收流量之前已经完成启动过程，避免将流量发送到尚未准备好的容器上。
+   - 就绪检查的类型和配置方式与存活检查类似，也可以使用 HTTP 探测、TCP 探测或 Exec 探测。
+3. **配置健康检查**：
+   - 在 Pod 的容器配置中，可以通过 `livenessProbe` 和 `readinessProbe` 字段来定义存活检查和就绪检查的方式和参数。
+   - 对于 HTTP 探测，可以指定路径、端口、期望的响应状态码等参数。
+   - 对于 TCP 探测，可以指定端口号。
+   - 对于 Exec 探测，可以指定要在容器内部执行的命令。
+
+通过配置适当的存活检查和就绪检查，可以确保容器在运行时保持健康状态，并在必要时进行重启或从负载均衡中移除，提高应用程序的可靠性和稳定性。
+
+以下是一个示例 Pod 配置，展示了如何配置存活检查（Liveness Probe）和就绪检查（Readiness Probe）：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-pod
+spec:
+  containers:
+  - name: my-container
+    image: nginx:latest
+    livenessProbe: # 配置存活检查
+      httpGet:
+        path: /healthz
+        port: 80
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    readinessProbe: # 配置就绪检查
+      tcpSocket:
+        port: 80
+      initialDelaySeconds: 20
+      periodSeconds: 15
+```
+
+在这个示例中，定义了一个名为 `my-container` 的容器，并配置了存活检查和就绪检查：
+- **存活检查（Liveness Probe）**：
+  - 使用 HTTP 探测方式，向容器发送 HTTP GET 请求 `/healthz`，检查端口号为 80。
+  - `initialDelaySeconds` 指定容器启动后等待 15 秒后开始首次执行存活检查。
+  - `periodSeconds` 指定每隔 10 秒执行一次存活检查。
+- **就绪检查（Readiness Probe）**：
+  - 使用 TCP 探测方式，检查容器的端口号为 80。
+  - `initialDelaySeconds` 指定容器启动后等待 20 秒后开始首次执行就绪检查。
+  - `periodSeconds` 指定每隔 15 秒执行一次就绪检查。
+
+## 调度策略
+
+### pod 创建流程
+
+在 Kubernetes 中，一个 Pod 的创建过程可以简单描述为以下几个步骤：
+
+1. **API 请求**：首先，用户或控制器通过 Kubernetes 的 API Server 发起一个 Pod 创建的请求。这个请求包含了 Pod 的配置信息，比如容器镜像、资源需求、网络设置等。
+
+2. **调度过程**：API Server 接收到创建 Pod 的请求后，将其发送给调度器（Scheduler）。调度器负责决定将 Pod 调度到哪个节点上运行。调度器会考虑节点的资源情况、亲和性（Affinity）和亲缘性（Anti-Affinity）规则等因素，以及用户可能指定的调度约束。
+
+3. **容器运行时创建容器**：一旦 Pod 被调度到节点上，Kubelet 进程（运行在每个节点上）接收到 Pod 的描述，并负责创建 Pod 中的容器。Kubelet 使用容器运行时（比如 Docker、containerd）来创建和管理容器。
+
+4. **Pod 运行状态更新**：一旦容器被创建，Kubelet 会向 API Server 报告 Pod 的运行状态。这样，用户可以通过 Kubernetes API 或命令行工具（比如 kubectl）查询 Pod 的状态。
+
+5. **网络配置**：Pod 创建后，Kubernetes 还会负责为 Pod 分配一个唯一的 IP 地址，并确保 Pod 内的容器可以相互通信。这通常通过 CNI 插件（Container Network Interface）实现，CNI 插件会为每个 Pod 配置网络，比如创建虚拟网络接口并设置路由规则。
+
+6. **存储卷挂载**：如果 Pod 中定义了存储卷（Volume），Kubelet 还会负责将这些存储卷挂载到容器中，以便容器可以访问到存储卷提供的数据。
+
+7. **健康检查和监控**：Kubelet 会定期执行容器的健康检查，并将检查结果报告给 API Server。这样，Kubernetes 控制平面可以根据容器的健康状况进行调度和自愈。
+
+8. **事件记录**：在整个 Pod 创建过程中，Kubernetes 会记录各种事件（Events），比如调度情况、容器启动情况、网络配置等，以供用户和管理员查看和分析。
+
+这是一个大致的流程，实际上 Kubernetes 的 Pod 创建过程可能会受到各种因素的影响，比如网络延迟、节点故障、调度策略等。
+
+### 影响调度过程的因素
+
+Pod 的调度过程是 Kubernetes 中非常重要的一部分，它决定了如何将 Pod 分配到集群中的节点上，以确保资源的合理利用和应用程序的高可用性。以下是几种常见的对 Pod 调度过程存在影响的方面：
+
+1. **资源约束**：
+   - Kubernetes 可以根据 Pod 对资源的需求（如 CPU、内存）和节点的资源供给情况，选择合适的节点进行调度。这种策略可以确保每个节点上的资源利用率接近均衡，避免资源浪费和资源不足的情况。
+2. **亲和性和反亲和性**：
+   - 亲和性策略指定了一组 Pod 应该被调度到一起的节点上，以促进它们之间的互动或数据共享。例如，可以将某些相关的服务或组件调度到同一节点上，减少网络延迟或提高数据局部性。
+   - 反亲和性策略则指定了一组 Pod 不应该被调度到同一节点上，以避免单点故障或资源竞争。例如，可以将数据库 Pod 和应用程序 Pod 设置为不在同一节点上运行，以提高系统的可靠性和稳定性。
+3. **节点亲和性和反亲和性**：
+   - 除了 Pod 之间的亲和性和反亲和性外，还可以指定 Pod 应该或不应该调度到具有特定标签或属性的节点上。这可以用于满足特定的硬件要求或避免特定节点的负载过重。
+4. **Pod 优先级和预选**：
+   - Kubernetes 支持为 Pod 指定优先级和优先级类别，以确保重要的任务优先获得资源。此外，还可以通过预选条件过滤出满足特定条件的节点，如节点上已有的 Pod 数量或节点的健康状态。
+5. **自定义调度器扩展**：
+   - Kubernetes 还支持自定义调度器扩展，用户可以编写自己的调度器插件，根据特定的业务需求或策略进行调度决策。这使得 Kubernetes 可以灵活适应各种不同的部署场景和应用需求。
+
+通过合理配置和组合这些调度策略，可以实现对 Pod 的灵活调度和管理，从而提高集群的资源利用率和应用程序的性能和可靠性。
+
+### 节点选择器 nodeSelector
+
+`nodeSelector` 是 Kubernetes 中用于指定 Pod 可以被调度到哪些节点的一种机制。通过 `nodeSelector`，用户可以根据节点的标签（labels）来约束 Pod 的调度，只有具有指定标签的节点才能被选择来运行该 Pod。
+下面是关于 `nodeSelector` 的详细解释：
+- **定义 `nodeSelector`**：
+  - 用户在 Pod 的配置文件中通过 `nodeSelector` 字段来指定希望该 Pod 被调度到具有特定标签的节点上。例如：
+    ```yaml
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: mypod
+    spec:
+      containers:
+      - name: mycontainer
+        image: nginx
+      nodeSelector:
+        disktype: ssd
+    ```
+  在这个例子中，`nodeSelector` 指定了 Pod 只能被调度到带有标签 `disktype: ssd` 的节点上。
+- **节点标签设置**：
+  - 要使用 `nodeSelector`，首先需要在 Kubernetes 集群中的节点上设置对应的标签。可以使用 `kubectl` 命令或其他管理工具为节点添加标签。例如：
+    ```bash
+    kubectl label nodes node1 disktype=ssd
+    ```
+  这个命令将节点 `node1` 标记为具有 `disktype=ssd` 的标签。
+- **调度决策**：
+  - 当 Kubernetes 接收到 Pod 创建请求并进行调度时，调度器会检查 Pod 的 `nodeSelector` 字段，并选择具有匹配标签的节点来运行 Pod。如果找不到符合条件的节点，Pod 将无法调度成功。
+- **灵活性与限制**：
+  - 使用 `nodeSelector` 可以很灵活地控制 Pod 的调度行为，但需要注意的是，过多地使用节点标签可能会导致调度器找不到合适的节点，从而造成 Pod 无法调度。因此，在设置节点标签时需要考虑集群的整体资源情况和调度策略。
+通过 `nodeSelector`，用户可以根据自己的需求将 Pod 调度到特定类型的节点上，从而更好地满足应用程序的运行需求，实现资源的有效利用和管理。
