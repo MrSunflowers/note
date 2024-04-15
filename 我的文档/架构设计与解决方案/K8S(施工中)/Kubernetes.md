@@ -977,7 +977,7 @@ Pod 的存在也为了支持部署亲密性应用，即那些需要在同一主�
 
 总的来说，Pod 的存在为了支持亲密性应用，使得相关的容器能够更紧密地协作、通信和共享资源。通过将需要紧密协作的容器放在同一个 Pod 中，可以提高应用程序之间的亲密性和协同工作效率，从而更好地支持复杂应用程序的部署和管理。
 
-### 生命周期短暂
+### 生命周期短暂						··		   
 
 Pod 属于生命周期比较短暂的组件，比如，当 Pod 所在节点发生故障，那么该节点上的 Pod会被调度到其他节点，但需要注意的是，被重新调度的 Pod 是一个全新的 Pod,跟之前的Pod 没有半毛钱关系。
 
@@ -1408,6 +1408,185 @@ spec:
 在这个示例中，Pod "nginx-pod" 被附加了一个标签 "app=nginx"。而 Service "nginx-service" 的 Selector 字段指定了一个 Label Selector，选择具有标签 "app=nginx" 的 Pod。
 
 这样一来，Service 将流量路由到具有相应标签的 Pod 上，实现了服务发现和负载均衡的功能。Labels 和 Label Selectors 的结合使用为 Kubernetes 中的资源对象提供了强大的分组和选择机制，使得管理和操作集群中的应用变得更加灵活和高效。
+
+# Volume 共享存储
+
+Volume 在 Kubernetes 中是指用于持久化数据的抽象概念，可以用来将存储挂载到 Pod 中。它提供了一种灵活的方式来管理容器中的数据，可以使用各种类型的存储后端，如本地磁盘、网络存储、云存储等。
+
+在 Kubernetes 中，Volume 可以与 Pod 一起使用，以便在 Pod 重新调度、迁移或失败时保持数据的持久性。通过将 Volume 挂载到 Pod 中，容器可以访问其中的数据，并且数据会保留在 Volume 所指定的存储介质上。
+
+Volume 可以用来存储应用程序的配置文件、日志、数据库文件等持久化数据。Kubernetes 提供了多种类型的 Volume，包括但不限于：
+
+1. EmptyDir：在 Pod 的生命周期内存在的临时存储，当 Pod 被删除时数据也会被删除。
+2. HostPath：将主机上的文件系统挂载到 Pod 中，适用于需要与主机共享文件的场景。
+3. PersistentVolumeClaim（PVC）：用于动态请求持久存储的抽象概念，可以与 PersistentVolume（PV）结合使用，以便将外部存储动态地挂载到 Pod 中。
+4. ConfigMap 和 Secret：用于将配置文件和敏感信息挂载到 Pod 中，以供应用程序使用。
+
+在 Kubernetes 中，Volume 是 Pod 中能够被多个容器访问的共享目录。它可以被挂载到 Pod 中的一个或多个容器中的特定路径下，从而实现容器之间共享数据的需求。Volume 与 Pod 的生命周期相同，但与容器的生命周期不相关，这意味着当容器终止或重启时，Volume 中的数据不会丢失，除非整个 Pod 被删除。
+
+## Volume 类型
+
+要使用 volume，pod 需要指定volume 的类型和内容（ 字段），和映射到容器的位置（ 字段）。Kubernetes 支持多种类型的 Volume,包括：emptyDir、hostPath、gcePersistentDisk、awsElasticBlockStore、nfs、iscsi、flocker、glusterfs、rbd、cephfs、gitRepo、secret、persistentVolumeClaim、downwardAPI、azureFileVolume、azureDisk、vsphereVolume、Quobyte、PortworxVolume、ScaleIO。
+
+当您在 Kubernetes 中使用 Volume 时，可以根据实际需求选择不同类型的 Volume。下面我将详细介绍一些常见的 Volume 类型及其特点：
+
+1. **EmptyDir：** EmptyDir 是一种临时存储，随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。适合用于临时存储数据，例如容器之间共享临时文件。
+2. **HostPath：** HostPath 允许将主机上的文件系统目录挂载到 Pod 中的容器中。这种类型的 Volume 可以用于需要与主机共享文件系统的场景，但不推荐在生产环境中使用，因为可能会引起安全性和可移植性问题。
+3. **PersistentVolumeClaim（PVC）：** PersistentVolumeClaim 是一种抽象概念，用于动态请求持久存储的资源。通过 PersistentVolumeClaim，Pod 可以请求持久化存储资源，而不需要关心具体的存储后端。PersistentVolumeClaim 可以与 PersistentVolume 结合使用，以便将外部持久化存储动态地挂载到 Pod 中。
+4. **ConfigMap 和 Secret：** ConfigMap 和 Secret 也可以被挂载为 Volume，用于将配置文件和敏感信息挂载到 Pod 中。ConfigMap 用于存储配置数据，而 Secret 用于存储敏感信息，它们可以被容器用来读取配置和凭证信息。
+5. **NFS、iSCSI、GlusterFS、CephFS 等网络存储：** Kubernetes 支持将各种网络存储挂载为 Volume，例如 NFS、iSCSI、GlusterFS、CephFS 等。这些类型的 Volume 可以用于将外部网络存储挂载到 Pod 中，实现持久化存储和数据共享。
+
+除了上述列举的几种常见类型外，Kubernetes 还支持许多其他类型的 Volume，如 Azure 文件存储、AWS 弹性块存储、Git 仓库、DownwardAPI 等。通过选择适合您需求的 Volume 类型，您可以更好地管理 Pod 中的数据并满足各种应用场景下的需求。
+
+## EmptyDir
+
+EmptyDir 类型的 Volume 是 Kubernetes 中一种临时性的 Volume 类型，它用于在 Pod 中创建一个空目录，该目录的生命周期与 Pod 相关联，当 Pod 被删除时，EmptyDir 中的数据也会被清除。以下是关于 EmptyDir 类型的 Volume 的详细说明：
+
+1. **临时存储**：EmptyDir Volume 是一个临时性的存储空间，它在 Pod 启动时被创建，当 Pod 被删除时会被清空。这意味着 EmptyDir 中的数据不会被持久化存储，适用于临时性的数据存储需求。
+2. **Pod 内部共享**：EmptyDir Volume 可以被 Pod 中的多个容器共享，这使得容器之间可以共享临时数据，例如容器之间的通信、共享临时文件等。
+3. **空目录创建**：EmptyDir Volume 创建时是一个空目录，可以被容器中的应用程序读写数据。这种方式可以方便容器内部的应用程序临时存储数据。
+4. **容量限制**：EmptyDir Volume 可以设置容量限制，以限制存储空间的大小。当存储空间超出限制时，Pod 可能会因为存储空间不足而失败。
+5. **适用性**：EmptyDir Volume 适用于需要在容器之间共享临时数据、临时存储数据的场景，例如临时文件、临时缓存等。
+6. **数据共享与清理**：由于 EmptyDir Volume 是临时性的，数据在 Pod 删除时会被清空，因此不适合用于需要持久化存储数据的场景。如果需要持久化存储数据，建议使用其他类型的 Volume，如 PersistentVolume。
+
+ EmptyDir 是一种临时存储，它会在 Pod 被调度到某个宿主机上时创建，并且同一个 Pod 中的所有容器都可以读写 EmptyDir 中的同一个文件。当 Pod 离开所在的宿主机时，EmptyDir 中的数据会被永久删除，因此 EmptyDir 主要用作临时空间。
+
+EmptyDir 的特点使其非常适合用于一些临时性的存储需求，例如：
+
+- Web 服务器写日志：Web 服务器可以将访问日志等临时数据写入 EmptyDir 中，以便后续处理或分析。
+- 临时文件目录：某些应用程序可能需要在运行过程中生成临时文件，这些临时文件可以存储在 EmptyDir 中，而不会占用持久化存储资源。
+
+由于 EmptyDir 中的数据在 Pod 离开宿主机时会被删除，因此不适合存储需要持久保存的数据。但对于临时性的数据存储需求，EmptyDir 提供了一种简单高效的解决方案。在合适的场景下，EmptyDir 可以帮助您实现临时数据存储的需求，同时避免占用持久化存储资源。比如 Web 服务器写日志或者 tmp 文件需要的临时目录。
+
+yml 示例
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+    - image: docker.io/nazarpc/webserver
+      name: test-container
+      volumeMounts:
+        - mountPath: /cache
+          name: cache-volume
+  volumes:
+    - name: cache-volume
+      emptyDir: {}
+```
+
+这个Kubernetes配置文件示例中，指定了一个名为`cache-volume`的EmptyDir类型的Volume，并将其挂载到了`/cache`路径下。让我逐步详细解释一下这个配置文件：
+
+1. **apiVersion 和 kind：**
+   - `apiVersion: v1` 表示该配置文件所使用的 Kubernetes API 版本为 v1。
+   - `kind: Pod` 表示这个配置文件描述的是一个 Pod 对象。
+2. **metadata：**
+   - 在 metadata 字段下的 `name: test-pd` 指定了该 Pod 的名称为 `test-pd`，这个名称可根据实际需求进行修改。
+3. **spec：**
+   - `spec` 字段指定了 Pod 的规格，包括容器和卷的相关信息。
+   - 在 `containers` 字段下，定义了一个容器：
+     - `image: docker.io/nazarpc/webserver` 指定了容器所使用的镜像为 `docker.io/nazarpc/webserver`。
+     - `name: test-container` 指定了容器的名称为 `test-container`，这个名称也可以根据实际情况进行修改。
+     - `volumeMounts` 字段用于将卷挂载到容器内部的路径下，这里指定了将名为 `cache-volume` 的卷挂载到 `/cache` 路径下。
+   - 在 `volumes` 字段下，定义了一个卷：
+     - `name: cache-volume` 指定了卷的名称为 `cache-volume`，用于与容器中的 `volumeMounts` 对应。
+     - `emptyDir: {}` 指定了这个卷是一个 EmptyDir 类型的卷，即临时存储卷，它会随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。
+
+这样配置文件中的 `cache-volume` EmptyDir 类型的 Volume 就准备好了，它可以被 `test-container` 容器使用，并且在 Pod 被删除时其中的数据会被清除，适合用于临时存储需求。
+
+## HostPath
+
+HostPath 类型的 Volume 是 Kubernetes 中一种常见的 Volume 类型，它允许将宿主机上的文件或目录直接挂载到 Pod 中的容器中。以下是关于 HostPath 类型的 Volume 的详细说明：
+
+1. **宿主机文件系统挂载**：HostPath Volume 允许将宿主机上的文件系统中的文件或目录挂载到 Pod 中的容器中。这种方式可以方便容器访问宿主机上的数据，例如配置文件、日志文件等。
+2. **主机路径关联**：使用 HostPath Volume 需要指定宿主机上的路径（HostPath），容器中的应用程序可以直接访问该路径下的文件。这种方式适用于需要在容器内部访问宿主机文件系统的场景。
+3. **权限和安全性**：在配置 HostPath Volume 时，需要考虑权限和安全性方面的问题。由于容器可以直接访问宿主机文件系统，因此需要确保适当配置宿主机文件系统的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
+4. **主机文件系统依赖性**：使用 HostPath Volume 需要依赖宿主机文件系统的路径，因此在不同宿主机上部署时需要确保路径的一致性。这也意味着同一个 Volume 在不同宿主机上可能会有不同的数据内容。
+5. **适用性**：HostPath Volume 适用于一些特定的场景，例如需要在容器内部访问宿主机文件系统的情况，或者需要共享宿主机上的一些数据给容器使用的场景。
+
+HostPath 类型的 Volume 允许容器访问当前宿主机上的指定目录。通过在 Kubernetes 的 Pod 配置文件中使用 HostPath 类型的 Volume，可以将宿主机上的目录挂载到容器中，使得容器可以访问宿主机上的文件系统资源。
+
+下面是一个简单的示例，演示了如何在 Pod 中使用 HostPath 类型的 Volume：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+    - name: test-container
+      image: nginx
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: host-volume
+  volumes:
+    - name: host-volume
+      hostPath:
+        path: /var/www/html
+        type: Directory
+```
+
+在这个示例中，我们创建了一个 Pod，其中包含一个名为 `test-container` 的容器，使用了 `nginx` 镜像。我们定义了一个 HostPath 类型的 Volume，将宿主机上的 `/var/www/html` 目录挂载到容器中的 `/usr/share/nginx/html` 路径下。这样，容器中的应用程序就可以访问宿主机上 `/var/www/html` 目录中的内容。
+
+需要注意的是，使用 HostPath 类型的 Volume 可能会带来一些安全风险，因为容器可以访问宿主机上的文件系统资源。在生产环境中，建议谨慎使用 HostPath 类型的 Volume，并确保只挂载必要的目录，以减少潜在的安全风险。
+
+当一个 Pod 使用 HostPath 类型的 Volume 挂载宿主机上的特定目录时，这些数据不会随着 Pod 的迁移而自动在不同宿主机之间同步。
+
+一旦这个pod 离开了这个宿主机，HostDir 中的数据虽然不会被永久删除，但数据也不会随 pod 迁移到其他宿主机上
+
+因此，需要注意的是，由于各个宿主机上的文件系统结构和内容并不一定完全相同，所以相同 pod 的 HostDir 可能会在不同的宿主机上表现出不同的行为
+
+在使用 HostPath 类型的 Volume 时，需要注意以下几点：
+
+1. 数据不会随 Pod 的迁移而自动同步到其他宿主机上，可能会导致数据在不同宿主机上的不一致性。
+2. 宿主机上的文件系统结构和内容可能不同，因此在不同宿主机上使用相同的 HostDir 可能会产生意料之外的结果。
+3. 需要谨慎考虑数据的持久性和一致性，以及可能出现的数据不一致性问题。
+
+在实际应用中，如果需要跨宿主机持久化数据并保持一致性，可以考虑使用网络存储卷（如 NFS、Ceph 等）或者云存储服务来存储数据，以确保数据在不同宿主机之间的一致性和可靠性。
+
+## NFS
+
+NFS（Network File System）是一种分布式文件系统协议，允许一个计算机上的用户通过网络访问另一个计算机上的文件。在 Kubernetes 中，NFS 类型的 Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中，实现容器间的文件共享。以下是 NFS 类型的 Volume 的一些详细介绍：
+
+1. **远程文件系统挂载**：NFS Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中。这使得多个容器可以共享同一个远程文件系统，实现容器间的数据共享。
+2. **共享性**：NFS Volume 可以在同一个 Pod 内的多个容器之间共享文件系统。这意味着不同容器可以读写相同的文件，从而实现数据共享和协作。
+3. **灵活性**：通过 NFS Volume，可以将不同的 NFS 服务器上的文件系统挂载到同一个 Pod 中的不同容器中。这使得容器可以访问不同来源的数据，从而满足多样化的应用需求。
+4. **网络依赖性**：使用 NFS Volume 需要依赖网络连接，因为它涉及到远程文件系统的挂载和访问。因此，需要确保网络稳定性和性能，以保证文件共享的可靠性和性能。
+5. **权限和安全性**：在配置 NFS Volume 时，需要考虑权限和安全性方面的问题。需要确保适当配置 NFS 服务器的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
+
+NFS（Network File System）类型的 Volume 允许在同一个 Pod 内的多个容器之间共享一块现有的网络硬盘。通过在 Kubernetes 的 Pod 配置文件中使用 NFS 类型的 Volume，可以将一个远程的 NFS 服务器上的文件系统挂载到多个容器中，实现容器间的文件共享。
+
+下面是一个简单的示例，演示了如何在 Pod 中使用 NFS 类型的 Volume：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-pod
+spec:
+  containers:
+    - name: container1
+      image: nginx
+      volumeMounts:
+        - mountPath: /shared-data
+          name: nfs-volume
+    - name: container2
+      image: busybox
+      volumeMounts:
+        - mountPath: /shared-data
+          name: nfs-volume
+  volumes:
+    - name: nfs-volume
+      nfs:
+        server: nfs-server-ip
+        path: /path/to/shared/directory
+```
+
+在这个示例中，我们创建了一个 Pod，其中包含两个容器 `container1` 和 `container2`。我们定义了一个 NFS 类型的 Volume，将 NFS 服务器上的 `/path/to/shared/directory` 目录挂载到这两个容器中的 `/shared-data` 路径下。这样，这两个容器就可以共享这个 NFS 服务器上的文件系统。
+
+需要注意的是，使用 NFS 类型的 Volume 可以实现容器间的文件共享，但也需要考虑网络延迟、性能和安全性等因素。确保 NFS 服务器可靠性和性能良好，以及适当配置权限和访问控制，以保证文件共享的安全性和可靠性。
 
 # Controller 控制器
 
