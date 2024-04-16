@@ -977,7 +977,7 @@ Pod 的存在也为了支持部署亲密性应用，即那些需要在同一主�
 
 总的来说，Pod 的存在为了支持亲密性应用，使得相关的容器能够更紧密地协作、通信和共享资源。通过将需要紧密协作的容器放在同一个 Pod 中，可以提高应用程序之间的亲密性和协同工作效率，从而更好地支持复杂应用程序的部署和管理。
 
-### 生命周期短暂						··		   
+### 生命周期短暂
 
 Pod 属于生命周期比较短暂的组件，比如，当 Pod 所在节点发生故障，那么该节点上的 Pod会被调度到其他节点，但需要注意的是，被重新调度的 Pod 是一个全新的 Pod,跟之前的Pod 没有半毛钱关系。
 
@@ -1288,6 +1288,7 @@ spec:
 当设置容器的 CPU 请求和限制时，使用毫核单位可以更精细地控制容器对 CPU 资源的需求。例如，如果一个节点有 4 个 CPU 核心，那么该节点的总 CPU 容量为 4000m。在这种情况下，一个请求为 `cpu: "250m"` 的容器只会占用节点总 CPU 容量的 0.25/4 = 6.25%。
 
 在 Kubernetes 中，内存的单位是 Mebibytes（MiB），通常用 `Mi` 表示。一个 Mebibyte 等于 1024 Kibibytes，即 1024 * 1024 字节。因此，`memory: "128Mi"` 表示容器请求使用 128 Mebibytes 的内存资源，即约 134,217,728 字节或约 128 兆字节。
+
 设置容器的内存请求和限制可以帮助 Kubernetes 管理容器在运行时所需的内存资源。通过指定内存请求和限制，可以确保容器在运行时不会过度消耗内存资源，避免因内存不足导致容器崩溃或影响集群中其他应用程序的正常运行。
 
 ## pod 的重启策略配置 restartPolicy
@@ -1354,7 +1355,7 @@ spec:
 
 # Label 标签
 
-标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的元数据中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
+标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的**元数据**中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
 
 标签的作用有以下几个方面：
 
@@ -1363,8 +1364,7 @@ spec:
 3. **管理和操作**：标签可以用于组织和管理资源对象。例如，可以使用标签来确定哪些 Pod 属于一个特定的部署，并对它们进行扩展、缩减或更新操作。
 4. **路由和策略**：标签可以用于定义路由规则和访问策略。例如，可以基于标签定义网络策略，限制特定标签的 Pod 之间的通信。
 
-Label 的最常见的用法是使用metadata.labels 字段，来为对象添加Label，通过
-spec.selector 来引用对象
+Label 的最常见的用法是使用metadata.labels 字段，来为对象添加Label，通过 spec.selector 来引用对象
 
 ## 示例
 
@@ -1590,11 +1590,38 @@ spec:
 
 # Controller 控制器
 
-p62
+Kubernetes中的Controller是负责管理集群状态和执行群集级别操作的核心组件之一。Controller负责确保系统中的实际状态与期望状态保持一致，它们通过观察实际状态并采取必要的措施来达到期望状态。下面是一些常见的Kubernetes Controller及其功能的详细介绍：
+
+1. **Replication Controller**：
+   - **功能**：Replication Controller确保在Kubernetes集群中运行指定数量的Pod副本。如果由于任何原因Pod数量低于指定的数量，Replication Controller将启动新的Pod以保持副本数量的一致性。它也可以用来进行滚动更新。
+   - **示例场景**：确保某个应用程序的副本数始终保持在特定的数量。
+
+2. **Deployment Controller**：
+   - **功能**：Deployment Controller是Replication Controller的高级别抽象，它引入了滚动更新和回滚等功能。Deployment可以用来创建新的ReplicaSets并逐步更新它们，以确保应用程序的无缝部署和更新。
+   - **示例场景**：进行应用程序的滚动更新，同时确保在更新期间不中断服务。
+
+3. **StatefulSet Controller**：
+   - **功能**：StatefulSet Controller用于管理有状态的应用程序，如数据库。它确保在Pod重新调度或集群扩展时，每个Pod都具有稳定的标识和网络标识符。
+   - **示例场景**：运行需要持久标识符的数据库，如MySQL或PostgreSQL。
+
+4. **DaemonSet Controller**：
+   - **功能**：DaemonSet确保在集群中的每个节点上运行一个Pod的副本。这对于在整个集群上运行特定类型的服务或网络代理很有用。
+   - **示例场景**：在每个节点上运行日志收集器或监控代理。
+
+5. **Job和CronJob Controller**：
+   - **功能**：Job Controller用于管理一次性任务，确保任务成功完成。CronJob Controller用于管理定期运行的任务。
+   - **示例场景**：定期备份数据或清理日志文件。
+
+6. **Service Controller**：
+   - **功能**：Service Controller确保在Kubernetes集群中的Service资源中定义的网络服务一直可用。它通过监视服务的后端Pod并更新负载均衡器来实现这一点。
+   - **示例场景**：确保应用程序服务在Kubernetes集群内部和外部可访问。
+
+这些Controller共同构成了Kubernetes的控制平面，负责管理和维护集群的状态，并确保用户定义的期望状态得以实现。通过这些Controller，Kubernetes可以实现自动化、高可用性和弹性等关键特性。
+
+## Replication Controller
 
 
-
-
+# service
 
 
 
@@ -1749,15 +1776,15 @@ Pod 的调度过程是 Kubernetes 中非常重要的一部分，它决定了如�
       nodeSelector:
         disktype: ssd
     ```
-  在这个例子中，`nodeSelector` 指定了 Pod 只能被调度到带有标签 `disktype: ssd` 的节点上。
+    在这个例子中，`nodeSelector` 指定了 Pod 只能被调度到带有标签 `disktype: ssd` 的节点上。
 - **节点标签设置**：
   - 要使用 `nodeSelector`，首先需要在 Kubernetes 集群中的节点上设置对应的标签。可以使用 `kubectl` 命令或其他管理工具为节点添加标签。例如：
     ```bash
     kubectl label nodes node1 disktype=ssd
     ```
-  这个命令将节点 `node1` 标记为具有 `disktype=ssd` 的标签。
+    这个命令将节点 `node1` 标记为具有 `disktype=ssd` 的标签。
 - **调度决策**：
   - 当 Kubernetes 接收到 Pod 创建请求并进行调度时，调度器会检查 Pod 的 `nodeSelector` 字段，并选择具有匹配标签的节点来运行 Pod。如果找不到符合条件的节点，Pod 将无法调度成功。
 - **灵活性与限制**：
   - 使用 `nodeSelector` 可以很灵活地控制 Pod 的调度行为，但需要注意的是，过多地使用节点标签可能会导致调度器找不到合适的节点，从而造成 Pod 无法调度。因此，在设置节点标签时需要考虑集群的整体资源情况和调度策略。
-通过 `nodeSelector`，用户可以根据自己的需求将 Pod 调度到特定类型的节点上，从而更好地满足应用程序的运行需求，实现资源的有效利用和管理。
+  通过 `nodeSelector`，用户可以根据自己的需求将 Pod 调度到特定类型的节点上，从而更好地满足应用程序的运行需求，实现资源的有效利用和管理。
