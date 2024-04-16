@@ -36,7 +36,11 @@ kubernetes，简称K8s，是用8 代替8 个字符“ubernete”而成的缩写�
 
 ![kubernetes](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403281459571.jpg)
 
-在 Kubernetes 中，节点（Node）是集群中的工作节点，用于运行应用程序的容器。每个节点都有自己的资源（如CPU、内存、存储）和网络，负责接收和执行由控制平面（Control Plane）下发的任务。以下是 Kubernetes 中常见的节点类型及其作用：
+## 节点
+
+在Kubernetes中，节点（Node）是集群中的基本计算单元，例如三台机器组成的 Kubernetes 集群，每台机器就可以看做一个节点，但节点不一定等同于物理机，节点可以是物理服务器、虚拟机实例或云实例，甚至可以是一台物理机上的多个虚拟机。
+
+节点（Node）可以根据它们的角色和功能被划分为不同的类型。每个节点都有自己的资源（如CPU、内存、存储）和网络，负责接收和执行由控制平面（Control Plane）下发的任务。根据在集群中扮演的角色不同，大致可分为两类：
 
 1. **主节点（Master Node）**：
    - 主节点是 Kubernetes 集群的控制平面，负责管理集群的状态、调度应用程序、监控集群健康状态等任务。
@@ -44,7 +48,7 @@ kubernetes，简称K8s，是用8 代替8 个字符“ubernete”而成的缩写�
      - **kube-apiserver**：提供 Kubernetes API 服务，接收和处理用户请求。
      - **kube-controller-manager**：运行控制器，负责集群中的各种控制逻辑，如副本控制器、节点控制器等。
      - **kube-scheduler**：负责调度应用程序到适合的节点上运行。
-     - **etcd**：分布式键值存储，用于保存集群的状态信息。
+     - **etcd**：分布式键值存储数据库，用于保存集群的状态信息。
   
 2. **工作节点（Worker Node）**：
    - 工作节点是运行容器化应用程序的节点，负责执行实际的工作负载。
@@ -52,14 +56,19 @@ kubernetes，简称K8s，是用8 代替8 个字符“ubernete”而成的缩写�
      - **kubelet**：负责与主节点通信，接收并执行由主节点下发的任务。
      - **kube-proxy**：负责维护节点上的网络规则，实现服务发现和负载均衡。
      - **Container Runtime**：负责运行容器的软件，如 Docker、containerd 等。
-  
-3. **辅助节点（Supplementary Node）**：
-   - 辅助节点是一种特殊类型的节点，用于扩展集群的功能，而不承担运行工作负载的任务。
-   - 辅助节点通常包含一些附加的组件或服务，如日志收集器、监控代理、存储插件等。
 
-4. **自注册节点（Self-Registering Node）**：
-   - 自注册节点是一种自动加入集群的节点类型，无需手动配置或管理。
-   - Kubernetes 支持自动发现和注册新的工作节点，使得集群的扩展和缩减更加灵活和自动化。
+此外还有
+
+- **边缘节点（Edge Node）**：
+   - 边缘节点是位于边缘网络的边缘位置的节点，通常用于在物理位置较远或网络带宽较低的情况下运行应用程序和服务。边缘节点可以帮助减少延迟，提高性能，并且可以支持在离散环境中部署Kubernetes集群。
+
+- **GPU节点**：
+   - GPU节点是配备了图形处理单元（GPU）的节点，用于运行需要大量计算资源的工作负载，如机器学习、深度学习等任务。这些节点通常包含专用的GPU硬件，并且可能需要特殊的容器运行时来支持GPU加速。
+
+- **特定用途节点**：
+   - 有时集群中可能会有一些特定用途的节点，用于运行特定类型的工作负载或服务。例如，存储节点用于运行持久化存储服务，或者网络节点用于运行网络功能虚拟化（NFV）服务。
+
+等节点，这些节点类型通常根据其角色、功能或硬件配置进行分类。在实际情况中，可以根据集群的需求和工作负载的特性来定义和配置不同类型的节点。
 
 ### Master Node
 
@@ -69,7 +78,7 @@ kube-apiserver 是 Kubernetes 集群中的一个核心组件，可理解为集�
 
 通过 RESTful API，用户可以执行各种操作，如创建、删除、更新资源对象（如 Pod、Service、Deployment 等）、查询集群状态、查看日志、扩展集群功能等。RESTful API 的设计使得 Kubernetes 的管理操作变得简单、统一且易于扩展。
 
-一般来说，用户可以使用工具如 kubectl（Kubernetes 命令行工具）或客户端库来发送 RESTful 请求到 kube-apiserver，以执行各种管理操作。例如，通过发送 GET 请求可以获取集群中的资源对象信息，通过发送 POST 请求可以创建新的资源对象，通过发送 DELETE 请求可以删除资源对象，以此类推。
+一般来说，用户可以使用工具如 kubectl（Kubernetes 命令行工具）或 HTTP 客户端工具来发送 RESTful 请求到 kube-apiserver，以执行各种管理操作。例如，通过发送 GET 请求可以获取集群中的资源对象信息，通过发送 POST 请求可以创建新的资源对象，通过发送 DELETE 请求可以删除资源对象，以此类推。
 
 #### kube-controller-manager
 
@@ -91,7 +100,9 @@ kube-controller-manager 是 Kubernetes 集群中的一个核心组件，它是�
 #### kube-scheduler
 
 kube-scheduler 是 Kubernetes 集群中的一个核心组件，它是运行在主节点（Master Node）上的调度器，**负责根据预定义的调度策略（Scheduling Policies）将新创建的 Pod 分配到合适的工作节点（Worker Node）上运行**。kube-scheduler 在创建新的 Pod 时，会考虑诸多因素，如资源需求、硬件约束、亲和性和反亲和性规则等，以确保最佳地利用集群资源并提高整体性能。
+
 以下是 kube-scheduler 的主要功能和工作原理：
+
 1. **调度算法**：
    - kube-scheduler 使用一种称为调度算法（Scheduling Algorithm）的机制来选择最适合的工作节点来运行新的 Pod。调度算法会考虑多种因素，如节点资源利用率、Pod 的资源需求、节点亲和性和反亲和性规则等，以决定最佳的节点分配方案。
 2. **调度策略**：
@@ -105,7 +116,7 @@ kube-scheduler 是 Kubernetes 集群中的一个核心组件，它是运行在�
 
 #### kubelet
 
-kubelet 是 Kubernetes 集群中的一个核心组件，它是运行在每个工作节点（Worker Node）上的代理，负责管理节点上的容器和 Pod，与 Kubernetes Master 节点上的 API Server 交互，确保节点上的容器按照用户定义的期望状态运行。kubelet 负责监控节点上的资源使用情况、接收来自控制平面的指令、拉取容器镜像、启动、停止和管理容器等。
+kubelet 是 Kubernetes 集群中的一个核心组件，它是运行在每个工作节点（Worker Node）上的代理，负责管理节点上的容器和 Pod，与 Kubernetes Master 节点上的 API Server 交互，确保节点上的容器按照用户定义的期望状态运行。kubelet 负责监控节点上的资源使用情况、接收来自控制平面（master）的指令、拉取容器镜像、启动、停止和管理容器等。
 以下是 kubelet 的一些主要功能和工作原理：
 1. **Pod 生命周期管理**：
    - kubelet 负责管理节点上的 Pod 的生命周期，包括创建、启动、停止、重启和销毁 Pod。它会定期检查 API Server 中的 Pod 配置信息，根据配置信息来维护节点上的 Pod 状态。
@@ -178,7 +189,35 @@ kube-proxy 是 Kubernetes 集群中的一个核心组件，**它负责实现 Kub
 
 ### controller
 
-参考 kube-controller-manager
+Kubernetes中的Controller是一种负责管理集群状态并确保系统中的实际状态与期望状态保持一致的控制器。它们通过观察集群中的资源对象，并采取必要的操作来使集群达到期望状态。Controller是Kubernetes控制平面的核心组件之一，它们负责实现Kubernetes的自动化和自愈性特性。
+
+以下是一些常见的Kubernetes Controller及其功能的详细介绍：
+
+1. **Replication Controller**：
+   - **功能**：Replication Controller确保在Kubernetes集群中运行指定数量的Pod副本。如果由于任何原因Pod数量低于指定的数量，Replication Controller将启动新的Pod以保持副本数量的一致性。它也可以用来进行滚动更新。
+   - **示例场景**：确保某个应用程序的副本数始终保持在特定的数量。
+
+2. **Deployment Controller**：
+   - **功能**：Deployment Controller是Replication Controller的高级别抽象，它引入了滚动更新和回滚等功能。Deployment可以用来创建新的ReplicaSets并逐步更新它们，以确保应用程序的无缝部署和更新。
+   - **示例场景**：进行应用程序的滚动更新，同时确保在更新期间不中断服务。
+
+3. **StatefulSet Controller**：
+   - **功能**：StatefulSet Controller用于管理有状态的应用程序，如数据库。它确保在Pod重新调度或集群扩展时，每个Pod都具有稳定的标识和网络标识符。
+   - **示例场景**：运行需要持久标识符的数据库，如MySQL或PostgreSQL。
+
+4. **DaemonSet Controller**：
+   - **功能**：DaemonSet确保在集群中的每个节点上运行一个Pod的副本。这对于在整个集群上运行特定类型的服务或网络代理很有用。
+   - **示例场景**：在每个节点上运行日志收集器或监控代理。
+
+5. **Job和CronJob Controller**：
+   - **功能**：Job Controller用于管理一次性任务，确保任务成功完成。CronJob Controller用于管理定期运行的任务。
+   - **示例场景**：定期备份数据或清理日志文件。
+
+6. **Service Controller**：
+   - **功能**：Service Controller确保在Kubernetes集群中的Service资源中定义的网络服务一直可用。它通过监视服务的后端Pod并更新负载均衡器来实现这一点。
+   - **示例场景**：确保应用程序服务在Kubernetes集群内部和外部可访问。
+
+这些Controller共同构成了Kubernetes的控制平面，负责管理和维护集群的状态，并确保用户定义的期望状态得以实现。通过这些Controller，Kubernetes可以实现自动化、高可用性和弹性等关键特性。
 
 # Kubernetes 集群搭建
 
@@ -472,7 +511,45 @@ $ kubectl get pod,svc
 
 # kubectl
 
-kubectl 是 Kubernetes 的命令行工具，用于与运行中的 Kubernetes 集群进行交互。通过 kubectl，用户可以执行各种操作，如创建、管理、监视和调试 Kubernetes 资源。
+kubectl 是 Kubernetes 的命令行工具，用于与运行中的 Kubernetes 集群进行交互。通过 kubectl 向及群中的 master 节点的 kube-apiserver 服务发送命令，用户可以执行各种操作，如创建、管理、监视和调试 Kubernetes 资源。
+
+## Kubernetes 资源
+
+可以认为在Kubernetes中，一切皆资源。Kubernetes的核心设计理念之一就是将所有的系统组件、应用程序和服务都视为资源，并使用统一的API进行管理和操作。这种设计思想使得Kubernetes具有高度的抽象性和灵活性，可以轻松地管理各种类型的资源，而无需关心底层的具体实现细节。
+
+在Kubernetes中，资源可以是任何可以由API进行管理的对象，包括但不限于容器化的应用程序、存储卷、网络策略、配置数据等。每种资源都有其自己的API对象表示，用户可以使用kubectl或API服务器与这些对象进行交互。
+
+这种一切皆资源的设计思想使得Kubernetes具有高度的可扩展性和通用性。用户可以使用相同的API和工具来管理不同类型的资源，而不需要学习和使用特定于每种资源类型的工具或语法。这也为Kubernetes提供了极大的灵活性，使其能够适应各种不同类型的应用场景和工作负载需求。
+
+以下是一些常见的Kubernetes资源：
+
+1. **Pod**：
+   - Pod是Kubernetes中最小的部署单位，它可以包含一个或多个容器，并共享网络命名空间、IPC和存储卷等资源。Pod通常用于运行一个应用程序实例。
+
+2. **Service**：
+   - Service是Kubernetes中用于暴露应用程序的网络服务的资源。它定义了一组Pod的逻辑集合，并为它们提供一个统一的访问入口，可以通过Service的ClusterIP、NodePort、LoadBalancer或ExternalName类型将流量路由到对应的Pod。
+
+3. **Deployment**：
+   - Deployment是用于部署应用程序的资源，它定义了一个Pod副本集（ReplicaSet）和用于更新Pod的策略。Deployment可以确保在应用程序部署期间保持可用性，并提供滚动更新和回滚的功能。
+
+4. **StatefulSet**：
+   - StatefulSet是一种用于管理有状态应用程序的资源。它与Deployment类似，但为Pod提供了稳定的网络标识符和持久性存储，以便在重新调度或扩展时保持状态的稳定性。
+
+5. **DaemonSet**：
+   - DaemonSet是用于在集群中的每个节点上运行一个Pod的资源。它通常用于在集群中的每个节点上运行一些基础设施性的服务，如日志收集器、监控代理等。
+
+6. **Job和CronJob**：
+   - Job是用于管理一次性任务的资源，它确保任务成功完成。CronJob是用于管理定期运行的任务的资源，它可以根据用户定义的调度规则自动创建Job。
+
+7. **Namespace**：
+   - Namespace是用于对集群资源进行逻辑隔离的资源。它可以帮助将集群中的资源划分为多个逻辑组，使不同团队或应用程序可以在同一集群中共享资源而不会相互干扰。
+
+8. **ConfigMap和Secret**：
+   - ConfigMap用于存储配置数据，如环境变量、配置文件等，而Secret用于存储敏感数据，如密码、密钥等。这些资源可以被挂载到Pod中，以便应用程序可以访问这些配置和敏感数据。
+
+除了上述常见的资源外，Kubernetes还有许多其他类型的资源，如PersistentVolume、StorageClass、Ingress等，用于管理存储、网络、安全等方面的配置。这些资源共同构成了Kubernetes集群中的基础设施和应用程序组件，帮助用户在集群中部署、管理和运行各种类型的应用程序和服务。
+
+## kubectl 基本语法
 
 kubectl 的基本语法如下：
 
@@ -547,25 +624,44 @@ kubectl port-forward <pod-name> 8080:80
 
 K8s 集群中对资源管理和资源对象编排部署都可以通过声明样式（YAML）文件来解决，也就是可以把需要对资源对象操作编辑到 YAML 格式文件中，我们把这种文件叫做**资源清单文件**，通过 kubectl 命令直接使用资源清单文件就可以实现对大量的资源对象进行编排部署了。
 
-## 常用字段
+在Kubernetes中，YAML（YAML Ain't Markup Language）文件是一种常用的文本文件格式，用于定义和描述Kubernetes资源对象的配置。这些YAML文件包含了对于Kubernetes API的调用，以创建、更新或删除Kubernetes中的各种资源。
 
-必须存在的属性
+一个典型的Kubernetes YAML文件包含了以下几个方面的信息：
 
-![image-20240414222027673](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142220742.png)
+1. **资源类型（Kind）**：指定了要创建或操作的资源的类型，如Pod、Service、Deployment等。
 
-spec 主要对象
+2. **对象元数据（Metadata）**：包括资源的名称、命名空间、标签等信息，用于唯一标识和识别资源。
 
-![image-20240414222129668](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142221749.png)
+3. **规范（Spec）**：定义了资源的期望状态，包括容器镜像、环境变量、端口、副本数量等配置。
 
-![image-20240414222201880](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222941.png)
+4. **状态（Status）**：描述了资源的当前状态，通常由Kubernetes自动管理。
 
-![image-20240414222225699](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222757.png)
+一个简单的示例可能是一个Pod的YAML文件，如下所示：
 
-额外的参数
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+  - name: mycontainer
+    image: nginx:latest
+    ports:
+    - containerPort: 80
+```
 
-![image-20240414222306367](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142223434.png)
+在这个YAML文件中：
+- `apiVersion` 指定了Kubernetes API的版本。
+- `kind` 指定了要创建的资源类型，这里是Pod。
+- `metadata` 包含了Pod的元数据，如名称等。
+- `spec` 包含了Pod的规范，包括要运行的容器的镜像、暴露的端口等。
 
-## YAML 文件格式
+**用户可以通过将这样的YAML文件传递给kubectl命令来在Kubernetes集群中创建资源。kubectl会解析YAML文件并将其转换成API请求，然后将其发送给Kubernetes API服务器来执行相应的操作。**
+
+因此，Kubernetes中的YAML文件是用于定义和配置Kubernetes资源对象的文本文件，它们为Kubernetes提供了一种声明性的方式来描述系统状态和期望状态，并使得资源的创建和管理变得更加简单和可重复。
+
+## YAML 基本语法
 
 1. **基本规则**：
    - YAML 使用缩进来表示数据之间的层级关系，一般使用空格来缩进，不同层级之间的缩进量必须一致。
@@ -605,6 +701,24 @@ spec 主要对象
 8. **特殊值**：
    - **布尔值**：`true` 和 `false`。
    - **空值**：`null` 或 `~`。
+
+## 常用字段
+
+必须存在的属性
+
+![image-20240414222027673](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142220742.png)
+
+spec 主要对象
+
+![image-20240414222129668](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142221749.png)
+
+![image-20240414222201880](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222941.png)
+
+![image-20240414222225699](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142222757.png)
+
+额外的参数
+
+![image-20240414222306367](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404142223434.png)
 
 ## YAML 文件的组成部分
 
@@ -730,6 +844,84 @@ data:
    - `metadata`: 定义资源对象的元数据，包括名称等。
    - `data`: 定义 ConfigMap 的数据内容，可以存储配置信息等。
    以上示例展示了一个完整的 Kubernetes 集群中的 YAML 文件，包含了 Deployment、Service 和 ConfigMap 的配置，并说明了每个配置项的作用。这些配置项共同构成了一个完整的应用部署和服务配置的描述。
+
+### apiVersion
+
+在Kubernetes的YAML文件中，`apiVersion`字段用于指定要使用的Kubernetes API的版本。它告诉Kubernetes如何解释该YAML文件中的其他部分。每个Kubernetes API版本都定义了一组资源类型和配置选项，因此指定正确的`apiVersion`非常重要，以确保Kubernetes能够正确地理解和处理YAML文件中的内容。
+
+`apiVersion`的填写说明如下：
+
+1. **版本格式**：
+   - `apiVersion`的格式通常为`group/version`，其中`group`表示API组，`version`表示API版本。例如，`v1`表示核心API版本，而`apps/v1`表示`apps` API组的`v1`版本。
+
+2. **选择正确的版本**：
+   - 根据要创建的资源类型和Kubernetes集群的版本，选择正确的`apiVersion`是至关重要的。每个资源类型都有其支持的API版本，通常可以在Kubernetes文档中查找到每个资源所支持的API版本列表。
+
+3. **默认版本**：
+   - 对于一些常用的核心资源类型，如Pod、Service等，通常有一个默认的API版本，可以省略`apiVersion`字段。例如，`apiVersion: v1`可以简写为`kind: Pod`而不写`apiVersion`。
+
+4. **查找支持的版本**：
+   - 可以通过查询Kubernetes文档或使用`kubectl api-versions`命令来查找集群所支持的API版本。这有助于确保选择了集群支持的API版本。
+
+5. **扩展API版本**：
+   - Kubernetes还支持自定义和扩展API版本，这些版本可能不属于核心API组。在使用扩展API版本时，需要确保集群中已经安装了相应的扩展。
+
+### kind
+
+在Kubernetes的YAML文件中，每个资源对象只能具有一个kind，该字段用于确定创建的资源对象的类型，以便Kubernetes能够正确地解释和处理该资源的配置。例如，如果要创建一个运行容器的资源，可能需要选择kind: Pod；如果要创建一个负载均衡服务，可能需要选择kind: Service。
+
+Kubernetes还支持自定义资源类型，用户可以根据自己的需求定义和创建自定义的kind。在使用自定义资源类型时，需要确保定义了相应的API和控制器来支持这些资源。
+
+### metadata 
+
+在Kubernetes的YAML文件中，`metadata`字段用于包含与要创建的资源对象相关的元数据信息。这些元数据信息包括资源的名称、命名空间、标签等，用于唯一标识和识别资源，并提供其他附加信息。
+
+`metadata`的作用及填写说明如下：
+
+1. **唯一标识**：
+   - `metadata`字段中的`name`属性是资源对象的名称，用于唯一标识该资源。每个资源对象都必须具有唯一的名称，以便Kubernetes能够正确地识别和管理这些资源。
+
+2. **命名空间**：
+   - `metadata`字段中的`namespace`属性用于指定资源所属的命名空间。命名空间用于对集群中的资源进行逻辑隔离和组织，使得不同团队或应用程序可以在同一集群中共享资源而不会相互干扰。如果未指定命名空间，则资源将被创建在默认的`default`命名空间中。
+
+3. **标签**：
+   - `metadata`字段中的`labels`属性用于定义资源的标签。标签是键值对的形式，用于对资源进行分类、筛选和组织。标签可以用于识别具有相同用途或属性的资源，并对它们进行操作或应用相应的策略。
+
+4. **其他元数据**：
+   - `metadata`字段还可以包含其他元数据属性，如`annotations`用于存储关于资源的其他信息或描述。这些属性通常是可选的，用于提供有关资源的额外信息。
+
+5. **填写说明**：
+   - 在填写`metadata`字段时，至少需要指定`name`属性来定义资源的名称。其他属性如`namespace`和`labels`通常是可选的，但在某些情况下可能是必需的，具体取决于资源的类型和使用场景。
+
+### spec
+
+在Kubernetes的YAML文件中，`spec`字段用于定义要创建的资源对象的规范（Specification）。它包含了资源对象的配置选项和属性，描述了资源的期望状态和行为。`spec`字段是创建和定义Kubernetes资源对象的关键部分之一。
+
+`spec`的作用及填写说明如下：
+
+1. **规范定义**：
+   - `spec`字段用于定义资源对象的规范，包括资源的期望状态、行为和配置选项。根据资源对象的类型和用途，`spec`字段可能包含不同的子字段和属性。
+
+2. **资源状态**：
+   - `spec`字段描述了资源对象的期望状态，即用户希望资源对象在创建或更新后达到的状态。这包括容器镜像、环境变量、端口、副本数量等配置。
+
+3. **行为配置**：
+   - `spec`字段还可以包含与资源对象相关的行为配置，如调度策略、更新策略、资源限制等。这些配置选项可以影响资源对象的行为和运行方式。
+
+4. **填写说明**：
+   - 在填写`spec`字段时，需要根据要创建的资源对象的类型和用途来选择正确的配置选项和属性。不同类型的资源对象可能具有不同的规范字段和属性，具体取决于资源对象的用途和定义。
+
+5. **示例**：
+   - 下面是一个Pod资源对象的`spec`字段的示例：
+   ```yaml
+   spec:
+     containers:
+     - name: mycontainer
+       image: nginx:latest
+       ports:
+       - containerPort: 80
+   ```
+   在这个示例中，`spec`字段定义了一个Pod中容器的规范，包括容器的名称、镜像和端口配置。
 
 ## 快速编写 ymal 文件
 
@@ -879,7 +1071,7 @@ kubectl get [resource_type] [resource_name] [flags]
 kubectl get deploy nginx -o yaml
 ```
 
-# pod
+# pod ========================
 
 在 Kubernetes 中，**Pod 是最小的部署单元**，用于运行容器化应用程序。
 
