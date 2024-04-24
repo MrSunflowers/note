@@ -2754,29 +2754,500 @@ spec:
 
 这三个配置文件共同协作，形成了一个完整的应用部署和自动化管理的流程。Deployment 负责管理应用程序的部署和更新，Service 负责暴露应用程序的服务，HorizontalPodAutoscaler 负责根据负载情况自动调整应用程序的副本数量，以确保应用程序具有足够的资源来处理流量，并同时最大程度地减少资源的浪费。
 
-# PVC 和 PV =====================================================
+# 存储管理 PVC 和 PV
+
+在 Kubernetes 中，管理存储是一个关键的任务，它涉及到为应用程序提供持久化的存储解决方案，并确保这些存储资源在集群中的可靠性、高可用性和可伸缩性。以下是 Kubernetes 中管理存储的一些重要概念和方法：
+
+1. **PersistentVolume (PV)**：
+   - PersistentVolume 是 Kubernetes 集群中的一块存储，它由管理员手动配置，并且是独立于 Pod 的。
+   - PV 可以连接到各种类型的存储，如本地存储、网络存储和云存储等。
+   - PV 具有自己的生命周期，可以手动创建、删除和调整。
+   - PV 提供了一个抽象层，允许管理员管理存储资源的详细信息，如容量、访问模式和持久化卷类型等。
+
+2. **PersistentVolumeClaim (PVC)**：
+   - PersistentVolumeClaim 是用户请求集群中存储的方式，它描述了用户对存储的需求，包括存储类别、大小和访问模式等。
+   - 当 PVC 被创建时，Kubernetes 会在集群中寻找匹配需求的 PV，并将其绑定到 PVC 上。
+   - PVC 提供了一种抽象层，允许用户通过声明性的方式请求存储资源，而不必关心底层的存储实现细节。
+
+3. **StorageClass**：
+   - StorageClass 是一种用于动态创建 PV 的机制，它定义了集群中可用的存储类型，并为 PVC 提供了一种自动分配 PV 的方式。
+   - 当 PVC 没有指定要使用的 PV 时，集群将根据 PVC 的存储类别选择合适的 StorageClass，并使用它来动态创建 PV。
+   - StorageClass 可以根据不同的需求配置不同的参数，如访问模式、存储类型和配额等。
+
+4. **Volume**：
+   - Volume 是 Pod 中的一种抽象概念，它表示容器内的存储空间，可以是临时的或持久的。
+   - Kubernetes 支持各种类型的 Volume，包括空目录、持久卷、配置映射、空白存储和云存储等。
+   - 通过 Volume，Pod 可以将存储挂载到容器内部，并与其他容器共享数据。
+
+5. **CSI (Container Storage Interface)**：
+   - CSI 是一种标准化的接口，用于将外部存储系统与容器编排系统集成。
+   - Kubernetes 支持 CSI 插件，允许管理员将各种类型的外部存储系统集成到集群中，并使用 PV 和 PVC 来管理这些存储资源。
+
+其中 PersistentVolume (PV) 和 PersistentVolumeClaim (PVC) 是 Kubernetes 中用于管理存储的两个重要的 API 资源。
+
+## PersistentVolume (PV)：
+
+- **定义**：
+  - PersistentVolume 是集群中的一块存储，它是集群中的资源，就像节点是集群资源一样，它由管理员手动配置，并且是独立于 Pod 的。它相当于集群中的一个存储池。
+
+- **特点**：
+  - PV 具有自己的生命周期，它独立于 Pod 存在，并且即使 Pod 被删除，PV 中的数据仍然保留。
+  - PV 是容量插件，如 Volumes，可以连接到各种类型的存储，如本地存储、网络存储和云存储等。
+  - PV 具有属性，如存储类别、大小、访问模式和持久化卷类型等。
+
+- **创建和管理**：
+  - 管理员可以手动创建、删除和调整 PV。管理员需要在集群中配置 PV，并为其指定属性，如容量、访问模式和存储类型等。
+
+## PersistentVolumeClaim (PVC)：
+
+- **定义**：
+  - PersistentVolumeClaim 是用户请求集群中存储的一种方式，它描述了用户对存储的需求，包括存储类别、大小和访问模式等。
+
+- **特点**：
+  - PVC 是 Pod 对存储的声明性要求，类似于 Pod 对节点资源的请求。它类似于 pod，Pod消耗节点资源，PVC 消耗 PV 资源。声明可以请求特定的大小和访问模式（例如，可以一次读/写或多次只读）。
+  - PVC 提供了一种抽象层，允许用户通过声明性的方式请求存储资源，而不必关心底层的存储实现细节。
+  - PVC 描述了用户对存储的需求，但它并不直接提供存储，而是请求存储。
+
+- **创建和使用**：
+  - 用户可以通过声明 PVC，描述他们的存储需求。在 PVC 创建后，Kubernetes 将尝试在集群中找到匹配需求的 PV，并将其绑定到 PVC 上。
+  - 当 Pod 使用 PVC 时，Kubernetes 将 PV 自动挂载到 Pod 中，从而为 Pod 提供持久化存储。
 
 
+- PV 和 PVC 之间是一种一对一的关系。
+- PVC 描述了对存储的需求，而 PV 则提供了实际的存储资源。
+- 当 PVC 被创建时，Kubernetes 会在集群中寻找匹配需求的 PV，并将其绑定到 PVC 上。这样，Pod 就可以使用 PVC 来访问 PV 提供的存储资源。
+- PVC 可以通过标签选择器和存储类等属性来匹配 PV。如果多个 PV 满足 PVC 的需求，则 Kubernetes 将选择一个合适的 PV 并将其绑定到 PVC 上。
 
+虽然 PersistentVolumeClaims 允许用户使用抽象存储资源，但是 PersistentVolumes 对于不同的问题，用户通常需要具有不同属性（例如性能）。群集管理员需要能够提供各种PersistentVolumes 不同的方式，而不仅仅是大小和访问模式，而不会让用户了解这些卷的实现方式。对于这些需求，又引出了 StorageClass 资源
 
+## StorageClass 
 
+StorageClass 是 Kubernetes 中用于动态创建 PersistentVolume 的一种机制，它为群集管理员提供了一种灵活的方式来提供各种类型和属性的 PersistentVolume，而不需要用户了解底层存储的实现细节。
 
+以下是关于 StorageClass 的一些重要概念和特点：
 
+1. **动态分配 PersistentVolume**：
+   - StorageClass 允许管理员为不同的存储类型定义不同的属性和参数，如访问模式、存储类型、配额和挂载选项等。
+   - 当用户创建一个 PVC 时，并且未指定要使用的 PV 时，Kubernetes 将根据 PVC 的存储类别选择合适的 StorageClass，并使用它来动态创建 PV。
 
+2. **抽象存储细节**：
+   - StorageClass 提供了一个抽象层，隐藏了底层存储系统的实现细节，使得用户和开发者无需关心底层存储的类型和属性。
+   - 用户只需要通过声明性的方式指定存储类别，并描述存储的需求，而不必了解底层存储的配置和管理。
 
+3. **灵活性和可配置性**：
+   - StorageClass 允许管理员根据不同的需求配置不同的存储类别，以满足不同应用程序和用户的需求。
+   - 管理员可以定义多个不同的 StorageClass，并为每个 StorageClass 指定不同的参数和属性，以适应不同的存储场景和工作负载。
 
+4. **标签选择器**：
+   - StorageClass 可以与标签选择器一起使用，以便根据用户的需求选择合适的存储类别。管理员可以为每个 StorageClass 定义标签选择器，以便根据不同的标签选择合适的存储资源。
 
+StorageClass 为管理员提供了一种描述他们提供的存储的“类”的方法。不同的类可能映射到服务质量级别，或备份策略，或者由群集管理员确定的任意策略。Kubernetes 本身对于什么类别代表是不言而喻的。这个概念有时在其他存储系统中称为“配置文件”。
 
+## 生命周期
 
+PV 是群集中的资源。PVC 是对这些资源的请求，并且还充当对资源的检查。PV 和PVC 之间的相互作用遵循以下生命周期：
 
+Provisioning ——-> Binding ——–>Using——>Releasing——>Recycling
 
+可以简要描述如下：
 
+1. **Provisioning（创建）**：
+   - 在 Provisioning 阶段，管理员创建 PersistentVolume 并将其配置为可用于存储。
+   - PV 可以是静态创建的，也可以是由 StorageClass 动态创建的。
 
+2. **Binding（绑定）**：
+   - 在 Binding 阶段，当用户创建 PersistentVolumeClaim 时，Kubernetes 将根据 PVC 的需求选择合适的 PV，并将其绑定到 PVC 上。
+   - PV 可以与多个 PVC 绑定，但每个 PVC 只能绑定一个 PV。
 
+3. **Using（使用）**：
+   - 在 Using 阶段，用户创建 Pod 并在 Pod 的配置中引用 PVC。Kubernetes 将 PV 自动挂载到 Pod 中，从而为 Pod 提供持久化存储。
 
+4. **Releasing（释放）**：
+   - 在 Releasing 阶段，当用户删除与 PVC 关联的 Pod 或 PVC 本身时，PV 将被释放并标记为可用状态。
+   - PV 可以重新绑定到其他 PVC，以满足其他 Pod 的存储需求。
 
+5. **Recycling（回收）**：
+   - 在 Recycling 阶段，当 PV 被释放时，管理员可以选择将其回收以供重用。
+   - PV 的回收方式取决于管理员的配置，可能是清除数据并准备重用，也可能是将 PV 标记为可用以供后续使用。
 
+这些阶段构成了 PV 和 PVC 之间的相互作用生命周期，通过这个生命周期，Kubernetes 管理着存储资源的创建、绑定、使用、释放和回收，从而为应用程序提供持久化存储的支持。
 
+### Provisioning 
+
+PersistentVolume 的准备（Provisioning）阶段，其中包括静态提供和动态提供两种方式：
+
+1. **静态提供（Static Provisioning）**：
+   - 在静态提供方式中，集群管理员手动创建多个 PV，并将它们的详细信息配置到 Kubernetes API 中。
+   - 这些 PV 包含了实际存储的详细信息，如存储类型、容量、访问模式等，以供集群用户使用。
+   - 用户可以直接通过 PersistentVolumeClaim 请求使用这些静态创建的 PV，而无需进行额外的动态配置。
+
+2. **动态提供（Dynamic Provisioning）**：
+   - 在动态提供方式中，当管理员创建的静态 PV 都不匹配用户的 PersistentVolumeClaim 时，集群可能会尝试为 PVC 动态配置卷。
+   - 动态配置是基于 StorageClasses 的，用户在创建 PVC 时必须指定要使用的 StorageClass，并且管理员必须已经创建和配置了该 StorageClass 才能进行动态配置。
+   - 如果 PVC 请求的 StorageClass 具有动态配置的能力，并且集群中没有匹配的静态 PV，则集群将尝试根据 StorageClass 的定义动态创建 PV，并将其绑定到 PVC 上。
+
+需要注意的是，用户可以通过声明 PersistentVolumeClaim 请求静态创建的 PV，也可以通过声明请求动态配置的 PVC 请求动态创建的 PV。通过这两种方式，Kubernetes 提供了灵活的方式来满足用户和应用程序的存储需求。
+
+### Binding
+
+在 PersistentVolume 的绑定（Binding）阶段，用户创建了 PersistentVolumeClaim（PVC），并指定了所需的资源和访问模式。在这个阶段，PVC 将保持未绑定状态，直到找到可用的 PersistentVolume（PV）并将其绑定为止。
+
+在这个过程中，用户通过创建 PVC 来描述他们对存储资源的需求，包括存储类别、大小和访问模式等。PVC 的创建可能是手动的，也可能是自动触发的（例如，由 Deployment 中的 Pod 自动创建）。
+
+一旦 PVC 被创建，Kubernetes 将开始寻找匹配 PVC 需求的可用 PV。它会检查集群中所有可用的 PV，并选择一个合适的 PV 来满足 PVC 的需求。这个过程通常涉及匹配 PV 和 PVC 的属性，如大小、访问模式和存储类别等。
+
+直到找到可用的 PV 并将其绑定到 PVC 上之前，PVC 将保持未绑定状态。如果在一定时间内找不到匹配的 PV，PVC 将保持未绑定状态，并且可能导致 Pod 无法启动或访问所需的持久化存储资源。
+
+总之，在 Binding 阶段，PVC 将保持未绑定状态，直到找到可用的 PV 并将其成功绑定为止，以满足 Pod 对持久化存储资源的需求。
+
+### Using
+
+在 PersistentVolume 的使用（Using）阶段，用户可以在 Pod 中像使用 Volume 一样使用 PersistentVolumeClaim（PVC）。这意味着用户可以将 PVC 挂载到 Pod 中，并在 Pod 中访问持久化存储资源。
+
+具体来说，用户可以通过在 Pod 的配置中引用 PVC，将 PVC 挂载到 Pod 中作为 Volume。一旦 PVC 被成功绑定到一个 PV 上，并且 PV 被挂载到 Pod 中，Pod 就可以访问 PV 提供的持久化存储资源了。
+
+以下是一个示例 Pod 配置，展示了如何使用 PVC：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  containers:
+  - name: mycontainer
+    image: nginx
+    volumeMounts:
+    - mountPath: "/data"
+      name: mypvc-volume
+  volumes:
+  - name: mypvc-volume
+    persistentVolumeClaim:
+      claimName: mypvc
+```
+
+在这个示例中：
+- Pod 中的一个容器引用了一个名为 "mypvc-volume" 的 Volume，并将其挂载到了容器的 "/data" 路径下。
+- 这个 Volume 是通过一个名为 "mypvc" 的 PersistentVolumeClaim 创建的。
+- 当 Pod 启动时，Kubernetes 将自动将匹配的 PV 挂载到 Pod 中，并将 PV 的存储资源映射到 Pod 中指定的路径下（即 "/data"）。
+
+通过这种方式，用户可以在 Pod 中使用 PVC 来访问持久化存储资源，从而实现数据的持久化和共享。
+
+### Releasing
+
+在 PersistentVolume 的释放（Releasing）阶段，用户删除了 PersistentVolumeClaim（PVC），从而释放了与之相关联的 PersistentVolume（PV）。一旦 PVC 被删除，PV 将变为“released”状态，但是 PV 中仍然保留着之前的数据。
+
+由于 PV 中仍然保留着之前的数据，因此需要根据不同的策略来处理这些数据，以确保这些存储资源可以被其他 PVC 使用。具体的处理方式取决于管理员配置的回收策略，通常有以下几种处理方式：
+
+1. **删除数据（Delete）**：
+   - 在这种策略下，当 PVC 被删除时，PV 中的数据也会被删除，并且 PV 将被标记为可用状态，以供其他 PVC 使用。
+   - 这种策略适用于 PV 中的数据不再需要保留的情况，或者需要彻底清除数据以便重新使用 PV 的情况。
+
+2. **保留数据（Retain）**：
+   - 在这种策略下，当 PVC 被删除时，PV 中的数据将被保留，并且 PV 将被标记为保留状态，不会被自动回收。
+   - 这种策略适用于需要保留 PV 中的数据以备将来使用的情况，管理员可以手动处理 PV 中的数据，并在需要时手动回收 PV。
+
+3. **重新使用数据（Recycle）**：
+   - 在这种策略下，当 PVC 被删除时，PV 中的数据将被删除，并且 PV 将被标记为可用状态，以供其他 PVC 使用。
+   - 在 PV 被重新使用之前，Kubernetes 可以尝试清除 PV 中的数据，以便将 PV 重新分配给其他 PVC 使用。
+
+根据管理员配置的回收策略，PV 中的数据将根据不同的策略进行处理，以确保这些存储资源可以被其他 PVC 使用。管理员可以根据具体的需求和环境配置不同的回收策略，以实现最佳的资源利用和数据保护。
+
+### Recycling
+
+PersistentVolume（PV）可以设置三种不同的回收策略：保留（Retain）、回收（Recycle）和删除（Delete）。
+
+1. **保留策略（Retain）**：
+   - 保留策略允许管理员手动处理 PV 中保留的数据。当与 PV 关联的 PersistentVolumeClaim（PVC）被删除时，PV 不会自动清除数据，而是保留数据以供将来使用。
+   - 这种策略适用于需要保留 PV 中的数据以备将来使用的情况。管理员可以手动处理 PV 中的数据，并在需要时手动释放 PV。
+
+2. **删除策略（Delete）**：
+   - 删除策略将删除 PV 及其外部关联的存储资源，这需要存储插件的支持。当与 PV 关联的 PVC 被删除时，PV 中的数据会被删除，并且 PV 本身也会被删除。
+   - 这种策略适用于 PV 中的数据不再需要保留，并且需要彻底清除数据以便重新使用 PV 的情况。管理员需要确保存储插件支持 PV 的删除操作。
+
+3. **回收策略（Recycle）**：
+   - 回收策略将执行清除操作，然后 PV 可以被新的 PVC 使用。这同样也需要存储插件的支持。当与 PV 关联的 PVC 被删除时，PV 中的数据将被清除，然后 PV 将被标记为可用状态，以供其他 PVC 使用。
+   - 这种策略适用于需要在 PV 被重新使用之前清除 PV 中的数据，并且希望将 PV 重新分配给其他 PVC 使用的情况。管理员需要确保存储插件支持 PV 的清除操作。
+
+根据具体的需求和环境，管理员可以选择适合的 PV 回收策略，并配置存储插件以支持相应的操作。这些策略提供了灵活的方式来管理 PV 的生命周期，并确保存储资源的有效利用和数据保护。
+
+## PV 类型
+
+这些是 Kubernetes 中支持的一些常见的 PersistentVolume（PV）类型，它们可以用来与不同的存储后端进行集成。下面是对每种类型的简要说明：
+
+1. **GCEPersistentDisk**：Google Cloud Engine（GCE）的持久性磁盘，用于与 Google Cloud Platform 中的 GCE 实例集成。
+
+2. **AWSElasticBlockStore**：亚马逊 Web 服务（AWS）的弹性块存储，用于与 AWS EC2 实例集成。
+
+3. **AzureFile**：Azure 文件存储，用于与 Azure 云服务中的 Azure 文件共享集成。
+
+4. **AzureDisk**：Azure 磁盘存储，用于与 Azure 云服务中的 Azure 磁盘集成。
+
+5. **FC (Fibre Channel)**：光纤通道存储，用于与光纤通道 SAN（存储区域网络）集成。
+
+6. **Flexvolume**：一种通用的扩展存储插件框架，允许第三方供应商实现与 Kubernetes 集成的自定义存储插件。
+
+7. **Flocker**：ClusterHQ 的 Flocker 存储，用于实现容器间数据卷的移动和复制。
+
+8. **NFS**：网络文件系统（NFS），一种基于网络的文件系统，用于在多个节点之间共享文件系统。
+
+9. **iSCSI**：Internet SCSI，一种用于在 IP 网络上传输 SCSI 命令的协议，用于连接存储设备。
+
+10. **RBD (Ceph Block Device)**：Ceph 集群中的块设备，用于与 Ceph 存储集成。
+
+11. **CephFS**：Ceph 文件系统，一种分布式文件系统，用于与 Ceph 存储集成。
+
+12. **Cinder (OpenStack block storage)**：OpenStack 中的块存储服务，用于与 OpenStack 集成。
+
+13. **Glusterfs**：Gluster 文件系统，一种分布式文件系统，用于在多个节点之间共享文件系统。
+
+14. **VsphereVolume**：VMware vSphere 存储，用于与 VMware vSphere 集成。
+
+15. **Quobyte Volumes**：Quobyte 存储，一种分布式文件系统，用于与 Quobyte 集成。
+
+16. **HostPath**：主机路径，用于在单个节点上测试时提供本地存储。在多节点集群中不支持。
+
+17. **Portworx Volumes**：Portworx 存储，用于与 Portworx 存储平台集成。
+
+18. **ScaleIO Volumes**：Dell EMC ScaleIO 存储，用于与 ScaleIO 存储集成。
+
+19. **StorageOS**：StorageOS 存储，一种基于容器的持久性存储解决方案。
+
+每种类型的 PV 都具有不同的属性和配置选项，适用于不同的存储后端和使用场景。管理员可以根据实际需求选择合适的 PV 类型，并配置相应的存储插件来实现与存储后端的集成。
+
+## PV 卷阶段状态
+
+PV（PersistentVolume）在 Kubernetes 中具有几种不同的阶段状态，这些状态描述了 PV 在其生命周期中的状态和可用性。以下是这些状态的简要说明：
+
+1. **Available（可用）**：
+   - PV 处于可用状态表示资源尚未被 PersistentVolumeClaim（PVC） 使用，可以供其他 PVC 使用。
+   - 当 PV 被创建后，并且没有与任何 PVC 绑定时，它将处于可用状态。
+
+2. **Bound（已绑定）**：
+   - PV 处于已绑定状态表示该卷已经被绑定到了某个 PVC 上，被该 PVC 使用。
+   - 当某个 PVC 与 PV 成功绑定后，PV 将转换为已绑定状态，PV 的状态将从可用变为已绑定。
+
+3. **Released（已释放）**：
+   - PV 处于已释放状态表示与之关联的 PVC 已被删除，但是 PV 本身并未被集群回收。
+   - 当 PVC 被删除时，如果 PV 的回收策略是保留数据或者回收数据，PV 将被标记为已释放状态，但 PV 中的数据仍然存在。
+
+4. **Failed（失败）**：
+   - PV 处于失败状态表示卷自动回收失败，可能是由于存储后端出现故障或其他问题导致的。
+   - 处于失败状态的 PV 将无法正常使用，并且需要管理员手动处理以解决问题。
+
+这些阶段状态描述了 PV 在其生命周期中可能经历的不同状态，以及 PV 的可用性和状态变化。管理员可以通过监控 PV 的状态并及时处理异常情况，以确保集群中的持久化存储资源的可靠性和可用性。
+
+## 演示：创建PV
+
+```yaml
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv001
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+    - ReadWriteOnce
+  nfs:
+    path: /data/volumes/v1
+    server: nfs
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv002
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  nfs:
+    path: /data/volumes/v2
+    server: nfs
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv003
+spec:
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteMany
+    - ReadWriteOnce
+  nfs:
+    path: /data/volumes/v3
+    server: nfs
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv004
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteMany
+    - ReadWriteOnce
+  nfs:
+    path: /data/volumes/v4
+    server: nfs
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: pv005
+spec:
+  capacity:
+    storage: 15Gi
+  accessModes:
+    - ReadWriteMany
+    - ReadWriteOnce
+  nfs:
+    path: /data/volumes/v5
+    server: nfs
+```
+
+上述的 5 个 PV（PersistentVolume）是用来在 Kubernetes 集群中提供持久性存储的资源。下面是对每个 PV 的详细说明：
+
+1. **pv001**：
+   - **名称（Name）：** pv001
+   - **存储大小（Capacity）：** 2Gi（2 GB）
+   - **访问模式（Access Modes）：** ReadWriteMany（可读可写多次）和 ReadWriteOnce（可读可写一次）
+   - **存储路径（NFS Path）：** /data/volumes/v1
+   - **NFS 服务器（NFS Server）：** nfs
+   - **描述（Description）：** 提供了一个 2 GB 大小的 PV，可同时供多个 Pod 以及单个 Pod 使用，并且可以读写数据。
+
+2. **pv002**：
+   - **名称（Name）：** pv002
+   - **存储大小（Capacity）：** 5Gi（5 GB）
+   - **访问模式（Access Modes）：** ReadWriteOnce（可读可写一次）
+   - **存储路径（NFS Path）：** /data/volumes/v2
+   - **NFS 服务器（NFS Server）：** nfs
+   - **描述（Description）：** 提供了一个 5 GB 大小的 PV，只能供单个 Pod 使用，并且可以读写数据。
+
+3. **pv003**：
+   - **名称（Name）：** pv003
+   - **存储大小（Capacity）：** 20Gi（20 GB）
+   - **访问模式（Access Modes）：** ReadWriteMany（可读可写多次）和 ReadWriteOnce（可读可写一次）
+   - **存储路径（NFS Path）：** /data/volumes/v3
+   - **NFS 服务器（NFS Server）：** nfs
+   - **描述（Description）：** 提供了一个 20 GB 大小的 PV，可同时供多个 Pod 以及单个 Pod 使用，并且可以读写数据。
+
+4. **pv004**：
+   - **名称（Name）：** pv004
+   - **存储大小（Capacity）：** 10Gi（10 GB）
+   - **访问模式（Access Modes）：** ReadWriteMany（可读可写多次）和 ReadWriteOnce（可读可写一次）
+   - **存储路径（NFS Path）：** /data/volumes/v4
+   - **NFS 服务器（NFS Server）：** nfs
+   - **描述（Description）：** 提供了一个 10 GB 大小的 PV，可同时供多个 Pod 以及单个 Pod 使用，并且可以读写数据。
+
+5. **pv005**：
+   - **名称（Name）：** pv005
+   - **存储大小（Capacity）：** 15Gi（15 GB）
+   - **访问模式（Access Modes）：** ReadWriteMany（可读可写多次）和 ReadWriteOnce（可读可写一次）
+   - **存储路径（NFS Path）：** /data/volumes/v5
+   - **NFS 服务器（NFS Server）：** nfs
+   - **描述（Description）：** 提供了一个 15 GB 大小的 PV，可同时供多个 Pod 以及单个 Pod 使用，并且可以读写数据。
+
+这些 PV 的定义提供了不同容量和访问模式的持久化存储选项，以满足不同应用和场景的需求。管理员可以根据需要使用这些 PV 来为 Kubernetes 集群中的 Pod 提供持久化存储。
+
+要创建上述的 5 个 PersistentVolume，你需要将上述的 YAML 配置保存到一个文件中，例如 `pv.yaml`，然后使用 `kubectl apply -f pv.yaml` 命令来执行创建。以下是具体的步骤：
+
+1. 将上述的 YAML 配置保存到一个文件中，例如 `pv.yaml`。
+
+2. 使用以下命令执行创建操作：
+   ```bash
+   kubectl apply -f pv.yaml
+   ```
+
+3. 执行命令后，Kubernetes 将会根据 `pv.yaml` 中的配置创建 5 个 PersistentVolume。你可以使用以下命令验证它们是否已成功创建：
+   ```bash
+   kubectl get pv
+   ```
+
+这样就完成了创建 PersistentVolume 的操作，现在你可以在 Kubernetes 集群中使用这些 PV 来提供持久性存储了。
+
+## 演示：创建PVC，绑定PV
+
+编写yaml 文件，并创建pvc
+
+创建一个pvc，需要6G 存储；所以不会匹配pv001、pv002、pv003
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mypvc
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 6Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: vol-pvc
+  namespace: default
+spec:
+  volumes:
+    - name: html
+      persistentVolumeClaim:
+        claimName: mypvc
+  containers:
+    - name: myapp
+      image: ikubernetes/myapp:v1
+      volumeMounts:
+        - name: html
+          mountPath: /usr/share/nginx/html/
+```
+
+这个 YAML 文件描述了如下内容：
+
+1. **PersistentVolumeClaim（PVC）**：
+   - PVC 的名称为 `mypvc`，位于默认命名空间。
+   - 它请求了 6GB 的存储容量。
+   - 访问模式为 ReadWriteMany，表示多个 Pod 可以同时读写该持久化卷。
+   
+2. **Pod**：
+   - Pod 的名称为 `vol-pvc`，也位于默认命名空间。
+   - Pod 包含一个名为 `html` 的卷，这个卷将与 PVC `mypvc` 关联。
+   - Pod 包含一个名为 `myapp` 的容器，使用镜像 `ikubernetes/myapp:v1`。
+   - 持久化卷将被挂载到容器的 `/usr/share/nginx/html/` 路径下，用于存储应用程序数据。
+
+这个 YAML 文件描述了如何创建一个 PVC，并将其与一个 Pod 关联起来，以便在 Pod 中使用持久化存储。
+
+要创建和验证上述的 PVC 和 Pod，你可以按照以下步骤执行：
+
+1. 将提供的 YAML 配置保存到一个文件中，例如 `pvc.yaml`。
+
+2. 使用以下命令执行创建操作：
+   ```bash
+   kubectl apply -f pvc.yaml
+   ```
+
+3. 执行命令后，Kubernetes 将会根据 `pvc.yaml` 中的配置创建 PersistentVolumeClaim 和 Pod。
+
+4. 使用以下命令查询 PVC 和 Pod 的状态：
+   ```bash
+   kubectl get pvc mypvc
+   kubectl get pod vol-pvc
+   ```
+
+5. 如果 PVC 和 Pod 的状态为 `Bound` 和 `Running`，则表示它们已经成功创建并且正在运行。你可以使用 `describe` 命令查看详细信息：
+   ```bash
+   kubectl describe pvc mypvc
+   kubectl describe pod vol-pvc
+   ```
+
+这样就完成了创建和验证操作，你可以通过查询 PVC 和 Pod 的状态来确保它们已经成功创建并且正常运行。
+
+# Secret ==========================================
 
 
 
