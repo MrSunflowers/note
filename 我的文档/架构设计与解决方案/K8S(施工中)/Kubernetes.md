@@ -4111,7 +4111,90 @@ kubectl patch deployment my-nginx --patch '{"spec": {"template": {"metadata": {"
 - 使用该 ConfigMap 挂载的环境变量不会自动同步更新，需要手动触发滚动更新。
 - 使用该 ConfigMap 挂载的卷中的数据可能需要一段时间才能同步更新，实际更新时间可能会有所延迟，一般大约需要 10 秒左右。
 
-# Namespace ===================================================================
+# Namespace
+
+Kubernetes Namespace 是一种在 Kubernetes 集群中用于隔离和组织资源的机制。它可以让你将集群中的资源划分为不同的虚拟组，每个组都有自己的命名空间。Namespace 提供了一种逻辑上的隔离，使得多个用户、团队或应用程序可以在同一个集群上共享资源而不会发生冲突。
+
+以下是 Kubernetes Namespace 的一些关键特性和用途：
+
+1. **资源隔离**：Namespace 允许你将集群中的资源（如 Pod、Service、Volume 等）划分为不同的逻辑单元。这意味着你可以为不同的团队、项目或环境创建独立的 Namespace，以确保彼此之间的资源不会相互干扰。
+
+2. **命名空间范围**：Kubernetes 中有一些预定义的 Namespace，如 default、kube-system 和 kube-public。此外，你还可以创建自己的自定义 Namespace。每个 Namespace 都拥有自己的唯一名称，资源名称在同一个 Namespace 中必须是唯一的，但在不同 Namespace 中可以重复。
+
+3. **资源配额和限制**：通过 Namespace，你可以为每个 Namespace 设置资源配额和限制，以确保某个 Namespace 中的资源使用不会超出预期的范围。这对于多租户环境特别有用。
+
+4. **访问控制**：Namespace 也可以用于实现访问控制。通过 Kubernetes 的 RBAC（Role-Based Access Control）机制，你可以为不同的 Namespace 设置不同的权限，从而限制用户或服务对特定 Namespace 中资源的访问。
+
+5. **环境分离**：通常情况下，你可以将不同的环境（如开发、测试、生产）放置在不同的 Namespace 中，以实现环境之间的逻辑分离和管理。
+
+总的来说，Kubernetes Namespace 是一种非常有用的资源管理和隔离机制，可以帮助你更好地组织和管理集群中的资源，并提供多租户支持、访问控制和资源配额等功能。
+
+默认情况下，如果不显式指定 Namespace，Kubernetes 会将资源对象创建到名为 "default" 的 Namespace 中。这个默认的 Namespace 在集群启动后会自动创建，并且通常情况下被用作集群中不特定于任何特定 Namespace 的资源的默认位置。
+
+这意味着如果你没有显式地为 Pod、Replication Controller（RC）、Service 或其他资源指定 Namespace，它们将被创建到默认的 "default" Namespace 中。这样做可以简化 Kubernetes 初学者的使用体验，并使它们能够快速开始尝试和部署应用程序，而无需过多关注 Namespace 的概念。
+
+然而，在实际生产环境中，为了更好地组织和管理资源，并实现资源隔离、访问控制和配额控制等功能，通常会创建多个自定义 Namespace，并将不同的资源对象分配到不同的 Namespace 中。这样可以更好地管理集群，并确保不同用户、团队或项目之间的资源不会相互干扰。
+
+## Namespace 创建
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: development
+```
+
+解释如下：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1 版本。
+- `kind: Namespace`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Namespace。
+- `metadata`：包含了对象的元数据，比如名称、标签等。
+  - `name: development`：指定了 Namespace 的名称为 "development"。这表示将要创建一个名为 "development" 的 Namespace。
+
+通过这个配置文件，可以使用 Kubernetes 命令或 API 来创建名为 "development" 的 Namespace，用于组织和隔离资源。
+
+创建一个名为 "busybox" 的 Pod 的 YAML 配置文件，并将其指定到上面名为 "development" 的 Namespace 中：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  namespace: development
+spec:
+  containers:
+  - image: busybox
+    command:
+    - sleep
+    - "3600"
+    name: busybox
+```
+
+解释如下：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本。
+- `kind: Pod`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Pod。
+- `metadata`：包含了 Pod 的元数据，比如名称、标签等。
+  - `name: busybox`：指定了 Pod 的名称为 "busybox"。
+  - `namespace: development`：指定了 Pod 所属的 Namespace 为 "development"。
+- `spec`：指定了 Pod 的规格，包括容器等。
+  - `containers`：指定了 Pod 中的容器列表。
+    - `image: busybox`：指定了容器所使用的镜像为 "busybox"。
+    - `command`：指定了容器启动时执行的命令，这里是让容器休眠 3600 秒。
+    - `name: busybox`：指定了容器的名称为 "busybox"。
+
+通过这个配置文件，可以创建一个名为 "busybox" 的 Pod，并将其放置在名为 "development" 的 Namespace 中。
+
+## Namespace 查看
+
+```yml
+kubectl get pods --namespace=development
+```
+
+# Service==============================================
+
+
+
 
 ## 健康检查
 
