@@ -3247,15 +3247,871 @@ spec:
 
 这样就完成了创建和验证操作，你可以通过查询 PVC 和 Pod 的状态来确保它们已经成功创建并且正常运行。
 
-# Secret ==========================================
+# Secret
+
+在 Kubernetes 中，Secret 是一种用于存储敏感信息的资源对象。它可以包含诸如密码、OAuth 令牌、SSH 密钥等敏感数据，这些数据被加密后存储在集群中。Secret 被设计为用于安全地存储和传递敏感信息，以便在 Pod 中使用。
+
+以下是关于 Kubernetes Secret 的一些详细说明：
+
+1. **敏感信息的存储**：
+   - Secret 用于存储敏感信息，如密码、令牌、密钥等，这些信息通常用于与外部服务进行安全通信。
+
+2. **加密存储**：
+   - Secret 中的敏感数据被加密后存储在 Kubernetes 集群中，确保数据的安全性。
+
+3. **不可变性**：
+   - Secret 是不可变的，一旦创建后，其内容将不能被修改。如果需要更新敏感信息，需要创建一个新的 Secret。
+
+4. **多种类型的数据**：
+   - Secret 可以包含多种类型的数据，如字符串、字节数组等。
+
+5. **用途广泛**：
+   - Secret 可以在 Pod 的环境变量、卷或容器的命令行参数中使用，用于安全地传递敏感信息给应用程序。
+
+6. **管理与访问**：
+   - Secret 可以通过命令行工具（如 kubectl）、Kubernetes API 或者 YAML 配置文件进行管理和访问。
+
+7. **使用场景**：
+   - 在实际应用中，Secret 可以用于存储数据库密码、API 密钥、TLS 证书等敏感信息，以确保应用程序的安全性。
+
+Secret 解决了密码、token、密钥等敏感数据的配置问题，而不需要把这些敏感数据暴露到镜像或者Pod Spec 中。Secret 可以以Volume 或者环境变量的方式使用
+
+## Secret 类型
+
+Kubernetes 中的 Secret 类型主要用于指定 Secret 数据的用途和访问方式。以下是 Kubernetes 中常见的几种 Secret 类型：
+
+1. **Opaque（不透明）**：
+   - Opaque 类型是默认的 Secret 类型，用于存储任意格式的数据。
+   - 它可以存储任意类型的字符串或二进制数据，例如密码、令牌等。
+   - Opaque 类型的 Secret 数据在存储和传输时都会被 Base64 编码。
+
+2. **Service Account Token（服务账户令牌）**：
+   - Service Account Token 类型的 Secret 用于存储 Kubernetes 服务账户的访问令牌。
+   - 这种类型的 Secret 通常由 Kubernetes 自动创建和管理，用于授权 Pod 访问 Kubernetes API。
+
+3. **Dockercfg（Docker 配置）**：
+   - Dockercfg 类型的 Secret 用于存储 Docker 镜像的认证信息，例如 Docker Registry 的用户名和密码。
+   - 这种类型的 Secret 在早期版本的 Kubernetes 中使用，现已逐渐被 Dockerconfigjson 类型取代。
+
+4. **Dockerconfigjson（Docker 配置 JSON）**：
+   - Dockerconfigjson 类型的 Secret 也用于存储 Docker 镜像的认证信息，但是使用的是 JSON 格式。
+   - 这种类型的 Secret 可以存储多个 Docker Registry 的认证信息，支持更多的配置选项。
+
+5. **TLS（传输层安全）**：
+   - TLS 类型的 Secret 用于存储 TLS（SSL）证书和私钥。
+   - 它通常用于配置安全连接，例如在 HTTPS 服务中使用。
+
+6. **Kubernetes.io/service-account-token（Kubernetes 服务账户令牌）**：
+   - 这是一种特殊类型的 Secret，用于存储 Kubernetes 服务账户的访问令牌。
+
+这些 Secret 类型各自用于不同的场景和目的，可以根据需要选择合适的类型来存储和管理敏感信息。
+
+### Service Account
+
+Service Account 是用来访问 Kubernetes API 的身份标识，在 Kubernetes 中由 Kubernetes 系统自动创建和管理。当 Pod 被创建时，Kubernetes 会自动为其分配一个 Service Account，并将其相关信息挂载到 Pod 的文件系统中的 `/run/secrets/kubernetes.io/serviceaccount` 目录中。这个目录包含了用于与 Kubernetes API 进行交互的认证信息，通常包括以下文件：
+
+1. **`token` 文件**：
+   - 这个文件包含了用于身份验证的访问令牌（Token），可以用于向 Kubernetes API 发送请求并执行操作。
+   - Pod 可以使用这个令牌进行认证，从而获取对 Kubernetes API 的访问权限。
+
+2. **`ca.crt` 文件**：
+   - 这个文件包含了 Kubernetes API 服务器的 CA 证书。
+   - Pod 可以使用这个证书来验证 Kubernetes API 服务器的身份，确保与 API 服务器的通信是安全的。
+
+3. **`namespace` 文件**：
+   - 这个文件包含了当前 Pod 所属的命名空间的名称。
+   - Pod 可以通过读取这个文件来确定其所属的命名空间。
+
+通过将这些文件挂载到 Pod 内部的文件系统中，Pod 可以轻松地使用 Service Account 提供的认证信息与 Kubernetes API 进行通信，执行各种操作，如创建、更新、删除资源，获取集群状态等。这种自动挂载 Service Account 相关信息的机制使得 Pod 在与 Kubernetes API 进行交互时更加方便和安全。
+
+### Service Account 示例
+
+1. 使用 `kubectl run nginx --image nginx` 命令创建了一个名为 "nginx" 的 Deployment，并且指定了使用 nginx 镜像。Deployment 是 Kubernetes 中用于管理 Pod 的控制器，它负责启动、停止和管理一组 Pod。
+
+```bash
+$ kubectl run nginx --image nginx
+deployment "nginx" created
+```
+
+2. 执行完创建 Deployment 的命令后，Deployment 将会自动创建一个 Pod，并且该 Pod 的名称将会以 "nginx-" 开头，后面跟着一串随机生成的字符串（例如 "nginx-3137573019-md1u2"）。这个字符串是 Pod 的唯一标识符。
+
+3. 使用 `kubectl get pods` 命令列出当前集群中的 Pod，可以看到刚刚创建的名为 "nginx-3137573019-md1u2" 的 Pod。输出显示该 Pod 已经就绪（READY）并且处于运行状态（STATUS），并且还未发生重启（RESTARTS 为 0）。
+
+```bash
+$ kubectl get pods
+NAME READY STATUS RESTARTS AGE
+nginx-3137573019-md1u2 1/1 Running 0 13s
+```
+
+4. 使用 `kubectl exec nginx-3137573019-md1u2 ls` 命令在刚刚创建的 Pod 中执行了一个命令 `ls`，用于列出 Pod 内部的文件和目录。在输出中，显示了 Pod 内部挂载的一个目录 `/run/secrets/kubernetes.io/serviceaccount`，其中包含了一些文件，如 `ca.crt`、`namespace` 和 `token`。
+   - `ca.crt`：包含了 Kubernetes API 服务器的 CA 证书。
+   - `namespace`：包含了当前 Pod 所属的命名空间名称。
+   - `token`：包含了用于 Pod 认证的访问令牌，可以用于访问 Kubernetes API。
+
+```bash
+$ kubectl exec nginx-3137573019-md1u2 ls
+/run/secrets/kubernetes.io/serviceaccount
+ca.crt
+namespace
+token
+```
+
+### Opaque Secret
+
+Opaque 类型的 Secret 是 Kubernetes 中用于存储密码、密钥等敏感信息的一种类型。它可以存储任意格式的数据，通常使用 Base64 编码来保护其中的数据。Opaque 类型的 Secret 通常用于存储以下类型的敏感信息：
+
+1. **密码**：例如数据库密码、API 密钥等。
+2. **密钥**：例如 SSH 密钥、TLS 证书等。
+3. **令牌**：例如 OAuth 令牌、访问令牌等。
+4. **其他敏感数据**：任何需要在 Kubernetes 中安全存储和传输的数据。
+
+使用 Base64 编码对数据进行编码可以隐藏其原始内容，但需要注意的是，Base64 编码并不是加密，只是一种简单的编码方式，不能提供真正的安全性。因此，在存储敏感信息时，建议使用其他更安全的加密方法来保护数据。
+
+创建 Opaque 类型的 Secret 可以通过以下方式：
+
+1. 使用 `kubectl create secret generic` 命令，并提供明文的敏感信息，Kubernetes 将会自动对这些数据进行 Base64 编码。
+2. 使用 YAML 文件来定义 Secret，将需要的敏感信息以 Base64 编码后的形式保存在文件中，并使用 `kubectl apply -f` 命令来创建 Secret。
+
+通过 Opaque 类型的 Secret，可以安全地存储和传输敏感信息，并在 Kubernetes 集群中的 Pod 中使用这些信息，以确保应用程序的安全性和可靠性。
+
+### Opaque Secret 示例
+
+创建说明：Opaque 类型的数据是一个map 类型，要求 value 是 base64 编码格式
+
+#### 1. 编码
+
+- 通过 `echo` 命令将明文密码 "admin" 和 "1f2d1e2e67df" 进行 base64 编码，得到了相应的 base64 编码值。
+- "admin" 的 base64 编码结果为 "YWRtaW4="，"1f2d1e2e67df" 的 base64 编码结果为 "MWYyZDFlMmU2N2Rm"
+
+```bash
+$ echo -n "admin" | base64
+YWRtaW4=
+$ echo -n "1f2d1e2e67df" | base64
+MWYyZDFlMmU2N2Rm:
+```
+
+#### 2. 创建 secrets.yml：
+   - 创建了一个名为 "mysecret" 的 Opaque 类型的 Secret，其中包含了两个键值对，分别是 "password" 和 "username"。
+   - 对应的值为经过 base64 编码后的密码和用户名。
+
+```yml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: mysecret
+type: Opaque
+data:
+  password: MWYyZDFlMmU2N2Rm
+  username: YWRtaW4=
+```
+
+具体说明如下：
+- `apiVersion`: 指定了 Kubernetes API 的版本，这里是 `v1`，表示使用的是 Kubernetes 的核心 API 版本。
+- `kind`: 指定了资源对象的类型，这里是 `Secret`，表示这是一个 Secret 资源对象。
+- `metadata`: 包含了资源对象的元数据，比如名称、标签等信息。
+  - `name`: 指定了 Secret 对象的名称，这里是 `mysecret`。
+- `type`: 指定了 Secret 对象的类型，这里是 `Opaque`，表示这是一个普通的不透明（opaque）的 Secret 对象，用于存储任意格式的密钥-值对。
+- `data`: 包含了实际的密钥-值对数据。
+  - `password`: 密码字段的密文值，经过 base64 编码后的字符串。在实际使用时，需要解码才能得到原始的密码值。
+  - `username`: 用户名字段的密文值，经过 base64 编码后的字符串。同样，需要解码才能得到原始的用户名值。
+这个 Secret 资源对象用于存储敏感数据，比如用户名和密码，供其他 Kubernetes 资源对象使用。
+
+#### 3. 使用
+   
+将 Secret 挂载到 Pod 的 Volume 中，以便容器可以访问其中的数据。在 Pod 的配置中，使用了 `volumes` 字段将 Secret 挂载到了名为 "secrets" 的 Volume 中。
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    name: secret-test
+spec:
+  volumes:
+  - name: secrets
+    secret:
+      secretName: mysecret
+  containers:
+  - image: hub.atguigu.com/library/myapp:v1
+    name: db
+    volumeMounts:
+    - name: secrets
+      mountPath: "/etc/secrets"
+      readOnly: true
+```
+
+这个 YAML 文件描述了一个 Kubernetes 的 Pod 资源对象，用于部署一个名为 `db` 的容器，并将一个 Secret 对象挂载到容器中。具体说明如下：
+- `apiVersion`: 指定了 Kubernetes API 的版本，这里是 `v1`，表示使用的是 Kubernetes 的核心 API 版本。
+- `kind`: 指定了资源对象的类型，这里是 `Pod`，表示这是一个 Pod 资源对象。
+- `metadata`: 包含了资源对象的元数据，比如名称、标签等信息。
+  - `labels`: 用于定义标签，这里将 `name` 标签设置为 `secret-test`。
+- `spec`: 包含了 Pod 的规格，定义了 Pod 的内容。
+  - `volumes`: 定义了 Pod 中的卷，这里创建了一个名为 `secrets` 的卷。
+    - `secret`: 指定了将一个 Secret 对象挂载为卷。
+      - `secretName`: 指定了要挂载的 Secret 对象的名称，这里是 `mysecret`。
+  - `containers`: 定义了 Pod 中的容器。
+    - `image`: 指定了容器的镜像，这里使用了 `hub.atguigu.com/library/myapp:v1` 这个镜像。
+    - `name`: 指定了容器的名称，这里是 `db`。
+    - `volumeMounts`: 指定了容器中挂载的卷。
+      - `name`: 指定了要挂载的卷的名称，这里是 `secrets`。
+      - `mountPath`: 指定了挂载的路径，这里是 `/etc/secrets`。
+      - `readOnly`: 指定了挂载为只读。
+
+也可以将 Secret 导出到环境变量中，使容器内的应用程序可以通过环境变量访问 Secret 中的数据。在 Deployment 的配置中，使用了 `env` 字段将 Secret 中的 "username" 导出为名为 "TEST_USER" 的环境变量。
+
+```yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: pod-deployment
+spec:
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app: pod-deployment
+    spec:
+      containers:
+      - name: pod-1
+        image: hub.atguigu.com/library/myapp:v1
+        ports:
+        - containerPort: 80
+        env:
+        - name: TEST_USER
+          valueFrom:
+            secretKeyRef:
+              name: mysecret
+              key: username
+```
+
+这是一个 Kubernetes 的 YAML 配置文件，用于创建一个 Deployment 对象。让我来解析并详细说明每一项配置：
+1. `apiVersion: extensions/v1beta1`
+   - 指定了使用的 Kubernetes API 版本，这里使用的是 `extensions/v1beta1` 版本。
+2. `kind: Deployment`
+   - 指定了要创建的 Kubernetes 资源类型，这里是一个 Deployment 对象。
+3. `metadata:`
+   - 包含关于资源的元数据，比如名称、命名空间等。
+   - `name: pod-deployment` 指定了资源的名称为 `pod-deployment`。
+4. `spec:`
+   - 包含了资源的规格，比如副本数、模板等。
+   - `replicas: 2` 指定了要创建的 Pod 副本数量为 2。
+5. `template:`
+   - 指定了要创建的 Pod 的模板。
+   - `metadata:` 包含了 Pod 模板的元数据。
+     - `labels:` 为 Pod 模板指定了标签，这里的标签为 `app: pod-deployment`。
+6. `spec:`
+   - 包含了 Pod 模板的规格，比如容器、挂载的卷等。
+   - `containers:` 指定了要在 Pod 中运行的容器列表。
+     - `name: pod-1` 指定了容器的名称为 `pod-1`。
+     - `image: hub.atguigu.com/library/myapp:v1` 指定了容器的镜像。
+     - `ports:` 指定了容器暴露的端口。
+       - `containerPort: 80` 指定了容器监听的端口为 80。
+     - `env:` 指定了容器的环境变量。
+       - `name: TEST_USER` 指定了环境变量的名称为 `TEST_USER`。
+       - `valueFrom:` 指定了环境变量的取值来源。
+         - `secretKeyRef:` 表示取值来源为 Secret 中的某个键值对。
+           - `name: mysecret` 指定了 Secret 的名称为 `mysecret`。
+           - `key: username` 指定了要获取的键为 `username`。
+以上就是对你提供的 Kubernetes YAML 配置文件的解析和详细说明。如果你有任何关于这个配置的疑问或者需要进一步的解释，请随时告诉我。
 
 
+### kubernetes.io/dockerconfigjson
+
+`kubernetes.io/dockerconfigjson` 类型的 Secret 用于存储私有 Docker Registry 的认证信息，这是一种特定于 Docker 镜像认证的 Secret 类型。它通常用于存储 Docker 镜像仓库的用户名、密码等凭据，以便 Kubernetes 集群中的 Pod 可以访问私有 Docker 镜像仓库而不需要手动提供凭据。
+
+这种类型的 Secret 的名称 `dockerconfigjson` 指示它包含了一个 Docker 配置的 JSON 格式数据，通常是 Docker 镜像认证所需的 Docker 配置文件的内容。这个 JSON 数据中包含了一个或多个 Docker Registry 的认证信息，通常是以下几个字段：
+
+- `auths`：包含了一个或多个 Docker Registry 的认证信息。
+- 每个 Registry 的认证信息通常包括以下字段：
+  - `auth`：经过 Base64 编码的用户名和密码组合，用于向 Registry 发送认证请求。
+  - `username`：用户名。
+  - `password`：密码。
+  - `email`：可选字段，通常是注册邮箱地址。
+
+通过将私有 Docker Registry 的认证信息存储在 `kubernetes.io/dockerconfigjson` 类型的 Secret 中，可以安全地传递这些敏感凭据给 Kubernetes 集群中的 Pod，而无需直接暴露凭据信息。Pod 在拉取私有 Docker 镜像时会自动使用这些凭据进行认证，从而能够成功访问私有 Docker 镜像仓库。
+
+创建 `kubernetes.io/dockerconfigjson` 类型的 Secret 可以通过将 Docker 配置文件转换为 JSON 格式，并将其存储在 Secret 中。在 Kubernetes 中创建 Secret 后，Pod 可以通过 Volume 或环境变量的方式将这些认证信息注入到容器中，以便容器可以访问私有 Docker 镜像仓库。
+
+### 示例
+
+这个示例演示了如何使用 `kubectl create secret docker-registry` 命令创建 Docker Registry 认证的 Secret，并在创建 Pod 时通过 `imagePullSecrets` 字段引用这个 Secret。以下是对这个示例的详细解释：
+
+#### 1. 创建 Docker Registry 认证的 Secret
+   - 使用 `kubectl create secret docker-registry` 命令创建了一个名为 "myregistrykey" 的 Docker Registry 认证的 Secret。
+   - 在命令中指定了 Docker Registry 的地址、用户名、密码以及邮箱等信息。
+
+```bash
+$ kubectl create secret docker-registry myregistrykey --dockerserver=
+DOCKER_REGISTRY_SERVER -- docker-username=DOCKER_USER --dockerpassword=
+DOCKER_PASSWORD --docker-email=DOCKER_EMAIL secret "myregistrykey"
+created.
+```
+
+#### 2. 创建 Pod
+   
+   - 创建了一个名为 "foo" 的 Pod，其中包含一个名为 "foo" 的容器。
+   - 在 Pod 的配置中，使用了 `imagePullSecrets` 字段来引用之前创建的名为 "myregistrykey" 的 Secret。这样，Pod 在拉取镜像时会使用这个 Secret 中的认证信息来访问 Docker Registry。
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: foo
+spec:
+  containers:
+    - name: foo
+      image: roc/awangyang:v1
+  imagePullSecrets:
+    - name: myregistrykey
+
+```
+
+1. `apiVersion: v1`
+   - 指定了使用的 Kubernetes API 版本，这里使用的是 `v1` 版本，相比之前提供的文件，这里使用了不同的 API 版本。
+2. `kind: Pod`
+   - 指定了要创建的 Kubernetes 资源类型，这里是一个 Pod 对象，与之前的 Deployment 不同，这里创建的是一个单独的 Pod。
+3. `metadata:`
+   - 包含关于资源的元数据，比如名称、命名空间等。
+   - `name: foo` 指定了资源的名称为 `foo`。
+4. `spec:`
+   - 包含了 Pod 的规格，比如容器、挂载的卷等。
+   - `containers:` 指定了要在 Pod 中运行的容器列表。
+     - `name: foo` 指定了容器的名称为 `foo`。
+     - `image: roc/awangyang:v1` 指定了容器的镜像为 `roc/awangyang:v1`。
+     - `imagePullSecrets:` 指定了用于拉取镜像的凭据。
+       - `name: myregistrykey` 指定了拉取镜像所需的凭据名称为 `myregistrykey`。
 
 
+通过这种方式，Pod 就可以安全地从私有 Docker Registry 中拉取镜像，而无需手动提供认证信息。这对于需要访问私有镜像仓库的场景非常有用，同时也确保了认证信息的安全性。
 
+# configMap
 
+Kubernetes 中的 ConfigMap 是一种用于存储非敏感的配置数据的资源类型。它允许你将配置信息以键值对的形式保存，并且可以在 Pod 中以文件或环境变量的方式使用这些配置数据。下面是对 ConfigMap 的详细说明：
 
+1. **配置数据**：
+   - ConfigMap 可以存储各种类型的配置数据，例如应用程序的配置文件、环境变量、命令行参数等。这些数据以键值对的形式组织，键是唯一的标识符，值可以是任意格式的数据，如字符串、整数、JSON 等。
 
+2. **非敏感性**：
+   - ConfigMap 通常用于存储非敏感的配置信息，如应用程序配置、资源配置等。它不适合存储敏感的凭据或密码等机密信息，这种敏感信息应该使用 Secret 来存储。
+
+3. **创建方式**：
+   - 可以通过命令行工具 `kubectl` 或者 YAML 文件来创建 ConfigMap。使用 `kubectl create configmap` 命令可以直接创建 ConfigMap，也可以通过 YAML 文件定义键值对然后使用 `kubectl apply -f` 命令创建。
+   - YAML 文件中的格式如下：
+
+   ```yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: my-configmap
+   data:
+     key1: value1
+     key2: value2
+   ```
+
+4. **使用方式**：
+   - 在 Pod 的配置中，可以通过 Volume 或者环境变量的方式将 ConfigMap 中的数据注入到 Pod 中。
+     - 使用 Volume 的方式可以将整个 ConfigMap 挂载到 Pod 的文件系统中，使得 Pod 内的应用程序可以直接读取配置文件。
+     - 使用环境变量的方式可以将 ConfigMap 中的特定键值对注入到 Pod 的环境变量中，使得应用程序可以通过环境变量来获取配置信息。
+
+5. **更新和删除**：
+   - 可以通过 `kubectl apply` 命令更新 ConfigMap 的数据，也可以通过 `kubectl delete` 命令删除 ConfigMap。
+
+通过使用 ConfigMap，可以实现将应用程序配置与 Pod 分离，从而提高了配置的灵活性和可维护性。它还可以帮助将配置信息与应用程序代码分离，使得配置更容易管理和修改。
+
+ConfigMap 功能在 Kubernetes1.2 版本中引入，许多应用程序会从配置文件、命令行参数或环境变量中读取配置信息。ConfigMap API 给我们提供了向容器中注入配置信息的机制，ConfigMap 可以被用来保存单个属性，也可以用来保存整个配置文件或者JSON 二进制大对象
+
+## ConfigMap 的创建
+
+### 使用目录创建
+
+准备配置文件
+
+首先，展示了一个名为 `kubectl` 的目录，其中包含了两个配置文件 `game.properties` 和 `ui.properties`。
+
+```bash
+ls docs/user-guide/configmap/kubectl/
+```
+
+```
+game.properties
+ui.properties
+```
+
+`game.properties` 文件包含了游戏的配置信息，如敌人、生命值、作弊代码等。
+`ui.properties` 文件包含了 UI 的配置信息，如颜色、文本模式等。
+
+```bash
+cat docs/user-guide/configmap/kubectl/game.properties
+```
+
+```
+enemies=aliens
+lives=3
+enemies.cheat=true
+enemies.cheat.level=noGoodRotten
+secret.code.passphrase=UUDDLRLRBABAS
+secret.code.allowed=true
+secret.code.lives=30
+```
+
+```bash
+cat docs/user-guide/configmap/kubectl/ui.properties
+```
+
+```
+color.good=purple
+color.bad=yellow
+allow.textmode=true
+how.nice.to.look=fairlyNice
+```
+
+创建 ConfigMap
+
+使用 `kubectl create configmap` 命令创建了一个名为 "game-config" 的 ConfigMap。
+使用 `--from-file` 参数指定了要从目录中读取文件，并将文件名作为键，文件内容作为值存储在 ConfigMap 中。
+
+```bash
+kubectl create configmap game-config --from-file=docs/userguide/
+configmap/kubectl
+```
+
+-from-file 指定在目录下的所有文件都会被用在 ConfigMap 里面创建一个键值对，键的名字就是文件名，值就是文件的内容
+
+### 使用文件创建
+
+这个示例展示了如何从单个文件中创建 ConfigMap，并演示了 `-from-file` 参数的多次使用。以下是对这个示例的详细说明：
+
+1. **创建 ConfigMap**：
+   - 使用 `kubectl create configmap` 命令创建了一个名为 "game-config-2" 的 ConfigMap。
+   - 使用 `--from-file` 参数指定了要从文件中读取配置，并将文件内容作为值存储在 ConfigMap 中。
+
+```bash
+kubectl create configmap game-config-2 --from-file=docs/user- guide/configmap/kubectl/game.properties
+```
+
+2. **获取 ConfigMap 信息**：
+   - 使用 `kubectl get configmaps` 命令获取了名为 "game-config-2" 的 ConfigMap 的信息，并使用 `-o yaml` 参数以 YAML 格式输出。
+   - 输出结果包含了 ConfigMap 的名称和数据字段，其中数据字段包含了从文件中读取的配置信息。
+
+```bash
+kubectl get configmaps game-config-2 -o yaml
+```
+
+3. **多次使用 `-from-file` 参数**：
+   - `-from-file` 参数可以多次使用，每次指定一个文件。这样可以将多个文件的内容合并到同一个 ConfigMap 中。
+   - 在本示例中，可以分别使用两次 `-from-file` 参数来指定之前示例中的两个配置文件，从而将它们的内容合并到同一个 ConfigMap 中。
+
+通过这种方式，可以灵活地创建和管理 ConfigMap，根据实际需求选择单个文件或多个文件来创建 ConfigMap，并将它们的内容注入到 Kubernetes 环境中供应用程序使用。
+
+### 使用字面值创建
+
+这个示例展示了如何使用字面值创建 ConfigMap，并演示了 `-from-literal` 参数的多次使用。以下是对这个示例的详细说明：
+
+1. **创建 ConfigMap**：
+   - 使用 `kubectl create configmap` 命令创建了一个名为 "special-config" 的 ConfigMap。
+   - 使用 `--from-literal` 参数指定了要添加到 ConfigMap 中的配置信息。每次指定一个键值对，键和值之间使用等号分隔。
+
+```bash
+kubectl create configmap special-config --from-literal=special.how=very --
+from-literal=special.type=charm
+```
+
+2. **获取 ConfigMap 信息**：
+   - 使用 `kubectl get configmaps` 命令获取了名为 "special-config" 的 ConfigMap 的信息，并使用 `-o yaml` 参数以 YAML 格式输出。
+   - 输出结果包含了 ConfigMap 的名称和数据字段，其中数据字段包含了通过字面值指定的配置信息。
+
+```bash
+kubectl get configmaps special-config -o yaml
+```
+
+通过使用字面值创建 ConfigMap，可以方便快捷地指定少量的配置信息，并将它们添加到 Kubernetes 环境中供应用程序使用。
+
+### 在 Pod 中使用ConfigMap
+
+#### 使用ConfigMap 来替代环境变量
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: special-config
+  namespace: default
+data:
+  special.how: very
+  special.type: charm
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-config
+  namespace: default
+data:
+  log_level: INFO
+
+---
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dapi-test-pod
+spec:
+  containers:
+  - name: test-container
+    image: hub.atguigu.com/library/myapp:v1
+    command: ["/bin/sh", "-c", "env"]
+    env:
+    - name: SPECIAL_LEVEL_KEY
+      valueFrom:
+        configMapKeyRef:
+          name: special-config
+          key: special.how
+    - name: SPECIAL_TYPE_KEY
+      valueFrom:
+        configMapKeyRef:
+          name: special-config
+          key: special.type
+    envFrom:
+    - configMapRef:
+        name: env-config
+  restartPolicy: Never
+
+```
+
+这是一个包含了 ConfigMap 和 Pod 配置的 YAML 文件。让我逐项解释它：
+
+1. **ConfigMap: special-config**
+   - **apiVersion**: v1
+   - **kind**: ConfigMap
+   - **metadata**:
+     - **name**: special-config
+     - **namespace**: default
+   - **data**:
+     - **special.how**: very
+     - **special.type**: charm
+
+   这个 ConfigMap 定义了名为 `special-config` 的配置。它包含两个键值对，`special.how` 的值为 `very`，`special.type` 的值为 `charm`。
+
+2. **ConfigMap: env-config**
+   - **apiVersion**: v1
+   - **kind**: ConfigMap
+   - **metadata**:
+     - **name**: env-config
+     - **namespace**: default
+   - **data**:
+     - **log_level**: INFO
+
+   这个 ConfigMap 定义了名为 `env-config` 的配置。它包含了一个键值对，`log_level` 的值为 `INFO`。
+
+3. **Pod: dapi-test-pod**
+   - **apiVersion**: v1
+   - **kind**: Pod
+   - **metadata**:
+     - **name**: dapi-test-pod
+   - **spec**:
+     - **containers**:
+       - **name**: test-container
+         - **image**: hub.atguigu.com/library/myapp:v1
+         - **command**: [ "/bin/sh", "-c", "env"]
+         - **env**:
+           - **name**: SPECIAL_LEVEL_KEY
+             - **valueFrom**:
+               - **configMapKeyRef**:
+                 - **name**: special-config
+                 - **key**: special.how
+           - **name**: SPECIAL_TYPE_KEY
+             - **valueFrom**:
+               - **configMapKeyRef**:
+                 - **name**: special-config
+                 - **key**: special.type
+         - **envFrom**:
+           - **configMapRef**:
+             - **name**: env-config
+       - **restartPolicy**: Never
+
+   这个 Pod 的名称为 `dapi-test-pod`。它包含一个容器 `test-container`，使用的镜像是 `hub.atguigu.com/library/myapp:v1`。容器中运行的命令是 `env`，用于打印环境变量。它定义了两个环境变量 `SPECIAL_LEVEL_KEY` 和 `SPECIAL_TYPE_KEY`，它们的值分别来自于 `special-config` ConfigMap 中的 `special.how` 和 `special.type` 键。此外，这个容器还从 `env-config` ConfigMap 中获取环境变量。最后，Pod 的重启策略是 `Never`，即在容器退出后不会自动重启。
+
+#### 使用ConfigMap 设置命令行参数
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: special-config
+  namespace: default
+data:
+  special.how: very
+  special.type: charm
+```
+
+这个 YAML 配置文件描述了一个名为 "special-config" 的 ConfigMap，其中包含了两个键值对的配置数据。让我解释一下各个部分的含义：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1，表示该资源的 API 版本符合 Kubernetes v1 版本的规范。
+
+- `kind: ConfigMap`：指定了资源的类型为 ConfigMap，表示该 YAML 文件描述的是一个 ConfigMap 资源。
+
+- `metadata`：指定了资源的元数据，包括名称和命名空间。
+  - `name: special-config`：指定了 ConfigMap 的名称为 "special-config"。
+  - `namespace: default`：指定了 ConfigMap 所属的命名空间为 "default"。如果未指定命名空间，默认为 "default"。
+
+- `data`：指定了 ConfigMap 中的数据部分，包含了键值对的配置信息。
+  - `special.how: very`：指定了一个键值对，键为 "special.how"，值为 "very"。这表示特殊配置中的 "how" 属性的值为 "very"。
+  - `special.type: charm`：指定了另一个键值对，键为 "special.type"，值为 "charm"。这表示特殊配置中的 "type" 属性的值为 "charm"。
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dapi-test-pod
+spec:
+  containers:
+  - name: test-container
+    image: hub.atguigu.com/library/myapp:v1
+    command: ["/bin/sh", "-c", "echo $(SPECIAL_LEVEL_KEY)$(SPECIAL_TYPE_KEY)"]
+    env:
+    - name: SPECIAL_LEVEL_KEY
+      valueFrom:
+        configMapKeyRef:
+          name: special-config
+          key: special.how
+    - name: SPECIAL_TYPE_KEY
+      valueFrom:
+        configMapKeyRef:
+          name: special-config
+          key: special.type
+  restartPolicy: Never
+```
+
+这个 YAML 文件描述了一个名为 "dapi-test-pod" 的 Pod，它使用了一个名为 "special-config" 的 ConfigMap 来注入环境变量，并在容器中使用这些环境变量。让我解释一下各个部分的含义：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1，表示该资源的 API 版本符合 Kubernetes v1 版本的规范。
+
+- `kind: Pod`：指定了资源的类型为 Pod，表示该 YAML 文件描述的是一个 Pod 资源。
+
+- `metadata`：指定了 Pod 的元数据，包括名称等。
+  - `name: dapi-test-pod`：指定了 Pod 的名称为 "dapi-test-pod"。
+
+- `spec`：指定了 Pod 的规格，包括容器等。
+  - `containers`：指定了 Pod 中的容器列表。
+    - `name: test-container`：指定了容器的名称为 "test-container"。
+    - `image: hub.atguigu.com/library/myapp:v1`：指定了容器所使用的镜像。
+    - `command: ["/bin/sh", "-c", "echo $(SPECIAL_LEVEL_KEY)$(SPECIAL_TYPE_KEY)"]`：指定了容器启动时执行的命令，通过环境变量引用了 ConfigMap 中的数据。
+    - `env`：指定了容器中的环境变量。
+      - `name: SPECIAL_LEVEL_KEY`：指定了一个环境变量的名称为 "SPECIAL_LEVEL_KEY"。
+        - `valueFrom`：指定了环境变量的值从 ConfigMap 中获取。
+          - `configMapKeyRef`：指定了从 ConfigMap 中获取值的方式。
+            - `name: special-config`：指定了 ConfigMap 的名称为 "special-config"。
+            - `key: special.how`：指定了从 ConfigMap 中获取值的键为 "special.how"。
+      - `name: SPECIAL_TYPE_KEY`：指定了另一个环境变量的名称为 "SPECIAL_TYPE_KEY"，与前面类似，从 ConfigMap 中获取了值。
+  - `restartPolicy: Never`：指定了 Pod 的重启策略为 "Never"，表示在容器退出时不会自动重启。
+
+通过这个 Pod 配置，容器中的命令将会执行 `echo $(SPECIAL_LEVEL_KEY)$(SPECIAL_TYPE_KEY)`，其中 `$(SPECIAL_LEVEL_KEY)` 和 `$(SPECIAL_TYPE_KEY)` 将会被替换为环境变量 `SPECIAL_LEVEL_KEY` 和 `SPECIAL_TYPE_KEY` 的值，而这些值正是从 ConfigMap 中获取的。
+
+#### 通过数据卷插件使用ConfigMap
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: special-config
+  namespace: default
+data:
+  special.how: very
+  special.type: charm
+```
+
+在数据卷里面使用这个ConfigMap,有不同的选项。最基本的就是将文件填入数据卷，在这个文件中，键就是文件名，键值就是文件内容
+
+```yml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dapi-test-pod
+spec:
+  containers:
+  - name: test-container
+    image: hub.atguigu.com/library/myapp:v1
+    command: ["/bin/sh", "-c", "cat /etc/config/special.how"]
+    volumeMounts:
+    - name: config-volume
+      mountPath: /etc/config
+  volumes:
+  - name: config-volume
+    configMap:
+      name: special-config
+  restartPolicy: Never
+```
+
+这个 YAML 文件描述了一个名为 "dapi-test-pod" 的 Pod，它使用了一个名为 "special-config" 的 ConfigMap 来注入环境变量，并在容器中使用这些环境变量。让我解释一下各个部分的含义：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1，表示该资源的 API 版本符合 Kubernetes v1 版本的规范。
+
+- `kind: Pod`：指定了资源的类型为 Pod，表示该 YAML 文件描述的是一个 Pod 资源。
+
+- `metadata`：指定了 Pod 的元数据，包括名称等。
+  - `name: dapi-test-pod`：指定了 Pod 的名称为 "dapi-test-pod"。
+
+- `spec`：指定了 Pod 的规格，包括容器等。
+  - `containers`：指定了 Pod 中的容器列表。
+    - `name: test-container`：指定了容器的名称为 "test-container"。
+    - `image: hub.atguigu.com/library/myapp:v1`：指定了容器所使用的镜像。
+    - `command: ["/bin/sh", "-c", "echo $(SPECIAL_LEVEL_KEY)$(SPECIAL_TYPE_KEY)"]`：指定了容器启动时执行的命令，通过环境变量引用了 ConfigMap 中的数据。
+    - `env`：指定了容器中的环境变量。
+      - `name: SPECIAL_LEVEL_KEY`：指定了一个环境变量的名称为 "SPECIAL_LEVEL_KEY"。
+        - `valueFrom`：指定了环境变量的值从 ConfigMap 中获取。
+          - `configMapKeyRef`：指定了从 ConfigMap 中获取值的方式。
+            - `name: special-config`：指定了 ConfigMap 的名称为 "special-config"。
+            - `key: special.how`：指定了从 ConfigMap 中获取值的键为 "special.how"。
+      - `name: SPECIAL_TYPE_KEY`：指定了另一个环境变量的名称为 "SPECIAL_TYPE_KEY"，与前面类似，从 ConfigMap 中获取了值。
+  - `restartPolicy: Never`：指定了 Pod 的重启策略为 "Never"，表示在容器退出时不会自动重启。
+
+通过这个 Pod 配置，容器中的命令将会执行 `echo $(SPECIAL_LEVEL_KEY)$(SPECIAL_TYPE_KEY)`，其中 `$(SPECIAL_LEVEL_KEY)` 和 `$(SPECIAL_TYPE_KEY)` 将会被替换为环境变量 `SPECIAL_LEVEL_KEY` 和 `SPECIAL_TYPE_KEY` 的值，而这些值正是从 ConfigMap 中获取的。
+
+### ConfigMap 的热更新
+
+```yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: log-config
+  namespace: default
+data:
+  log_level: INFO
+```
+
+这个 YAML 配置文件描述了一个名为 "log-config" 的 ConfigMap，其中包含了一个名为 "log_level" 的配置项，其值为 "INFO"。让我解释一下各个部分的含义：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1，表示该资源的 API 版本符合 Kubernetes v1 版本的规范。
+
+- `kind: ConfigMap`：指定了资源的类型为 ConfigMap，表示该 YAML 文件描述的是一个 ConfigMap 资源。
+
+- `metadata`：指定了资源的元数据，包括名称和命名空间。
+  - `name: log-config`：指定了 ConfigMap 的名称为 "log-config"。
+  - `namespace: default`：指定了 ConfigMap 所属的命名空间为 "default"。如果未指定命名空间，默认为 "default"。
+
+- `data`：指定了 ConfigMap 中的数据部分，包含了一个键值对的配置信息。
+  - `log_level: INFO`：指定了一个键值对，键为 "log_level"，值为 "INFO"。这表示日志配置中的日志级别为 "INFO"。
+
+通过这个 ConfigMap，可以在 Kubernetes 环境中定义日志配置信息，并在 Pod 中通过引用 ConfigMap 来使用这些配置数据。
+
+```yml
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: my-nginx
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        run: my-nginx
+    spec:
+      containers:
+      - name: my-nginx
+        image: hub.atguigu.com/library/myapp:v1
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - name: config-volume
+          mountPath: /etc/config
+      volumes:
+      - name: config-volume
+        configMap:
+          name: log-config
+```
+
+这个 YAML 文件描述了一个名为 "my-nginx" 的 Deployment，其中包含了一个 Pod，该 Pod 使用了一个名为 "log-config" 的 ConfigMap 作为卷挂载到容器中。让我解释一下各个部分的含义：
+
+- `apiVersion: extensions/v1beta1`：指定了 Kubernetes API 的版本，这里是 extensions/v1beta1。
+
+- `kind: Deployment`：指定了资源的类型为 Deployment，表示该 YAML 文件描述的是一个 Deployment 资源。
+
+- `metadata`：指定了资源的元数据，包括名称等。
+  - `name: my-nginx`：指定了 Deployment 的名称为 "my-nginx"。
+
+- `spec`：指定了 Deployment 的规格，包括副本数、Pod 模板等。
+  - `replicas: 1`：指定了 Deployment 中 Pod 的副本数为 1。
+  - `template`：指定了 Pod 的模板。
+    - `metadata`：指定了 Pod 模板的元数据，包括标签等。
+      - `labels`：指定了 Pod 的标签为 "run: my-nginx"。
+    - `spec`：指定了 Pod 的规格。
+      - `containers`：指定了 Pod 中的容器列表。
+        - `name: my-nginx`：指定了容器的名称为 "my-nginx"。
+        - `image: hub.atguigu.com/library/myapp:v1`：指定了容器所使用的镜像。
+        - `ports`：指定了容器的端口配置。
+          - `containerPort: 80`：指定了容器监听的端口为 80。
+        - `volumeMounts`：指定了容器的卷挂载配置。
+          - `name: config-volume`：指定了卷的名称为 "config-volume"。
+          - `mountPath: /etc/config`：指定了卷挂载到容器中的路径为 "/etc/config"。
+      - `volumes`：指定了 Pod 中的卷配置。
+        - `name: config-volume`：指定了卷的名称为 "config-volume"。
+          - `configMap`：指定了使用 ConfigMap 作为卷。
+            - `name: log-config`：指定了 ConfigMap 的名称为 "log-config"，该 ConfigMap 中的数据将被挂载到 Pod 中。
+
+通过这个配置，Pod 中的 `/etc/config` 路径将被挂载为 ConfigMap "log-config" 中的数据。
+
+```bash
+kubectl exec 'kubectl get pods -l run=my-nginx -o=name|cut -d "/" -f2' cat /etc/config/log_level
+```
+
+```
+INFO
+```
+
+这个命令使用了 `kubectl exec` 命令来在运行中的 Pod 中执行命令。让我解释一下这个命令的各个部分：
+
+- `kubectl exec`: 这是 Kubernetes 工具 `kubectl` 提供的一个子命令，用于在容器内部执行命令。
+
+- `'kubectl get pods -l run=my-nginx -o=name|cut -d "/" -f2'`: 这是一个嵌套命令，用于获取标签为 "run=my-nginx" 的 Pod 的名称，并将其作为参数传递给 `kubectl exec` 命令。具体来说：
+  - `kubectl get pods -l run=my-nginx -o=name`：这个部分使用 `kubectl get` 命令来获取标签为 "run=my-nginx" 的 Pod 的名称，并以名称的形式输出。`-o=name` 参数指定了输出格式为名称。
+  - `|cut -d "/" -f2`：这个部分使用了 Unix 命令 `cut`，用于对前一个命令的输出进行处理。`-d "/"` 参数指定了分隔符为 "/"，`-f2` 参数指定了取分割后的第二个字段，即获取 Pod 名称中的实际名称部分。
+
+- `cat /etc/config/log_level`: 这是在 Pod 内部执行的命令，用于查看 `/etc/config/log_level` 文件的内容。
+
+综合起来，这个命令的作用是在标签为 "run=my-nginx" 的 Pod 中查看名为 "log_level" 的 ConfigMap 中的配置信息。
+
+### 修改ConfigMap
+
+1. `$ kubectl edit configmap log-config`: 这个命令用于编辑名为 "log-config" 的 ConfigMap。当执行此命令时，会打开一个文本编辑器，你可以在其中修改 ConfigMap 的内容。在这个例子中，将 "log_level" 的值从 "INFO" 修改为 "DEBUG"。
+
+```bash
+kubectl edit configmap log-config
+```
+
+2. 修改完成后，保存并退出编辑器。Kubernetes 将自动更新 ConfigMap，并将更新的配置信息同步到与之相关联的 Pod 中。
+
+3. `$ kubectl exec 'kubectl get pods -l run=my-nginx -o=name|cut -d "/" -f2' cat /tmp/log_level`: 这个命令用于在标签为 "run=my-nginx" 的 Pod 中查看名为 "log_level" 的环境变量的值。由于配置已经被更新，预计环境变量的值也将被修改为 "DEBUG"。
+
+```bash
+kubectl exec 'kubectl get pods -l run=my-nginx -o=name|cut -d "/" -f2' cat /tmp/log_level DEBUG
+```
+
+通过这个流程，你可以动态地更新 ConfigMap 中的配置，并在 Pod 中使用最新的配置信息，而无需重新创建 Pod。
+
+### ConfigMap 更新后滚动更新Pod
+
+更新ConfigMap 目前并不会触发相关Pod 的滚动更新，可以通过修改pod annotations 的方式强制触发滚动更新
+
+下面这个流程描述了如何在更新 ConfigMap 后通过修改 Deployment 的 annotations 强制触发相关 Pod 的滚动更新。让我解释一下这个流程的步骤：
+
+1. 更新 ConfigMap：首先，通过编辑 ConfigMap 来更新配置信息，可以按照之前提到的方式编辑 ConfigMap，例如使用 `kubectl edit configmap` 命令。
+
+2. 修改 Deployment 的 annotations：然后，通过 `kubectl patch` 命令修改 Deployment 的 annotations，以触发相关 Pod 的滚动更新。
+
+```bash
+kubectl patch deployment my-nginx --patch '{"spec": {"template": {"metadata": {"annotations": {"version/config": "20190411" }}}}}
+```
+
+   - `$ kubectl patch deployment my-nginx --patch '{"spec": {"template": {"metadata": {"annotations": {"version/config": "20190411" }}}}}'`: 这个命令将 Deployment "my-nginx" 的 annotations 中添加了一个名为 "version/config" 的键值对，每次修改这个键值对的值都会触发相关 Pod 的滚动更新。
+
+3. 触发滚动更新：Deployment 中的 Pods 将被逐个替换，以应用最新的 ConfigMap 中的配置信息。
+
+更新 ConfigMap 后，需要注意以下两点：
+- 使用该 ConfigMap 挂载的环境变量不会自动同步更新，需要手动触发滚动更新。
+- 使用该 ConfigMap 挂载的卷中的数据可能需要一段时间才能同步更新，实际更新时间可能会有所延迟，一般大约需要 10 秒左右。
+
+# Namespace ===================================================================
 
 ## 健康检查
 
