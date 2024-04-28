@@ -1567,6 +1567,28 @@ Pod 的生命周期描述了从创建到销毁的整个过程，包括各个阶�
 
 ![image-20240414223355130](C:\Users\yukun.liu\Desktop\202404142233190.png)
 
+## pod 创建流程
+
+在 Kubernetes 中，一个 Pod 的创建过程可以简单描述为以下几个步骤：
+
+1. **API 请求**：首先，用户或控制器通过 Kubernetes 的 API Server 发起一个 Pod 创建的请求。这个请求包含了 Pod 的配置信息，比如容器镜像、资源需求、网络设置等。
+
+2. **调度过程**：API Server 接收到创建 Pod 的请求后，将其发送给调度器（Scheduler）。调度器负责决定将 Pod 调度到哪个节点上运行。调度器会考虑节点的资源情况、亲和性（Affinity）和亲缘性（Anti-Affinity）规则等因素，以及用户可能指定的调度约束。
+
+3. **容器运行时创建容器**：一旦 Pod 被调度到节点上，Kubelet 进程（运行在每个节点上）接收到 Pod 的描述，并负责创建 Pod 中的容器。Kubelet 使用容器运行时（比如 Docker、containerd）来创建和管理容器。
+
+4. **Pod 运行状态更新**：一旦容器被创建，Kubelet 会向 API Server 报告 Pod 的运行状态。这样，用户可以通过 Kubernetes API 或命令行工具（比如 kubectl）查询 Pod 的状态。
+
+5. **网络配置**：Pod 创建后，Kubernetes 还会负责为 Pod 分配一个唯一的 IP 地址，并确保 Pod 内的容器可以相互通信。这通常通过 CNI 插件（Container Network Interface）实现，CNI 插件会为每个 Pod 配置网络，比如创建虚拟网络接口并设置路由规则。
+
+6. **存储卷挂载**：如果 Pod 中定义了存储卷（Volume），Kubelet 还会负责将这些存储卷挂载到容器中，以便容器可以访问到存储卷提供的数据。
+
+7. **健康检查和监控**：Kubelet 会定期执行容器的健康检查，并将检查结果报告给 API Server。这样，Kubernetes 控制平面可以根据容器的健康状况进行调度和自愈。
+
+8. **事件记录**：在整个 Pod 创建过程中，Kubernetes 会记录各种事件（Events），比如调度情况、容器启动情况、网络配置等，以供用户和管理员查看和分析。
+
+这是一个大致的流程，实际上 Kubernetes 的 Pod 创建过程可能会受到各种因素的影响，比如网络延迟、节点故障、调度策略等。
+
 # Label 标签
 
 标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的**元数据**中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
@@ -3414,10 +3436,10 @@ data:
 - `data`: 包含了实际的密钥-值对数据。
   - `password`: 密码字段的密文值，经过 base64 编码后的字符串。在实际使用时，需要解码才能得到原始的密码值。
   - `username`: 用户名字段的密文值，经过 base64 编码后的字符串。同样，需要解码才能得到原始的用户名值。
-这个 Secret 资源对象用于存储敏感数据，比如用户名和密码，供其他 Kubernetes 资源对象使用。
+  这个 Secret 资源对象用于存储敏感数据，比如用户名和密码，供其他 Kubernetes 资源对象使用。
 
 #### 3. 使用
-   
+
 将 Secret 挂载到 Pod 的 Volume 中，以便容器可以访问其中的数据。在 Pod 的配置中，使用了 `volumes` 字段将 Secret 挂载到了名为 "secrets" 的 Volume 中。
 
 ```yaml
@@ -3512,7 +3534,7 @@ spec:
          - `secretKeyRef:` 表示取值来源为 Secret 中的某个键值对。
            - `name: mysecret` 指定了 Secret 的名称为 `mysecret`。
            - `key: username` 指定了要获取的键为 `username`。
-以上就是对你提供的 Kubernetes YAML 配置文件的解析和详细说明。如果你有任何关于这个配置的疑问或者需要进一步的解释，请随时告诉我。
+           以上就是对你提供的 Kubernetes YAML 配置文件的解析和详细说明。如果你有任何关于这个配置的疑问或者需要进一步的解释，请随时告诉我。
 
 
 ### kubernetes.io/dockerconfigjson
@@ -3548,7 +3570,7 @@ created.
 ```
 
 #### 2. 创建 Pod
-   
+
    - 创建了一个名为 "foo" 的 Pod，其中包含一个名为 "foo" 的容器。
    - 在 Pod 的配置中，使用了 `imagePullSecrets` 字段来引用之前创建的名为 "myregistrykey" 的 Secret。这样，Pod 在拉取镜像时会使用这个 Secret 中的认证信息来访问 Docker Registry。
 
@@ -4191,34 +4213,247 @@ spec:
 kubectl get pods --namespace=development
 ```
 
-# Service==============================================
+# Service
+
+Kubernetes 中的 Service 是一种抽象，用于定义一组 Pod 的逻辑集合和访问它们的方法。Service 充当了 Pod 集合的稳定访问点，使得其他应用程序可以通过 Service 名称来访问这些 Pod，而不必关心它们的具体 IP 地址或端口号。以下是 Kubernetes Service 的一些重要特性和用途：
+
+1. **稳定的访问点**：Service 提供了一个稳定的访问点，用于访问一组 Pod。无论 Pod 的 IP 地址如何变化（例如 Pod 扩容、缩容或重新调度），Service 都会确保对外提供稳定的访问。
+
+2. **负载均衡**：Service 可以将请求均匀地分发给后端 Pod，以实现负载均衡。根据 Service 的类型（如 ClusterIP、NodePort 或 LoadBalancer），可以在集群内部或集群外部实现负载均衡。
+
+3. **服务发现**：通过 Service，其他应用程序可以通过 Service 名称来访问后端 Pod，而不必了解 Pod 的具体 IP 地址。这简化了应用程序之间的通信，并支持微服务架构中的服务发现。
+
+4. **Session Affinity**：Service 支持会话亲和性，可以将请求路由到特定的后端 Pod，以确保特定会话的所有请求都被发送到同一个 Pod 上。这对于需要保持会话状态的应用程序非常有用。
+
+5. **多种类型**：Kubernetes 提供了多种类型的 Service，包括 ClusterIP、NodePort、LoadBalancer 和 ExternalName。每种类型都适用于不同的使用场景和需求。
+
+6. **服务监控和日志**：Service 通常与其他 Kubernetes 组件集成，例如 Ingress、监控系统和日志系统，以实现服务的监控和日志记录。
+
+## 示例配置文件
+
+这是一个描述 Kubernetes Service 的 YAML 配置文件的模板
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: string
+  namespace: string
+  labels:
+    - name: string
+  annotations:
+    - name: string
+spec:
+  selector: []
+  type: string
+  clusterIP: string
+  sessionAffinity: string
+  ports:
+    - name: string
+      protocol: string
+      port: int
+      targetPort: int
+      nodePort: int
+status:
+  loadBalancer:
+    ingress:
+      ip: string
+      hostname: string
+```
+
+- `apiVersion` 和 `kind`：这两个字段指定了 YAML 文件中定义的 Kubernetes 对象的类型，这里是 Service。
+
+- `metadata`：包含了对象的元数据，比如名称、标签、注解等。
+  - `name`：指定了 Service 的名称。
+  - `namespace`：指定了 Service 所属的 Namespace。
+  - `labels`：指定了 Service 的标签，用于标识和选择 Service。
+  - `annotations`：指定了 Service 的注解，包含了额外的元数据信息。
+
+- `spec`：指定了 Service 的规格，包括了 Service 的选择器、类型、ClusterIP、会话亲和性、端口等。
+  - `selector`：指定了用于选择后端 Pod 的标签选择器。
+  - `type`：指定了 Service 的类型，可以是 ClusterIP、NodePort、LoadBalancer 或者 ExternalName。
+  - `clusterIP`：指定了 Service 的 ClusterIP，用于集群内部访问。
+  - `sessionAffinity`：指定了会话亲和性，可以是 None 或者 ClientIP。
+  - `ports`：指定了 Service 开放的端口列表。
+    - `name`：指定了端口的名称。
+    - `protocol`：指定了端口的协议，可以是 TCP 或者 UDP。
+    - `port`：指定了 Service 所监听的端口号。
+    - `targetPort`：指定了后端 Pod 所监听的端口号。
+    - `nodePort`：如果 Service 类型是 NodePort，则指定了 NodePort 的端口号。
+
+- `status`：包含了 Service 的状态信息。
+  - `loadBalancer`：指定了负载均衡器的状态信息。
+    - `ingress`：指定了负载均衡器的入口地址信息，可以是 IP 或者主机名。
+
+这是一个基本的 Service 配置模板，你可以根据实际需求填入相应的值来创建自己的 Service 对象。
+
+![image-20240428204159255](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042403.png)
+
+![image-20240428204240481](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042562.png)
+
+## Service 的基本用法
+
+（1）一般来说，对外提供服务的应用程序需要通过某种机制来实现，对于容器应用最简便的方式就是通过TCP/IP 机制及监听IP 和端口号来实现。创建一个基本功能的Service
+
+```yml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: mywebapp
+spec:
+  replicas: 2
+  template:
+    metadata:
+      name: mywebapp
+      labels:
+        app: mywebapp
+    spec:
+      containers:
+      - name: mywebapp
+        image: tomcat
+        ports:
+        - containerPort: 8080
+```
+
+（2）我们可以通过kubectl get pods -l app=mywebapp -o yaml | grep podIP 来获取Pod 的IP 地址和端口号来访问Tomcat 服务，但是直接通过Pod 的IP 地址和端口访问应用服务是不可靠的，因为当Pod 所在的Node 发生故障时， Pod 将被kubernetes 重新调度到另一台Node，Pod 的地址会发生改变。我们可以通过配置文件来定义Service，再通过kubectl create 来创建，这样可以通过Service 地址来访问后端的Pod.
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mywebAppService
+spec:
+  ports:
+  - port: 8081
+    targetPort: 8080
+  selector:
+    app: mywebapp
+```
+
+你提供的第一个配置文件是一个基本的 ReplicationController（现在已经被称为 Deployment）配置，用于部署一个名为 "mywebapp" 的 Tomcat 应用程序。该应用程序将会在两个 Pod 中运行，每个 Pod 都会监听 8080 端口。
+
+第二个配置文件是一个定义了 Service 的 YAML 文件，它将创建一个名为 "mywebAppService" 的 Service，用于暴露后端的 Tomcat 应用程序。该 Service 将监听 8081 端口，并将流量转发到后端 Pod 的 8080 端口。它通过 selector 将流量路由到具有 "app=mywebapp" 标签的 Pod。
+
+现在你可以使用 Service 的 ClusterIP 地址（和端口）来访问你的 Tomcat 应用程序，而不是直接使用 Pod 的 IP 地址。例如，如果你的 Service 名称为 "mywebAppService"，那么你可以通过 `http://<Service ClusterIP>:8081` 的方式来访问你的应用程序。 
+
+通过这种方式，无论 Pod 在哪个节点上重新调度，Service 的 ClusterIP 都将保持不变，从而确保了对应用程序的可靠访问。
+
+## 多端口Service
+
+有时一个容器应用也可能需要提供多个端口的服务，那么在Service 的定义中也可以相应地设置为将多个端口对应到多个应用服务。
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mywebAppService
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: web
+  - port: 8005
+    targetPort: 8005
+    name: management
+  selector:
+    app: mywebapp
+```
+
+在提供的 YAML 配置文件中，有两个端口定义：
+
+1. `port: 8080`：这个端口被命名为 "web"，它将流量转发到后端 Pod 的 8080 端口上，用于提供 Web 服务。
+
+2. `port: 8005`：这个端口被命名为 "management"，它将流量转发到后端 Pod 的 8005 端口上，用于提供管理功能或服务。
+
+通过这种配置，你可以在同一个 Service 中同时提供多个端口的服务，并通过不同的端口名称区分它们。当你需要访问不同的服务或功能时，可以使用不同的端口来访问，而不必创建多个单独的 Service。
+
+## 外部服务Service
+
+在某些特殊环境中，应用系统需要将一个外部数据库作为后端服务进行连接，或将另一个集群或Namespace 中的服务作为服务的后端，这时可以通过创建一个无Label Selector的Service 来实现。
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: my-service
+subsets:
+- addresses:
+  - IP: 10.254.74.3
+  ports:
+  - port: 8080
+```
 
 
+在某些情况下，你可能希望将一个外部服务或者另一个集群或 Namespace 中的服务作为后端服务连接到你的 Kubernetes Service 中。这时候，你可以创建一个没有 Label Selector 的 Service，并通过手动创建 Endpoints 对象来指定后端服务的地址和端口。
 
+在 YAML 配置文件中，有两个部分：
 
-## 健康检查
+1. **Service 配置**：这个部分定义了一个名为 "my-service" 的 Service，它没有指定 Selector，也就是没有关联到任何特定的 Pod。它仅仅定义了一个端口，用于暴露服务。
 
-在 Kubernetes 中，健康检查（Health Checks）是用来监视容器的健康状态并确保容器正常运行的重要机制。健康检查主要分为两种：存活检查（Liveness Probe）和就绪检查（Readiness Probe）。以下是关于 Pod 中健康检查的详细说明：
-1. **存活检查（Liveness Probe）**：
-   - 存活检查用于确定容器是否仍在运行。如果存活检查失败，Kubernetes 将重启容器。
-   - 存活检查失败的情况包括容器崩溃、死锁、应用程序无响应等。
-   - 存活检查可以通过以下三种方式进行：
-     - HTTP 探测：通过向容器发送 HTTP 请求并检查响应状态码来确定容器是否存活。
-     - TCP 探测：通过尝试建立 TCP 连接来确定容器是否存活。
-     - Exec 探测：通过在容器内部执行命令并检查返回状态码来确定容器是否存活。
-2. **就绪检查（Readiness Probe）**：
-   - 就绪检查用于确定容器是否已准备好接收流量。如果就绪检查失败，容器将被从服务的负载均衡中移除。
-   - 就绪检查可以确保容器在接收流量之前已经完成启动过程，避免将流量发送到尚未准备好的容器上。
-   - 就绪检查的类型和配置方式与存活检查类似，也可以使用 HTTP 探测、TCP 探测或 Exec 探测。
-3. **配置健康检查**：
-   - 在 Pod 的容器配置中，可以通过 `livenessProbe` 和 `readinessProbe` 字段来定义存活检查和就绪检查的方式和参数。
-   - 对于 HTTP 探测，可以指定路径、端口、期望的响应状态码等参数。
-   - 对于 TCP 探测，可以指定端口号。
-   - 对于 Exec 探测，可以指定要在容器内部执行的命令。
+2. **Endpoints 配置**：这个部分定义了一个名为 "my-service" 的 Endpoints 对象，它指定了后端服务的地址和端口。在这个例子中，后端服务的 IP 地址为 10.254.74.3，端口为 8080。这样，Service 将流量转发到这个指定的后端服务。
 
-通过配置适当的存活检查和就绪检查，可以确保容器在运行时保持健康状态，并在必要时进行重启或从负载均衡中移除，提高应用程序的可靠性和稳定性。
+通过这种配置，你可以将任何外部的服务或者集群中的服务作为后端服务连接到你的 Kubernetes Service 中，实现对外提供服务的功能。
 
-以下是一个示例 Pod 配置，展示了如何配置存活检查（Liveness Probe）和就绪检查（Readiness Probe）：
+# 健康检查
+
+在 Kubernetes 中，健康检查（Health Checks）是一种用于监测和管理容器健康状态的机制。它有助于 Kubernetes 确保容器的正常运行，并在必要时对不健康的容器进行恢复操作。在 Kubernetes 中，有三种类型的健康检查：存活探针（Liveness Probe）、就绪探针（Readiness Probe）和启动探针（Startup Probe）。
+
+1. **存活探针（Liveness Probe）**：存活探针用于确定容器是否仍然在运行中。如果存活探针失败，则 Kubernetes 将认为容器处于不健康状态，并尝试重新启动该容器。存活探针通常用于检测容器内部的运行状态，如应用程序的运行状态、资源使用情况等。如果存活探针定期失败，容器将被认为处于不健康状态，并被 Kubernetes 终止并重新启动。
+
+2. **就绪探针（Readiness Probe）**：就绪探针用于确定容器是否已准备好接收流量。如果就绪探针失败，则 Kubernetes 将认为容器尚未准备好接收流量，并将其从服务的负载均衡中移除。一旦就绪探针成功，Kubernetes 将开始将流量路由到该容器。就绪探针通常用于确保容器在启动后已经初始化完成，或者已经连接到其他必要的服务或资源。
+
+3. **启动探针（Startup Probe）**：启动探针是 Kubernetes 1.16 版本中引入的一种新的健康检查机制。它类似于存活探针，但是只在容器启动时运行一次。启动探针用于检测容器是否已经成功启动并处于可用状态。如果启动探针失败，Kubernetes 将尝试重新启动容器。启动探针可以帮助识别容器启动过程中的问题，例如依赖项初始化失败或连接延迟。
+
+健康检查的配置通常在 Pod 的规格（spec）中进行定义。你可以使用以下方式配置健康检查：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp
+spec:
+  containers:
+  - name: myapp-container
+    image: myapp
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 8080
+      initialDelaySeconds: 15
+      periodSeconds: 10
+    readinessProbe:
+      httpGet:
+        path: /ready
+        port: 8080
+      initialDelaySeconds: 20
+      periodSeconds: 5
+```
+
+在上面的示例中，我们定义了一个名为 "myapp-container" 的容器，并配置了存活探针和就绪探针。存活探针通过 HTTP GET 请求检查路径为 "/health" 的端点，就绪探针通过 HTTP GET 请求检查路径为 "/ready" 的端点。这些探针将在容器启动后的特定延迟时间后进行检查，并且会每隔一段时间重复执行。
+
+## Liveness Probe
+
+用于判断容器是否存活，即Pod 是否为running 状态，如果LivenessProbe 探针探测到容器不健康，则kubelet 将kill 掉容器，并根据容器的重启策略决定是否重启。如果一个容器没有配置 LivenessProbe 探针，则Kubelet 认为容器的 LivenessProbe 探针的返回值永远成功。有时应用程序可能因为某些原因（后端服务故障等）导致暂时无法对外提供服务，但应用软件没有终止，导致K8S 无法隔离有故障的pod，调用者可能会访问到有故障的pod，导致业务不稳定。K8S 提供livenessProbe 来检测应用程序是否正常运行，并且对相应状况进行相应的补救措施。
+
+## Readiness Probe
+
+用于判断容器是否启动完成，即容器的Ready 是否为True，可以接收请求，如果ReadinessProbe 探测失败，则容器的Ready 将为False，控制器将此Pod 的Endpoint 从对应的service 的Endpoint 列表中移除，从此不再将任何请求调度此Pod 上，直到下次探测成功。通过使用Readiness 探针，Kubernetes 能够等待应用程序完全启动，然后才允许服务将流量发送到新副本。
+
+比如使用tomcat 的应用程序来说，并不是简单地说tomcat 启动成功就可以对外提供服务的，还需要等待spring 容器初始化，数据库连接没连上等等。对于spring boot 应用，默认的actuator 带有/health 接口，可以用来进行启动成功的判断。
+
+## 示例
+
+以下是一个示例 Pod 配置，展示了如何配置存活检查（Liveness Probe）
 
 ```yaml
 apiVersion: v1
@@ -4252,31 +4487,462 @@ spec:
   - `initialDelaySeconds` 指定容器启动后等待 20 秒后开始首次执行就绪检查。
   - `periodSeconds` 指定每隔 15 秒执行一次就绪检查。
 
-## 调度策略
+这些可选字段提供了对 Liveness 和 Readiness 探针行为的精确控制，让我来解释一下它们的作用：
 
-### pod 创建流程
+1. **initialDelaySeconds**：容器启动后第一次执行探测前需要等待的时间。这个参数可以确保在容器启动后的一段时间内，容器有足够的时间来初始化和准备好接收流量，然后再执行探测操作。默认值为 0 秒。
 
-在 Kubernetes 中，一个 Pod 的创建过程可以简单描述为以下几个步骤：
+2. **periodSeconds**：探测的执行频率，即每隔多少秒执行一次探测。默认值为 10 秒，最小值为 1 秒。通过调整这个参数，可以控制探测的频率，以及对容器健康状态的快速响应能力。
 
-1. **API 请求**：首先，用户或控制器通过 Kubernetes 的 API Server 发起一个 Pod 创建的请求。这个请求包含了 Pod 的配置信息，比如容器镜像、资源需求、网络设置等。
+3. **timeoutSeconds**：探测操作的超时时间，即等待探测操作完成的最长时间。如果探测操作在超时时间内未完成，则认为探测失败。默认值为 1 秒，最小值为 1 秒。通过调整这个参数，可以确保探测操作在合理的时间范围内完成，避免不必要的延迟。
 
-2. **调度过程**：API Server 接收到创建 Pod 的请求后，将其发送给调度器（Scheduler）。调度器负责决定将 Pod 调度到哪个节点上运行。调度器会考虑节点的资源情况、亲和性（Affinity）和亲缘性（Anti-Affinity）规则等因素，以及用户可能指定的调度约束。
+4. **successThreshold**：探测失败后，需要连续多少次成功的探测才能将容器标记为健康。对于 Liveness 探针，必须设置为 1，表示只要有一次成功的探测就可以将容器标记为健康。默认值为 1。通过调整这个参数，可以控制容器被标记为健康所需的最少成功探测次数。
 
-3. **容器运行时创建容器**：一旦 Pod 被调度到节点上，Kubelet 进程（运行在每个节点上）接收到 Pod 的描述，并负责创建 Pod 中的容器。Kubelet 使用容器运行时（比如 Docker、containerd）来创建和管理容器。
+5. **failureThreshold**：探测成功后，需要连续多少次失败的探测才能将容器标记为不健康。默认值为 3，最小值为 1。通过调整这个参数，可以控制容器被标记为不健康所需的最少失败探测次数。
 
-4. **Pod 运行状态更新**：一旦容器被创建，Kubelet 会向 API Server 报告 Pod 的运行状态。这样，用户可以通过 Kubernetes API 或命令行工具（比如 kubectl）查询 Pod 的状态。
+这些参数提供了对探针行为的更细致的控制，可以根据应用程序的特性和需求来调整，以确保对容器的健康状态进行准确的监测和管理。
 
-5. **网络配置**：Pod 创建后，Kubernetes 还会负责为 Pod 分配一个唯一的 IP 地址，并确保 Pod 内的容器可以相互通信。这通常通过 CNI 插件（Container Network Interface）实现，CNI 插件会为每个 Pod 配置网络，比如创建虚拟网络接口并设置路由规则。
+![image-20240428215435254](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282154365.png)
 
-6. **存储卷挂载**：如果 Pod 中定义了存储卷（Volume），Kubelet 还会负责将这些存储卷挂载到容器中，以便容器可以访问到存储卷提供的数据。
+## 探测方法
 
-7. **健康检查和监控**：Kubelet 会定期执行容器的健康检查，并将检查结果报告给 API Server。这样，Kubernetes 控制平面可以根据容器的健康状况进行调度和自愈。
+每类探针都支持三种探测方法，这三种探测方法提供了不同的途径来确定容器的健康状态，适用于不同类型的应用程序和服务：
 
-8. **事件记录**：在整个 Pod 创建过程中，Kubernetes 会记录各种事件（Events），比如调度情况、容器启动情况、网络配置等，以供用户和管理员查看和分析。
+1. **exec**：exec 探针通过在容器内部执行指定的命令来检查服务是否正常运行。这种方法适用于那些复杂的健康检查场景，或者那些没有 HTTP 接口的服务。如果命令执行成功并返回状态码 0，则表示容器健康。
 
-这是一个大致的流程，实际上 Kubernetes 的 Pod 创建过程可能会受到各种因素的影响，比如网络延迟、节点故障、调度策略等。
+2. **httpGet**：httpGet 探针通过向容器的指定 HTTP 路径发送 HTTP 请求来检查服务是否正常。如果服务返回的状态码在 200 到 399 之间，则表示容器健康。这是最常见的健康检查方法，适用于大多数基于 HTTP 的服务。
 
-### 影响调度过程的因素
+3. **tcpSocket**：tcpSocket 探针通过尝试与容器的指定 IP 和端口建立 TCP 连接来检查服务是否正常。如果能够成功建立 TCP 连接，则表示容器健康。这种方法适用于那些不提供 HTTP 接口的服务，但仍然能够通过 TCP 连接进行检查的情况。
+
+这些探测方法的选择取决于应用程序的特性和健康检查的需求。在配置 Kubernetes 中的健康检查时，你可以根据你的应用程序的特点和要求来选择合适的探测方法，以确保容器的健康状态能够被准确地检测和监控。
+
+这三种探针探测的结果分别是：
+
+1. **Success**：容器通过了健康检查。这意味着探针检测到容器的健康状态正常，例如 exec 探针执行的命令返回了状态码 0、httpGet 探针得到了预期的 HTTP 响应状态码、或者 tcpSocket 探针成功建立了 TCP 连接。
+
+2. **Failure**：容器未能通过健康检查。这意味着探针检测到容器的健康状态异常，例如 exec 探针执行的命令返回了非零状态码、httpGet 探针得到了错误的 HTTP 响应状态码、或者 tcpSocket 探针未能成功建立 TCP 连接。
+
+3. **Unknown**：未能执行健康检查，因此不采取任何措施。这种情况通常发生在探针配置出现错误或者探针检查的服务尚未准备就绪的情况下。在这种情况下，Kubernetes 不会对容器的健康状态做出任何假设，而是继续等待下一次探测周期。
+
+这些结果对于 Kubernetes 来说非常重要，因为它们决定了 Kubernetes 对容器健康状态的处理方式。如果容器处于 Failure 状态，Kubernetes 可能会尝试重新启动容器或者采取其他恢复措施；而如果容器处于 Unknown 状态，Kubernetes 则会继续等待下一次探测周期，直到能够确定容器的健康状态。
+
+## 重启策略
+
+1. **Always**（总是重启）：当 Pod 终止（无论是成功还是失败）时，Kubernetes 都会自动重启该 Pod。这意味着无论何时 Pod 终止，Kubernetes 都会尝试重新启动它。这是默认的重启策略。
+
+2. **OnFailure**（如果失败就重启）：当 Pod 以非零退出码终止时（即失败时），Kubernetes 会自动重启该 Pod。如果 Pod 以零退出码终止（即成功时），则不会重启该 Pod。这意味着只有当 Pod 失败时才会重启。
+
+3. **Never**（永远不重启）：当 Pod 终止时，Kubernetes 不会自动重启该 Pod。这意味着无论 Pod 终止的原因是成功还是失败，都不会重新启动它。这种情况通常用于一次性任务或者需要手动处理失败的情况。
+
+你可以在 Pod 的规格（spec）中使用 `restartPolicy` 字段来指定 Pod 的重启策略。例如：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mypod
+spec:
+  restartPolicy: Always
+  containers:
+  - name: mycontainer
+    image: myimage
+```
+
+在上面的示例中，`restartPolicy: Always` 指定了 Pod 的重启策略为 Always，这意味着当 Pod 终止时 Kubernetes 将自动重新启动该 Pod。
+
+# Scheduler 调度器
+
+一个容器平台的主要功能就是为容器分配运行时所需要的计算，存储和网络资源。容器调度系统负责选择在最合适的主机上启动容器，并且将它们关联起来。它必须能够自动的处理容器故障并且能够在更多的主机上自动启动更多的容器来应对更多的应用访问。
+
+目前三大主流的容器平台Swarm, Mesos 和Kubernetes 具有不同的容器调度系统。
+
+1. **Docker Swarm**：Swarm 是 Docker 公司提供的容器编排和调度工具，它直接调度 Docker 容器，并提供了与标准 Docker API 一致的 API。Swarm 的设计目标是简单易用，它通过与 Docker Engine 紧密集成，为用户提供了一种无缝的容器管理体验。Swarm 通过 Docker API 和标准 Docker 工具进行操作和管理，对于熟悉 Docker 的用户来说更加友好。
+
+2. **Apache Mesos**：Mesos 是一个通用的资源调度和集群管理系统，它不仅支持容器调度，还支持其他类型的任务调度，如 Hadoop、Spark 等。Mesos 的设计理念是将整个数据中心抽象为一个资源池，然后根据不同的调度需求，使用不同的框架来调度任务。Marathon 是 Mesos 生态系统中的一个常用框架，它提供了对 Docker 容器的原生支持，并且可以与 Mesos 结合使用，实现对容器的调度和管理。
+
+3. **Kubernetes**：Kubernetes 是 Google 开源的容器编排和调度平台，它采用了一种全新的调度模型，使用 Pod 和 Label 的概念将相关的容器组合成一个逻辑单元。Kubernetes 通过 Label Selector 等机制实现了灵活而强大的容器调度功能，并且提供了丰富的管理和监控功能。相较于 Swarm 和 Mesos，Kubernetes 的设计更加注重容器之间的关联性和依赖性，通过 Pod 的概念将相关容器放在一起进行管理，更容易支持复杂的容器调度算法，并且能够简化集群范围内相关容器的共同调度管理。
+
+这个是Kubernetes 和Swarm，Mesos 的主要区别。
+
+相对来说，Kubernetes 采用这样的方式简化了集群范围内相关容器被共同调度管理的复杂性。换一种角度来看，Kubernetes 采用这种方式能够相对容易的支持更强大，更复杂的容器调度算法。
+
+## k8s 调度工作方式
+
+作为集群的大脑，Kubernetes 调度器在提高集群资源利用率、保证集群中服务稳定运行方面扮演着关键的角色。Kubernetes 将资源划分为可压缩资源和不可压缩资源，这有助于更有效地管理和调度容器应用程序。
+
+1. **可压缩资源**：可压缩资源（如 CPU 循环、磁盘 I/O 带宽）是可以被限制和回收的资源。对于一个 Pod 来说，Kubernetes 可以通过容器资源限制（Resource Limits）来限制其使用这些资源的量，而不会杀死整个 Pod。这使得 Kubernetes 可以根据集群中其他应用程序的需求动态地分配和回收资源，以提高整个集群的资源利用率。
+
+2. **不可压缩资源**：不可压缩资源（如内存、硬盘空间）一般来说是不可被回收的。如果 Pod 使用了过多的不可压缩资源，Kubernetes 将无法对其进行调度和资源回收。未来，Kubernetes 可能会引入对网络带宽、存储 IOPS 等资源的支持，以进一步完善集群资源管理和调度机制，提高集群的资源利用率和稳定性。
+
+通过对可压缩和不可压缩资源的精确管理和调度，Kubernetes 可以更好地满足不同应用程序对资源的需求，并确保集群中的服务稳定运行。随着 Kubernetes 不断发展和完善，其资源管理和调度能力也将不断提升，为用户提供更强大和高效的容器编排和管理功能。
+
+## 调度器
+
+Kubernetes 调度器（Scheduler）是 Kubernetes 系统中的一个核心组件，负责将 Pod 调度到集群中的节点上。调度器的主要作用是根据用户的需求和集群的资源状况，选择合适的节点来运行 Pod，以保证集群的高可用性、高性能和高效利用资源。
+
+下面是 Kubernetes 调度器的主要功能和工作原理：
+
+1. **节点选择**：调度器根据用户提交的 Pod 的调度要求（如资源需求、节点亲和性、反亲和性等），以及集群中节点的资源状态（如 CPU、内存、硬盘等资源的使用情况），选择合适的节点来运行 Pod。
+
+2. **调度决策**：调度器根据一系列调度策略（例如默认的优先级算法、节点亲和性和反亲和性规则、Pod 争抢机制等）进行调度决策，以确定将 Pod 调度到哪个节点上。调度策略可以根据集群的需求进行自定义配置。
+
+3. **调度周期**：调度器周期性地对未调度的 Pod 进行调度，以确保集群中所有的 Pod 都能得到运行。调度周期的频率可以通过 Kubernetes 的配置进行调整。
+
+4. **调度事件**：调度器会生成调度事件，并将其记录到 Kubernetes 的事件日志中，以便用户和管理员查看和监控调度的情况。
+
+5. **扩展性**：Kubernetes 的调度器是可扩展的，允许用户根据自己的需求和场景，编写自定义的调度器插件或者替换默认的调度器实现。这使得用户可以根据自己的特定需求对调度过程进行定制和优化。
+
+调度器的工作原理可以简单概括为以下几个步骤：
+
+- **监听调度事件**：调度器会监听 Kubernetes 的 API 服务器，获取集群中待调度的 Pod。
+
+- **选择合适的节点**：调度器根据 Pod 的调度要求和集群的资源状态，选择合适的节点来运行 Pod。
+
+- **生成调度决策**：调度器根据选择的节点生成调度决策，并将其记录到调度事件中。
+
+- **更新调度状态**：调度器将调度决策更新到 Kubernetes 的数据存储中，标记 Pod 已经被调度到某个节点上。
+
+- **监控调度情况**：调度器会持续监控调度的情况，及时处理调度过程中出现的异常或者错误。
+
+总的来说，Kubernetes 调度器是 Kubernetes 系统中非常重要的一个组件，它负责根据用户的需求和集群的资源状况，将 Pod 调度到合适的节点上，从而实现集群资源的有效利用和高效运行应用程序。
+
+## 调度流程
+
+默认情况下，kube-scheduler 提供的默认调度器能够满足我们绝大多数的要求，之前接触的示例也基本上用的默认的策略，都可以保证我们的Pod 可以被分配到资源充足的节点上运行。但是在实际的线上项目中，可能我们自己会比kubernetes 更加了解我们自己的应用，比如我们希望一个Pod 只能运行在特定的几个节点上，或者这几个节点只能用来运行特定类型的应用，这就需要我们的调度器能够可控。
+
+kube-scheduler 是kubernetes 的调度器，它的主要作用就是根据特定的调度算法和调度策略将Pod 调度到合适的Node 节点上去，是一个独立的二进制程序，启动之后会一直监听API Server，获取到PodSpec.NodeName 为空的Pod，对每个Pod 都会创建一个binding。
+
+调度过程可以分为预选（Predicates）和优选（Priorities）两个阶段：
+
+1. **预选过程（Predicates）**：在预选阶段，调度器遍历集群中的所有节点，并根据一系列预定义的规则（Predicates）来过滤掉不满足条件的节点。这些规则可以包括节点的资源容量、标签约束、亲和性和反亲和性等。只有满足所有预选规则的节点才会被记录下来，作为下一阶段优选过程的输入。如果没有节点满足预选条件，Pod 将一直处于 Pending 状态，直到有节点满足条件。
+
+2. **优选过程（Priorities）**：在优选阶段，调度器对通过预选的节点进行进一步排序，并根据一系列优先级规则（Priorities）来确定最适合部署 Pod 的节点。这些优先级规则可以包括节点的负载情况、距离等。根据节点的优先级大小排序后，调度器将选择优先级最高的节点来部署 Pod 应用。
+
+如果在任何一个阶段出现错误或者没有满足条件的节点，调度器将直接返回错误，Pod 将无法被调度。因此，在部署应用程序时，如果发现 Pod 一直处于 Pending 状态，需要检查节点资源是否可用，以及预选和优选规则是否符合预期。通过优化节点资源和调度规则，可以提高 Pod 的调度成功率，并确保集群中的应用程序能够顺利部署和运行。
+
+更详细的流程是这样的：
+
+1. 首先，客户端通过 API Server 的 REST API 或者 kubectl 工具创建 Pod 资源。
+2. API Server 收到用户请求后，将相关数据存储到 etcd 数据库中。
+3. 调度器监听 API Server，查看待调度（bind）的 Pod 列表。它循环遍历每个 Pod，并尝试为其分配节点。这个分配过程包括以下两个阶段：
+   - 预选阶段（Predicates）：调度器使用一组规则过滤不符合要求的 Node 节点。例如，如果 Pod 设置了资源的 request，那么可用资源比 Pod 需要的资源少的主机将被过滤掉。
+   - 优选阶段（Priorities）：调度器为节点的优先级打分，并对上一阶段过滤出来的 Node 列表进行优化。它考虑一些整体的优化策略，例如将 Deployment 控制的多个 Pod 副本分布到不同的主机上，或者使用最低负载的主机等。然后，调度器选择并绑定最高打分的 Node 节点和 Pod，并将结果存储到 etcd 中。
+4. 最后，被选择的 Node 节点对应的 kubelet 执行创建 Pod 的相关操作。
+
+其中，Predicates 过滤包括一系列算法，简要列举如下：
+- PodFitsResources：节点上剩余的资源是否大于 Pod 请求的资源。
+- PodFitsHost：如果 Pod 指定了 NodeName，检查节点名称是否与 NodeName 匹配。
+- PodFitsHostPorts：节点上已使用的端口是否与 Pod 申请的端口冲突。
+- PodSelectorMatches：过滤与 Pod 指定的标签不匹配的节点。
+- NoDiskConflict：已经挂载的卷与 Pod 指定的卷不冲突，除非它们都是只读的。
+- CheckNodeDiskPressure：检查节点磁盘空间是否符合要求。
+- CheckNodeMemoryPressure：检查节点内存是否足够。
+
+除了这些过滤算法外，还有其他算法。更多详细信息可以查看源码文件：`k8s.io/kubernetes/pkg/scheduler/algorithm/predicates/predicates.go`。
+
+而 Priorities 优先级由一系列键值对组成，键是优先级的名称，值是权重值。以下是一些具有代表性的选项：
+- LeastRequestedPriority：通过计算 CPU 和内存的使用率来决定权重，使用率越低权重越高。这意味着资源使用率越低，权重越高，给其他 Pod 运行的可能性就越大。
+- SelectorSpreadPriority：为了更好的高可用性，对同属于一个 Deployment 或者 ReplicaSet 下面的多个 Pod 副本，尽量调度到多个不同的节点上。权重取决于运行 Pod 较少的节点。
+- ImageLocalityPriority：如果某个节点上已经存在所需的镜像，镜像总大小越大，权重越高。
+- NodeAffinityPriority：根据节点的亲和性计算权重值。
+
+更多关于亲和性的使用方法会在后续详细讲解。
+
+## 节点调度亲和性
+
+节点亲和性规则可以分为硬亲和性（required）和软亲和性（preferred）两种类型，它们的行为有所不同：
+
+1. **硬亲和性规则（required）**：硬亲和性规则是必须满足的条件，如果节点不满足这些规则，Pod 将被置于 Pending 状态，直到找到符合条件的节点为止。这意味着 Pod 只能被调度到符合硬亲和性规则的节点上运行。如果没有符合条件的节点，Pod 将一直处于 Pending 状态，直到集群中有符合条件的节点为止。
+
+2. **软亲和性规则（preferred）**：软亲和性规则是可选的条件，如果节点不满足这些规则，Pod 仍然可以被调度到不符合条件的节点上运行，但调度器会尽量选择符合条件的节点。这意味着 Pod 可以在不符合软亲和性规则的节点上运行，但调度器会尽量将 Pod 调度到符合条件的节点上。软亲和性规则的目的是优先将 Pod 调度到满足条件的节点上，但不会阻止 Pod 在不符合条件的节点上运行。
+
+需要注意的是，当节点的标签发生变化，不再满足节点亲和性规则时，不会将已经运行的 Pod 从该节点移除，只会影响新创建的 Pod 对象。这意味着只有新创建的 Pod 会受到节点亲和性规则的影响，而已经运行的 Pod 不会因节点标签的变化而被迁移或删除。
+
+### 硬亲和性规则
+
+对于节点的硬亲和性规则（requiredDuringSchedulingIgnoredDuringExecution），有两种主要的配置方式：
+
+1. **使用 spec.nodeSelector**：这是一种基于等值关系的简单标签选择机制。通过在 Pod 的 spec.nodeSelector 字段中指定节点的标签键值对，可以确保 Pod 只会被调度到具有相匹配标签的节点上运行。例如：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-required-node-affinity
+spec:
+  nodeSelector:
+    zone: foo
+  containers:
+  - name: myapp
+    image: ikubernetes/myapp:v1
+```
+
+2. **使用 spec.affinity**：这是一种更为复杂的标签选择机制，支持 matchExpressions 属性，可以定义更灵活的节点亲和性规则。通过在 Pod 的 spec.affinity 字段中指定 requiredDuringSchedulingIgnoredDuringExecution 属性，并在其中定义 nodeAffinity 字段，然后在 nodeSelectorTerms 中使用 matchExpressions 来指定节点的标签选择器。例如：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-required-node-affinity
+spec:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: zone
+            operator: In
+            values:
+            - foo
+  containers:
+  - name: myapp
+    image: ikubernetes/myapp:v1
+```
+
+这两种方式都可以实现节点的硬亲和性规则，确保 Pod 被调度到具有指定标签的节点上运行。使用 spec.affinity 的方式更为灵活，可以定义更复杂的标签选择规则，适用于更多场景。
+
+### 节点软亲和性
+
+对于节点的软亲和性规则（preferredDuringSchedulingIgnoredDuringExecution），可以通过设置权重（weight）来定义节点的优先级，以及设置 matchExpressions 来指定节点的标签选择器。
+
+在下面的示例中，我们定义了两个软亲和性规则：
+
+1. 第一个规则权重为 60，匹配具有标签 zone=foo 的节点。
+2. 第二个规则权重为 30，匹配具有标签 ssd 的节点。
+
+这意味着调度器会尽量将 Pod 调度到符合第一个规则的节点上，如果没有符合条件的节点，则会尝试调度到符合第二个规则的节点上。如果两个规则都不满足，则 Pod 可以被调度到任意节点上运行。
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deploy-with-node-affinity
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      name: myapp-pod
+      labels:
+        app: myapp
+    spec:
+      affinity:
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution: # 节点软亲和性
+          - weight: 60
+            preference:
+              matchExpressions:
+              - key: zone
+                operator: In
+                values:
+                - foo
+          - weight: 30
+            preference:
+              matchExpressions:
+              - key: ssd
+                operator: Exists
+                values: []
+      containers:
+      - name: myapp
+        image: ikubernetes/myapp:v1
+```
+
+通过这种方式，可以在调度时对节点进行柔性控制，即使条件不完全满足，也可以接受将 Pod 调度到其他不符合条件的节点上运行，以更好地利用集群资源。
+
+## Pod 资源亲和调度
+
+Pod 对象间的亲和性和反亲和性可以通过 Pod 的亲和性（Affinity）和反亲和性（Anti-Affinity）来定义。这些属性可以确保一组 Pod 对象被部署在相近的位置或者被隔离开。
+
+1. **Pod 对象间的亲和性（Affinity）**：通过设置 Pod 的亲和性规则，可以确保一组 Pod 对象被部署在相近的位置，例如同一节点、机架、区域或地区。这有助于提高应用程序的性能和可靠性，减少跨节点通信的网络延迟。亲和性规则可以根据 Pod 对象的标签进行匹配，以确定它们应该部署在哪些节点上。
+
+2. **Pod 对象间的反亲和性（Anti-Affinity）**：反亲和性规则可以确保一组 Pod 对象在运行位置上被隔开，避免将它们部署在相同的节点上。这有助于提高应用程序的可用性和容错性，防止单点故障。通过设置反亲和性规则，可以确保同一应用程序的不同实例在不同的节点上运行，避免因节点故障导致整个应用程序不可用。
+
+以下是一个示例，演示了如何使用亲和性和反亲和性规则来定义 Pod 对象之间的部署策略：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      labels:
+        app: myapp
+    spec:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: zone
+                operator: In
+                values:
+                - zone-a
+            topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: myapp
+        image: myapp:v1
+```
+
+在上面的示例中，我们定义了一个 Deployment，其中包含 3 个 Pod 的副本。通过设置 Pod 的亲和性规则（podAffinity），我们要求这些 Pod 必须部署在具有标签 zone=zone-a 的节点上，并且通过 topologyKey 指定了拓扑域为节点的主机名。这样可以确保这些 Pod 被部署在同一地区或机架内的节点上。
+
+要实现反亲和性，只需将规则从 `podAffinity` 改为 `podAntiAffinity` 即可。
+
+### Pod 硬亲和调度
+
+在 Kubernetes 中，可以通过 Pod 的亲和性规则来定义 Pod 的硬亲和调度（requiredDuringSchedulingIgnoredDuringExecution）。这种调度方式描述了一个 Pod 与具有特定特征的现有 Pod 运行位置之间的依赖关系。换句话说，需要在调度 Pod 之前确保特定的被依赖 Pod 已经存在。
+
+以下是一个示例，演示了如何定义 Pod 的硬亲和调度：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: with-pod-affinity
+spec:
+  affinity:
+    podAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:  # 硬亲和调度
+      - labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - tomcat  # 选择被依赖的 Pod，即具有标签 app=tomcat 的 Pod
+        topologyKey: kubernetes.io/hostname  # 根据挑选出的 Pod 所在节点的 hostname 作为同一位置的判定
+  containers:
+  - name: myapp
+    image: ikubernetes/myapp:v1
+```
+
+在上面的示例中，我们定义了一个 Pod，其需要与具有标签 app=tomcat 的现有 Pod 在同一位置运行。为了实现这一要求，我们使用了 Pod 的亲和性规则，其中包含了一个硬亲和调度规则（requiredDuringSchedulingIgnoredDuringExecution）。这个规则指定了一个 Pod 与其他 Pod 的亲和性要求，并且必须在调度时保证被依赖的 Pod 已经存在。具体来说，我们使用 labelSelector 来指定需要匹配的标签，以及 topologyKey 来确定判断 Pod 位置的标准。
+
+### Pod 软亲和调度
+
+在 Kubernetes 中，可以通过 Pod 的亲和性规则来定义 Pod 的软亲和调度（preferredDuringSchedulingIgnoredDuringExecution）。软亲和调度允许 Pod 在无法满足亲和性规则时，仍然被调度到其他节点上，但会尽量优先选择满足亲和性规则的节点。
+
+以下是一个示例，演示了如何定义 Pod 的软亲和调度：
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: myapp-with-preferred-pod-affinity
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: myapp
+  template:
+    metadata:
+      name: myapp
+      labels:
+        app: myapp
+    spec:
+      affinity:
+        podAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 80
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - cache
+              topologyKey: zone
+          - weight: 20
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - db
+              topologyKey: zone
+      containers:
+      - name: myapp
+        image: ikubernetes/myapp:v1
+```
+
+在上面的示例中，我们定义了一个 Deployment，其中包含了 3 个 Pod 的副本。通过设置 Pod 的软亲和调度规则（preferredDuringSchedulingIgnoredDuringExecution），我们指定了两个优先级较高的亲和性规则，以确保 Pod 被调度到满足规则的节点上。具体来说：
+
+- 第一个规则权重为 80，表示优先将 Pod 调度到具有标签 app=cache 的节点上。
+- 第二个规则权重为 20，表示次优先将 Pod 调度到具有标签 app=db 的节点上。
+
+调度器会尽量将 Pod 调度到满足优先级较高规则的节点上，如果无法满足，则会尝试满足次优先级规则，或者在无法满足所有规则时调度到其他节点上。
+
+### Pod 反亲和调度
+
+在 Kubernetes 中，可以通过 Pod 的反亲和调度（podAntiAffinity）来实现将同一类应用分散到不同的区域、机架或节点等的目的。反亲和调度规则有两种类型：柔性约束和强制约束。
+
+以下是一个示例，演示了如何定义 Pod 的反亲和调度：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-first
+  labels:
+    app: myapp
+    tier: frontend
+spec:
+  containers:
+  - name: myapp
+    image: ikubernetes/myapp:v1
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod-second
+  labels:
+    app: backend
+    tier: db
+spec:
+  containers:
+  - name: busybox
+    image: busybox:latest
+    imagePullPolicy: IfNotPresent
+    command: ["/bin/sh", "-c", "sleep 3600"]
+  affinity:
+    podAntiAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchExpressions:
+          - key: app
+            operator: In
+            values:
+            - myapp
+        topologyKey: zone
+```
+
+在上面的示例中，我们定义了两个 Pod，其中一个名为 pod-first，标签为 app=myapp，另一个名为 pod-second，标签为 app=backend。我们将反亲和调度规则应用于 pod-second，要求该 Pod 不能与具有标签 app=myapp 的其他 Pod 被调度到同一个区域（zone）。
+
+这个规则是一个强制约束，如果无法满足，则 pod-second 会被置于 Pending 状态直到满足条件。这样可以确保同一类应用在运行位置上被分散开，提高整个系统的可靠性和容错性。
+
+## 污点和容忍度
+
+污点（Taints）和容忍度（Tolerations）是 Kubernetes 中用于实现节点选择的重要机制，它们允许节点拒绝或接受某些 Pod 的调度。
+
+1. **污点（Taints）**：污点是定义在节点上的键值对属性数据，用于让节点拒绝将 Pod 调度运行于其上。节点可以设置多个污点，每个污点包含一个键值对和一个效果（Effect），用于指定拒绝 Pod 的行为。例如，一个节点可能设置了一个污点，拒绝除了特定标签以外的所有 Pod。
+
+2. **容忍度（Tolerations）**：容忍度是定义在 Pod 上的键值属性数据，用于配置 Pod 对节点上的污点的容忍程度。Pod 可以设置多个容忍度规则，每个规则包含一个键值对和一个效果，用于指定允许 Pod 调度到拥有特定污点的节点上的条件。例如，一个 Pod 可以配置容忍度，允许它调度到指定标签的节点上，即使这些节点设置了污点。
+
+为了使用污点和容忍度机制，可以使用以下两种预选策略和优选函数：
+
+- **PodToleratesNodeTaints 预选策略**：这个预选策略用于检查 Pod 的容忍度是否与节点的污点匹配。如果 Pod 具有适当的容忍度规则，它将被允许调度到拥有相应污点的节点上。
+
+- **TaintTolerationPriority 优选函数**：这个优选函数用于根据 Pod 的容忍度规则和节点的污点进行优先级排序。优选函数将根据容忍度规则的匹配程度和节点污点的效果为 Pod 分配优先级，从而帮助调度器选择最合适的节点。
+
+通过使用污点和容忍度机制，可以实现更灵活的节点选择策略，确保 Pod 被调度到适当的节点上，从而提高集群的资源利用率和可靠性。
+
+## 影响调度过程的因素
 
 Pod 的调度过程是 Kubernetes 中非常重要的一部分，它决定了如何将 Pod 分配到集群中的节点上，以确保资源的合理利用和应用程序的高可用性。以下是几种常见的对 Pod 调度过程存在影响的方面：
 
@@ -4294,7 +4960,7 @@ Pod 的调度过程是 Kubernetes 中非常重要的一部分，它决定了如�
 
 通过合理配置和组合这些调度策略，可以实现对 Pod 的灵活调度和管理，从而提高集群的资源利用率和应用程序的性能和可靠性。
 
-### 节点选择器 nodeSelector
+## 节点选择器 nodeSelector
 
 `nodeSelector` 是 Kubernetes 中用于指定 Pod 可以被调度到哪些节点的一种机制。通过 `nodeSelector`，用户可以根据节点的标签（labels）来约束 Pod 的调度，只有具有指定标签的节点才能被选择来运行该 Pod。
 下面是关于 `nodeSelector` 的详细解释：
@@ -4324,3 +4990,5 @@ Pod 的调度过程是 Kubernetes 中非常重要的一部分，它决定了如�
 - **灵活性与限制**：
   - 使用 `nodeSelector` 可以很灵活地控制 Pod 的调度行为，但需要注意的是，过多地使用节点标签可能会导致调度器找不到合适的节点，从而造成 Pod 无法调度。因此，在设置节点标签时需要考虑集群的整体资源情况和调度策略。
   通过 `nodeSelector`，用户可以根据自己的需求将 Pod 调度到特定类型的节点上，从而更好地满足应用程序的运行需求，实现资源的有效利用和管理。
+
+# 集群安全机制RBAC ============================================
