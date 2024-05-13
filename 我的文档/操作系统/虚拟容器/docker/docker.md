@@ -44,7 +44,7 @@
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202204161645612.png)
 
-
+也可以理解为手机中安装的 APP ，镜像即应用市场的 app 程序，他们统一了应用的启动方式，常用命令等，例如查看容器中运行的应用的日志 `docker logs 容器ID`
 
 ## Docker 镜像
 

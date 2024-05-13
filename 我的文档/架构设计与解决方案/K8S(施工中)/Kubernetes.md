@@ -1,5 +1,8 @@
 [TOC]
+
 # 基本概念
+
+[Kubernetes 文档 | Kubernetes](https://kubernetes.io/zh-cn/docs/home/)
 
 **Kubernetes 容器集群管理系统**（常简称为K8s）是一个开源的容器编排平台，最初由 Google 开发，现已成为 Cloud Native Computing Foundation（CNCF）的一部分。Kubernetes旨在简化容器化应用程序的部署、扩展和管理，提供了丰富的功能和工具来帮助用户构建可靠、高效的容器化环境。
 
@@ -69,6 +72,8 @@ kubernetes，简称K8s，是用8 代替8 个字符“ubernete”而成的缩写�
    - 有时集群中可能会有一些特定用途的节点，用于运行特定类型的工作负载或服务。例如，存储节点用于运行持久化存储服务，或者网络节点用于运行网络功能虚拟化（NFV）服务。
 
 等节点，这些节点类型通常根据其角色、功能或硬件配置进行分类。在实际情况中，可以根据集群的需求和工作负载的特性来定义和配置不同类型的节点。
+
+![image](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202405132031845.png)
 
 ### Master Node
 
@@ -509,6 +514,384 @@ $ kubectl get pod,svc
 
 集群完成
 
+#### 8. 安装可视化界面
+
+kubernetes官方提供的可视化界面
+
+- https://github.com/kubernetes/dashboard
+
+```bash
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/dashboard/v2.3.1/aio/deploy/recommended.yaml
+```
+
+文件内容
+
+```yml
+# Copyright 2017 The Kubernetes Authors.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubernetes-dashboard
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+spec:
+  ports:
+    - port: 443
+      targetPort: 8443
+  selector:
+    k8s-app: kubernetes-dashboard
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard-certs
+  namespace: kubernetes-dashboard
+type: Opaque
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard-csrf
+  namespace: kubernetes-dashboard
+type: Opaque
+data:
+  csrf: ""
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard-key-holder
+  namespace: kubernetes-dashboard
+type: Opaque
+
+---
+
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard-settings
+  namespace: kubernetes-dashboard
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+rules:
+  # Allow Dashboard to get, update and delete Dashboard exclusive secrets.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["kubernetes-dashboard-key-holder", "kubernetes-dashboard-certs", "kubernetes-dashboard-csrf"]
+    verbs: ["get", "update", "delete"]
+    # Allow Dashboard to get and update 'kubernetes-dashboard-settings' config map.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["kubernetes-dashboard-settings"]
+    verbs: ["get", "update"]
+    # Allow Dashboard to get metrics.
+  - apiGroups: [""]
+    resources: ["services"]
+    resourceNames: ["heapster", "dashboard-metrics-scraper"]
+    verbs: ["proxy"]
+  - apiGroups: [""]
+    resources: ["services/proxy"]
+    resourceNames: ["heapster", "http:heapster:", "https:heapster:", "dashboard-metrics-scraper", "http:dashboard-metrics-scraper"]
+    verbs: ["get"]
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+rules:
+  # Allow Metrics Scraper to get metrics from the Metrics server
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list", "watch"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kubernetes-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubernetes-dashboard
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubernetes-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: kubernetes-dashboard
+    namespace: kubernetes-dashboard
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    k8s-app: kubernetes-dashboard
+  name: kubernetes-dashboard
+  namespace: kubernetes-dashboard
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: kubernetes-dashboard
+  template:
+    metadata:
+      labels:
+        k8s-app: kubernetes-dashboard
+    spec:
+      containers:
+        - name: kubernetes-dashboard
+          image: kubernetesui/dashboard:v2.3.1
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8443
+              protocol: TCP
+          args:
+            - --auto-generate-certificates
+            - --namespace=kubernetes-dashboard
+            # Uncomment the following line to manually specify Kubernetes API server Host
+            # If not specified, Dashboard will attempt to auto discover the API server and connect
+            # to it. Uncomment only if the default does not work.
+            # - --apiserver-host=http://my-address:port
+          volumeMounts:
+            - name: kubernetes-dashboard-certs
+              mountPath: /certs
+              # Create on-disk volume to store exec logs
+            - mountPath: /tmp
+              name: tmp-volume
+          livenessProbe:
+            httpGet:
+              scheme: HTTPS
+              path: /
+              port: 8443
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1001
+            runAsGroup: 2001
+      volumes:
+        - name: kubernetes-dashboard-certs
+          secret:
+            secretName: kubernetes-dashboard-certs
+        - name: tmp-volume
+          emptyDir: {}
+      serviceAccountName: kubernetes-dashboard
+      nodeSelector:
+        "kubernetes.io/os": linux
+      # Comment the following tolerations if Dashboard must not be deployed on master
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+
+---
+
+kind: Service
+apiVersion: v1
+metadata:
+  labels:
+    k8s-app: dashboard-metrics-scraper
+  name: dashboard-metrics-scraper
+  namespace: kubernetes-dashboard
+spec:
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    k8s-app: dashboard-metrics-scraper
+
+---
+
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  labels:
+    k8s-app: dashboard-metrics-scraper
+  name: dashboard-metrics-scraper
+  namespace: kubernetes-dashboard
+spec:
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      k8s-app: dashboard-metrics-scraper
+  template:
+    metadata:
+      labels:
+        k8s-app: dashboard-metrics-scraper
+      annotations:
+        seccomp.security.alpha.kubernetes.io/pod: 'runtime/default'
+    spec:
+      containers:
+        - name: dashboard-metrics-scraper
+          image: kubernetesui/metrics-scraper:v1.0.6
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              scheme: HTTP
+              path: /
+              port: 8000
+            initialDelaySeconds: 30
+            timeoutSeconds: 30
+          volumeMounts:
+          - mountPath: /tmp
+            name: tmp-volume
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsUser: 1001
+            runAsGroup: 2001
+      serviceAccountName: kubernetes-dashboard
+      nodeSelector:
+        "kubernetes.io/os": linux
+      # Comment the following tolerations if Dashboard must not be deployed on master
+      tolerations:
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      volumes:
+        - name: tmp-volume
+          emptyDir: {}
+```
+
+##### 设置访问端口
+
+```bash
+kubectl edit svc kubernetes-dashboard -n kubernetes-dashboard
+```
+
+注意: ClusterIP 改为 type: NodePort
+
+```bash
+kubectl get svc -A |grep kubernetes-dashboard
+```
+
+找到端口，在安全组放行(云服务器需要做这一步)
+
+访问： https://集群任意IP:端口      https://139.198.165.238:32759
+
+##### 创建访问账号
+
+```yml
+#创建访问账号，准备一个yaml文件； vi dash.yaml
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: admin-user
+  namespace: kubernetes-dashboard
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: admin-user
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+- kind: ServiceAccount
+  name: admin-user
+  namespace: kubernetes-dashboard
+```
+
+```bash
+kubectl apply -f dash.yaml
+```
+
+##### 令牌访问
+
+```bash
+#获取访问令牌
+kubectl -n kubernetes-dashboard get secret $(kubectl -n kubernetes-dashboard get sa/admin-user -o jsonpath="{.secrets[0].name}") -o go-template="{{.data.token | base64decode}}"
+```
+
+```
+eyJhbGciOiJSUzI1NiIsImtpZCI6InpXSkU0TjhCUmVKQzBJaC03Nk9ES2NMZ1daRTRmQ1FMZU9rRUJ3VXRnM3MifQ.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlcm5ldGVzLWRhc2hib2FyZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJhZG1pbi11c2VyLXRva2VuLXgyczhmIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQubmFtZSI6ImFkbWluLXVzZXIiLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC51aWQiOiIzOTZmYjdlNS0wMjA2LTQxMjctOGQzYS0xMzRlODVmYjU0MDAiLCJzdWIiOiJzeXN0ZW06c2VydmljZWFjY291bnQ6a3ViZXJuZXRlcy1kYXNoYm9hcmQ6YWRtaW4tdXNlciJ9.Hf5mhl35_R0iBfBW7fF198h_klEnN6pRKfk_roAzOtAN-Aq21E4804PUhe9Rr9e_uFzLfoFDXacjJrHCuhiML8lpHIfJLK_vSD2pZNaYc2NWZq2Mso-BMGpObxGA23hW0nLQ5gCxlnxIAcyE76aYTAB6U8PxpvtVdgUknBVrwXG8UC_D8kHm9PTwa9jgbZfSYAfhOHWmZxNYo7CF2sHH-AT_WmIE8xLmB7J11vDzaunv92xoUoI0ju7OBA2WRr61bOmSd8WJgLCDcyBblxz4Wa-3zghfKlp0Rgb8l56AAI7ML_snF59X6JqaCuAcCJjIu0FUTS5DuyIObEeXY-z-Rw
+```
+
+##### 界面
+
+![image](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202405132048286.png)
+
+![image-20240513205450080](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202405132054182.png)
+
 # kubectl
 
 kubectl 是 Kubernetes 的命令行工具，用于与运行中的 Kubernetes 集群进行交互。通过 kubectl 向及群中的 master 节点的 kube-apiserver 服务发送命令，用户可以执行各种操作，如创建、管理、监视和调试 Kubernetes 资源。
@@ -530,7 +913,7 @@ kubectl 是 Kubernetes 的命令行工具，用于与运行中的 Kubernetes 集
    - Service是Kubernetes中用于暴露应用程序的网络服务的资源。它定义了一组Pod的逻辑集合，并为它们提供一个统一的访问入口，可以通过Service的ClusterIP、NodePort、LoadBalancer或ExternalName类型将流量路由到对应的Pod。
 
 3. **Deployment**：
-   - Deployment是用于部署应用程序的资源，它定义了一个Pod副本集（ReplicaSet）和用于更新Pod的策略。Deployment可以确保在应用程序部署期间保持可用性，并提供滚动更新和回滚的功能。
+   - Deployment是用于部署应用程序的资源，它定义了一个Pod副本集（ReplicaSet）和用于更新Pod的策略。代表一次部署，产生1个或多个Pod，Deployment可以确保在应用程序部署期间保持可用性，并提供滚动更新和回滚的功能。
 
 4. **StatefulSet**：
    - StatefulSet是一种用于管理有状态应用程序的资源。它与Deployment类似，但为Pod提供了稳定的网络标识符和持久性存储，以便在重新调度或扩展时保持状态的稳定性。
@@ -548,6 +931,8 @@ kubectl 是 Kubernetes 的命令行工具，用于与运行中的 Kubernetes 集
    - ConfigMap用于存储配置数据，如环境变量、配置文件等，而Secret用于存储敏感数据，如密码、密钥等。这些资源可以被挂载到Pod中，以便应用程序可以访问这些配置和敏感数据。
 
 除了上述常见的资源外，Kubernetes还有许多其他类型的资源，如PersistentVolume、StorageClass、Ingress等，用于管理存储、网络、安全等方面的配置。这些资源共同构成了Kubernetes集群中的基础设施和应用程序组件，帮助用户在集群中部署、管理和运行各种类型的应用程序和服务。
+
+![image-20240513205740666](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202405132057766.png)
 
 ## kubectl 基本语法
 
@@ -1071,6 +1456,86 @@ kubectl get [resource_type] [resource_name] [flags]
 kubectl get deploy nginx -o yaml
 ```
 
+# Namespace
+
+Kubernetes Namespace 是一种在 Kubernetes 集群中用于隔离和组织资源的机制。它可以让你将集群中的资源划分为不同的虚拟组，每个组都有自己的命名空间。Namespace 提供了一种逻辑上的隔离，使得多个用户、团队或应用程序可以在同一个集群上共享资源而不会发生冲突。
+
+以下是 Kubernetes Namespace 的一些关键特性和用途：
+
+1. **资源隔离**：Namespace 允许你将集群中的资源（如 Pod、Service、Volume 等）划分为不同的逻辑单元。这意味着你可以为不同的团队、项目或环境创建独立的 Namespace，以确保彼此之间的资源不会相互干扰。
+
+2. **命名空间范围**：Kubernetes 中有一些预定义的 Namespace，如 default、kube-system 和 kube-public。此外，你还可以创建自己的自定义 Namespace。每个 Namespace 都拥有自己的唯一名称，资源名称在同一个 Namespace 中必须是唯一的，但在不同 Namespace 中可以重复。
+
+3. **资源配额和限制**：通过 Namespace，你可以为每个 Namespace 设置资源配额和限制，以确保某个 Namespace 中的资源使用不会超出预期的范围。这对于多租户环境特别有用。
+
+4. **访问控制**：Namespace 也可以用于实现访问控制。通过 Kubernetes 的 RBAC（Role-Based Access Control）机制，你可以为不同的 Namespace 设置不同的权限，从而限制用户或服务对特定 Namespace 中资源的访问。
+
+5. **环境分离**：通常情况下，你可以将不同的环境（如开发、测试、生产）放置在不同的 Namespace 中，以实现环境之间的逻辑分离和管理。
+
+总的来说，Kubernetes Namespace 是一种非常有用的资源管理和隔离机制，可以帮助你更好地组织和管理集群中的资源，并提供多租户支持、访问控制和资源配额等功能。
+
+默认情况下，如果不显式指定 Namespace，Kubernetes 会将资源对象创建到名为 "default" 的 Namespace 中。这个默认的 Namespace 在集群启动后会自动创建，并且通常情况下被用作集群中不特定于任何特定 Namespace 的资源的默认位置。
+
+这意味着如果你没有显式地为 Pod、Replication Controller（RC）、Service 或其他资源指定 Namespace，它们将被创建到默认的 "default" Namespace 中。这样做可以简化 Kubernetes 初学者的使用体验，并使它们能够快速开始尝试和部署应用程序，而无需过多关注 Namespace 的概念。
+
+然而，在实际生产环境中，为了更好地组织和管理资源，并实现资源隔离、访问控制和配额控制等功能，通常会创建多个自定义 Namespace，并将不同的资源对象分配到不同的 Namespace 中。这样可以更好地管理集群，并确保不同用户、团队或项目之间的资源不会相互干扰。
+
+## Namespace 创建
+
+```yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: development
+```
+
+解释如下：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1 版本。
+- `kind: Namespace`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Namespace。
+- `metadata`：包含了对象的元数据，比如名称、标签等。
+  - `name: development`：指定了 Namespace 的名称为 "development"。这表示将要创建一个名为 "development" 的 Namespace。
+
+通过这个配置文件，可以使用 Kubernetes 命令或 API 来创建名为 "development" 的 Namespace，用于组织和隔离资源。
+
+创建一个名为 "busybox" 的 Pod 的 YAML 配置文件，并将其指定到上面名为 "development" 的 Namespace 中：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: busybox
+  namespace: development
+spec:
+  containers:
+  - image: busybox
+    command:
+    - sleep
+    - "3600"
+    name: busybox
+```
+
+解释如下：
+
+- `apiVersion: v1`：指定了 Kubernetes API 的版本。
+- `kind: Pod`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Pod。
+- `metadata`：包含了 Pod 的元数据，比如名称、标签等。
+  - `name: busybox`：指定了 Pod 的名称为 "busybox"。
+  - `namespace: development`：指定了 Pod 所属的 Namespace 为 "development"。
+- `spec`：指定了 Pod 的规格，包括容器等。
+  - `containers`：指定了 Pod 中的容器列表。
+    - `image: busybox`：指定了容器所使用的镜像为 "busybox"。
+    - `command`：指定了容器启动时执行的命令，这里是让容器休眠 3600 秒。
+    - `name: busybox`：指定了容器的名称为 "busybox"。
+
+通过这个配置文件，可以创建一个名为 "busybox" 的 Pod，并将其放置在名为 "development" 的 Namespace 中。
+
+## Namespace 查看
+
+```yml
+kubectl get pods --namespace=development
+```
+
 # pod
 
 在 Kubernetes 中，**Pod 是最小的部署单元**，用于运行容器化应用程序。
@@ -1588,241 +2053,6 @@ Pod 的生命周期描述了从创建到销毁的整个过程，包括各个阶�
 8. **事件记录**：在整个 Pod 创建过程中，Kubernetes 会记录各种事件（Events），比如调度情况、容器启动情况、网络配置等，以供用户和管理员查看和分析。
 
 这是一个大致的流程，实际上 Kubernetes 的 Pod 创建过程可能会受到各种因素的影响，比如网络延迟、节点故障、调度策略等。
-
-# Label 标签
-
-标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的**元数据**中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
-
-标签的作用有以下几个方面：
-
-1. **标识和分类**：标签可以帮助用户对资源对象进行分类和标识。例如，可以为一组 Pod 添加相同的标签，以表示它们属于同一个应用程序或服务。
-2. **选择器**：标签可以用作选择器，用于在 Kubernetes 中选择特定的资源对象。例如，可以使用标签选择器来指定一个 Service 只路由到具有特定标签的 Pod。
-3. **管理和操作**：标签可以用于组织和管理资源对象。例如，可以使用标签来确定哪些 Pod 属于一个特定的部署，并对它们进行扩展、缩减或更新操作。
-4. **路由和策略**：标签可以用于定义路由规则和访问策略。例如，可以基于标签定义网络策略，限制特定标签的 Pod 之间的通信。
-
-Label 的最常见的用法是使用 metadata.labels 字段，来为对象添加 Label，通过 spec.selector 来引用对象
-
-## 示例
-
-Labels（标签）和 Label Selectors（标签选择器）是 Kubernetes 中非常重要的概念，它们允许您对资源对象进行分组管理，并在需要时选择特定的资源对象。
-
-Labels 是键值对的形式，附加到 Kubernetes 资源对象（如 Pod、ReplicationController、Service 等）的元数据中。Label 可以是任何字符串，但是建议使用具有描述性的名称来帮助识别和组织资源对象。
-
-Label Selectors 则是用于选择具有特定标签集合的资源对象的机制。它们用于定义一组标签的条件，以便从集群中选择相应的资源对象。Label Selectors 可以用于多种 Kubernetes 资源对象，如 Service、ReplicaSet、ReplicationController 等。
-
-下面是一个简单的示例，演示了如何在 Pod 和 Service 中使用 Labels 和 Label Selectors：
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: nginx-pod
-  labels:
-    app: nginx       # 将标签 "app=nginx" 附加到 Pod 上
-spec:
-  containers:
-  - name: nginx
-    image: nginx
-    ports:
-    - containerPort: 80
-
----
-
-apiVersion: v1
-kind: Service
-metadata:
-  name: nginx-service
-spec:
-  selector:
-    app: nginx       # 指定 Label Selector，选择具有标签 "app=nginx" 的 Pod
-  ports:
-  - port: 80
-    targetPort: 80
-  type: ClusterIP
-```
-
-在这个示例中，Pod "nginx-pod" 被附加了一个标签 "app=nginx"。而 Service "nginx-service" 的 Selector 字段指定了一个 Label Selector，选择具有标签 "app=nginx" 的 Pod。
-
-这样一来，Service 将流量路由到具有相应标签的 Pod 上，实现了服务发现和负载均衡的功能。Labels 和 Label Selectors 的结合使用为 Kubernetes 中的资源对象提供了强大的分组和选择机制，使得管理和操作集群中的应用变得更加灵活和高效。
-
-# Volume 存储卷
-
-Volume 在 Kubernetes 中是指用于持久化数据的抽象概念，可以用来将存储挂载到 Pod 中。它提供了一种灵活的方式来管理容器中的数据，可以使用各种类型的存储后端，如本地磁盘、网络存储、云存储等。
-
-在 Kubernetes 中，Volume 可以与 Pod 一起使用，以便在 Pod 重新调度、迁移或失败时保持数据的持久性。通过将 Volume 挂载到 Pod 中，容器可以访问其中的数据，并且数据会保留在 Volume 所指定的存储介质上。
-
-Volume 可以用来存储应用程序的配置文件、日志、数据库文件等持久化数据。Kubernetes 提供了多种类型的 Volume，包括但不限于：
-
-1. EmptyDir：在 Pod 的生命周期内存在的临时存储，当 Pod 被删除时数据也会被删除。
-2. HostPath：将主机上的文件系统挂载到 Pod 中，适用于需要与主机共享文件的场景。
-3. PersistentVolumeClaim（PVC）：用于动态请求持久存储的抽象概念，可以与 PersistentVolume（PV）结合使用，以便将外部存储动态地挂载到 Pod 中。
-4. ConfigMap 和 Secret：用于将配置文件和敏感信息挂载到 Pod 中，以供应用程序使用。
-
-在 Kubernetes 中，Volume 是 Pod 中能够被多个容器访问的共享目录。它可以被挂载到 Pod 中的一个或多个容器中的特定路径下，从而实现容器之间共享数据的需求。Volume 与 Pod 的生命周期相同，但与容器的生命周期不相关，这意味着当容器终止或重启时，Volume 中的数据不会丢失，除非整个 Pod 被删除。
-
-## Volume 类型
-
-要使用 volume，pod 需要指定 volume 的类型和内容（ 字段），和映射到容器的位置（ 字段）。Kubernetes 支持多种类型的 Volume 包括：emptyDir、hostPath、gcePersistentDisk、awsElasticBlockStore、nfs、iscsi、flocker、glusterfs、rbd、cephfs、gitRepo、secret、persistentVolumeClaim、downwardAPI、azureFileVolume、azureDisk、vsphereVolume、Quobyte、PortworxVolume、ScaleIO。
-
-当您在 Kubernetes 中使用 Volume 时，可以根据实际需求选择不同类型的 Volume。下面详细介绍一些常见的 Volume 类型及其特点：
-
-1. **EmptyDir：** EmptyDir 是一种临时存储，随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。适合用于临时存储数据，例如容器之间共享临时文件。
-2. **HostPath：** HostPath 允许将主机上的文件系统目录挂载到 Pod 中的容器中。这种类型的 Volume 可以用于需要与主机共享文件系统的场景，但不推荐在生产环境中使用，因为可能会引起安全性和可移植性问题。
-3. **PersistentVolumeClaim（PVC）：** PersistentVolumeClaim 是一种抽象概念，用于动态请求持久存储的资源。通过 PersistentVolumeClaim，Pod 可以请求持久化存储资源，而不需要关心具体的存储后端。PersistentVolumeClaim 可以与 PersistentVolume 结合使用，以便将外部持久化存储动态地挂载到 Pod 中。
-4. **ConfigMap 和 Secret：** ConfigMap 和 Secret 也可以被挂载为 Volume，用于将配置文件和敏感信息挂载到 Pod 中。ConfigMap 用于存储配置数据，而 Secret 用于存储敏感信息，它们可以被容器用来读取配置和凭证信息。
-5. **NFS、iSCSI、GlusterFS、CephFS 等网络存储：** Kubernetes 支持将各种网络存储挂载为 Volume，例如 NFS、iSCSI、GlusterFS、CephFS 等。这些类型的 Volume 可以用于将外部网络存储挂载到 Pod 中，实现持久化存储和数据共享。
-
-除了上述列举的几种常见类型外，Kubernetes 还支持许多其他类型的 Volume，如 Azure 文件存储、AWS 弹性块存储、Git 仓库、DownwardAPI 等。通过选择适合您需求的 Volume 类型，您可以更好地管理 Pod 中的数据并满足各种应用场景下的需求。
-
-### EmptyDir
-
-EmptyDir 类型的 Volume 是 Kubernetes 中一种临时性的 Volume 类型，它用于在 Pod 中创建一个空目录，该目录的生命周期与 Pod 相关联，当 Pod 被删除时，EmptyDir 中的数据也会被清除。以下是关于 EmptyDir 类型的 Volume 的详细说明：
-
-1. **临时存储**：EmptyDir Volume 是一个临时性的存储空间，它在 Pod 启动时被创建，当 Pod 被删除时会被清空。这意味着 EmptyDir 中的数据不会被持久化存储，适用于临时性的数据存储需求。
-2. **Pod 内部共享**：EmptyDir Volume 可以被 Pod 中的多个容器共享，这使得容器之间可以共享临时数据，例如容器之间的通信、共享临时文件等。
-3. **空目录创建**：EmptyDir Volume 创建时是一个空目录，可以被容器中的应用程序读写数据。这种方式可以方便容器内部的应用程序临时存储数据。
-4. **容量限制**：EmptyDir Volume 可以设置容量限制，以限制存储空间的大小。当存储空间超出限制时，Pod 可能会因为存储空间不足而失败。
-5. **适用性**：EmptyDir Volume 适用于需要在容器之间共享临时数据、临时存储数据的场景，例如临时文件、临时缓存等。
-6. **数据共享与清理**：由于 EmptyDir Volume 是临时性的，数据在 Pod 删除时会被清空，因此不适合用于需要持久化存储数据的场景。如果需要持久化存储数据，建议使用其他类型的 Volume，如 PersistentVolume。
-
- EmptyDir 是一种临时存储，它会在 Pod 被调度到某个宿主机上时创建，并且同一个 Pod 中的所有容器都可以读写 EmptyDir 中的同一个文件。当 Pod 离开所在的宿主机时，EmptyDir 中的数据会被永久删除，因此 EmptyDir 主要用作临时空间。
-
-EmptyDir 的特点使其非常适合用于一些临时性的存储需求，例如：
-
-- Web 服务器写日志：Web 服务器可以将访问日志等临时数据写入 EmptyDir 中，以便后续处理或分析。
-- 临时文件目录：某些应用程序可能需要在运行过程中生成临时文件，这些临时文件可以存储在 EmptyDir 中，而不会占用持久化存储资源。
-
-由于 EmptyDir 中的数据在 Pod 离开宿主机时会被删除，因此不适合存储需要持久保存的数据。但对于临时性的数据存储需求，EmptyDir 提供了一种简单高效的解决方案。在合适的场景下，EmptyDir 可以帮助您实现临时数据存储的需求，同时避免占用持久化存储资源。比如 Web 服务器写日志或者 tmp 文件需要的临时目录。
-
-yml 示例
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: test-pd
-spec:
-  containers:
-    - image: docker.io/nazarpc/webserver
-      name: test-container
-      volumeMounts:
-        - mountPath: /cache
-          name: cache-volume
-  volumes:
-    - name: cache-volume
-      emptyDir: {}
-```
-
-这个Kubernetes配置文件示例中，指定了一个名为`cache-volume`的EmptyDir类型的Volume，并将其挂载到了`/cache`路径下。让我逐步详细解释一下这个配置文件：
-
-1. **apiVersion 和 kind：**
-   - `apiVersion: v1` 表示该配置文件所使用的 Kubernetes API 版本为 v1。
-   - `kind: Pod` 表示这个配置文件描述的是一个 Pod 对象。
-2. **metadata：**
-   - 在 metadata 字段下的 `name: test-pd` 指定了该 Pod 的名称为 `test-pd`，这个名称可根据实际需求进行修改。
-3. **spec：**
-   - `spec` 字段指定了 Pod 的规格，包括容器和卷的相关信息。
-   - 在 `containers` 字段下，定义了一个容器：
-     - `image: docker.io/nazarpc/webserver` 指定了容器所使用的镜像为 `docker.io/nazarpc/webserver`。
-     - `name: test-container` 指定了容器的名称为 `test-container`，这个名称也可以根据实际情况进行修改。
-     - `volumeMounts` 字段用于将卷挂载到容器内部的路径下，这里指定了将名为 `cache-volume` 的卷挂载到 `/cache` 路径下。
-   - 在 `volumes` 字段下，定义了一个卷，这个卷不是外部的服务器，而是在 Pod 启动时创建的临时存储空间，当 Pod 被删除时，这个卷的数据也会被清除。：
-     - `name: cache-volume` 指定了卷的名称为 `cache-volume`，用于与容器中的 `volumeMounts` 对应。
-     - `emptyDir: {}` 指定了这个卷是一个 EmptyDir 类型的卷，表示创建一个空目录作为卷，即临时存储卷，它会随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。由于这里使用的是 emptyDir 类型的卷，它只存在于单个 Pod 实例的生命周期中，并且仅在该 Pod 的所有容器之间共享。
-
-这样配置文件中的 `cache-volume` EmptyDir 类型的 Volume 就准备好了，它可以被 `test-container` 容器使用，并且在 Pod 被删除时其中的数据会被清除，适合用于临时存储需求。
-
-### HostPath
-
-HostPath 类型的 Volume 是 Kubernetes 中一种常见的 Volume 类型，它允许将宿主机上的文件或目录直接挂载到 Pod 中的容器中。以下是关于 HostPath 类型的 Volume 的详细说明：
-
-1. **宿主机文件系统挂载**：HostPath Volume 允许将宿主机上的文件系统中的文件或目录挂载到 Pod 中的容器中。这种方式可以方便容器访问宿主机上的数据，例如配置文件、日志文件等。
-2. **主机路径关联**：使用 HostPath Volume 需要指定宿主机上的路径（HostPath），容器中的应用程序可以直接访问该路径下的文件。这种方式适用于需要在容器内部访问宿主机文件系统的场景。
-3. **权限和安全性**：在配置 HostPath Volume 时，需要考虑权限和安全性方面的问题。由于容器可以直接访问宿主机文件系统，因此需要确保适当配置宿主机文件系统的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
-4. **主机文件系统依赖性**：使用 HostPath Volume 需要依赖宿主机文件系统的路径，因此在不同宿主机上部署时需要确保路径的一致性。这也意味着同一个 Volume 在不同宿主机上可能会有不同的数据内容。
-5. **适用性**：HostPath Volume 适用于一些特定的场景，例如需要在容器内部访问宿主机文件系统的情况，或者需要共享宿主机上的一些数据给容器使用的场景。
-
-HostPath 类型的 Volume 允许容器访问当前宿主机上的指定目录。通过在 Kubernetes 的 Pod 配置文件中使用 HostPath 类型的 Volume，可以将宿主机上的目录挂载到容器中，使得容器可以访问宿主机上的文件系统资源。
-
-下面是一个简单的示例，演示了如何在 Pod 中使用 HostPath 类型的 Volume：
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: test-pd
-spec:
-  containers:
-    - name: test-container
-      image: nginx
-      volumeMounts:
-        - mountPath: /usr/share/nginx/html
-          name: host-volume
-  volumes:
-    - name: host-volume
-      hostPath:
-        path: /var/www/html
-        type: Directory
-```
-
-在这个示例中，我们创建了一个 Pod，其中包含一个名为 `test-container` 的容器，使用了 `nginx` 镜像。我们定义了一个 HostPath 类型的 Volume，将宿主机上的 `/var/www/html` 目录挂载到容器中的 `/usr/share/nginx/html` 路径下。这样，容器中的应用程序就可以访问宿主机上 `/var/www/html` 目录中的内容。
-
-需要注意的是，使用 HostPath 类型的 Volume 可能会带来一些安全风险，因为容器可以访问宿主机上的文件系统资源。在生产环境中，建议谨慎使用 HostPath 类型的 Volume，并确保只挂载必要的目录，以减少潜在的安全风险。
-
-当一个 Pod 使用 HostPath 类型的 Volume 挂载宿主机上的特定目录时，这些数据不会随着 Pod 的迁移而自动在不同宿主机之间同步。
-
-一旦这个pod 离开了这个宿主机，HostDir 中的数据虽然不会被永久删除，但数据也不会随 pod 迁移到其他宿主机上
-
-因此，需要注意的是，由于各个宿主机上的文件系统结构和内容并不一定完全相同，所以相同 pod 的 HostDir 可能会在不同的宿主机上表现出不同的行为
-
-在使用 HostPath 类型的 Volume 时，需要注意以下几点：
-
-1. 数据不会随 Pod 的迁移而自动同步到其他宿主机上，可能会导致数据在不同宿主机上的不一致性。
-2. 宿主机上的文件系统结构和内容可能不同，因此在不同宿主机上使用相同的 HostDir 可能会产生意料之外的结果。
-3. 需要谨慎考虑数据的持久性和一致性，以及可能出现的数据不一致性问题。
-
-在实际应用中，如果需要跨宿主机持久化数据并保持一致性，可以考虑使用网络存储卷（如 NFS、Ceph 等）或者云存储服务来存储数据，以确保数据在不同宿主机之间的一致性和可靠性。
-
-### NFS
-
-NFS（Network File System）是一种分布式文件系统协议，允许一个计算机上的用户通过网络访问另一个计算机上的文件。在 Kubernetes 中，NFS 类型的 Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中，实现容器间的文件共享。以下是 NFS 类型的 Volume 的一些详细介绍：
-
-1. **远程文件系统挂载**：NFS Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中。这使得多个容器可以共享同一个远程文件系统，实现容器间的数据共享。
-2. **共享性**：NFS Volume 可以在同一个 Pod 内的多个容器之间共享文件系统。这意味着不同容器可以读写相同的文件，从而实现数据共享和协作。
-3. **灵活性**：通过 NFS Volume，可以将不同的 NFS 服务器上的文件系统挂载到同一个 Pod 中的不同容器中。这使得容器可以访问不同来源的数据，从而满足多样化的应用需求。
-4. **网络依赖性**：使用 NFS Volume 需要依赖网络连接，因为它涉及到远程文件系统的挂载和访问。因此，需要确保网络稳定性和性能，以保证文件共享的可靠性和性能。
-5. **权限和安全性**：在配置 NFS Volume 时，需要考虑权限和安全性方面的问题。需要确保适当配置 NFS 服务器的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
-
-NFS（Network File System）类型的 Volume 允许在同一个 Pod 内的多个容器之间共享一块现有的网络硬盘。通过在 Kubernetes 的 Pod 配置文件中使用 NFS 类型的 Volume，可以将一个远程的 NFS 服务器上的文件系统挂载到多个容器中，实现容器间的文件共享。
-
-下面是一个简单的示例，演示了如何在 Pod 中使用 NFS 类型的 Volume：
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: nfs-pod
-spec:
-  containers:
-    - name: container1
-      image: nginx
-      volumeMounts:
-        - mountPath: /shared-data
-          name: nfs-volume
-    - name: container2
-      image: busybox
-      volumeMounts:
-        - mountPath: /shared-data
-          name: nfs-volume
-  volumes:
-    - name: nfs-volume
-      nfs:
-        server: nfs-server-ip
-        path: /path/to/shared/directory
-```
-
-在这个示例中，我们创建了一个 Pod，其中包含两个容器 `container1` 和 `container2`。我们定义了一个 NFS 类型的 Volume，将 NFS 服务器上的 `/path/to/shared/directory` 目录挂载到这两个容器中的 `/shared-data` 路径下。这样，这两个容器就可以共享这个 NFS 服务器上的文件系统。
-
-需要注意的是，使用 NFS 类型的 Volume 可以实现容器间的文件共享，但也需要考虑网络延迟、性能和安全性等因素。确保 NFS 服务器可靠性和性能良好，以及适当配置权限和访问控制，以保证文件共享的安全性和可靠性。
 
 # Controller 控制器
 
@@ -2775,6 +3005,437 @@ spec:
    - 在这个示例中，HorizontalPodAutoscaler 监测运行 Nginx 应用的 Pod 的 CPU 使用率，并根据定义的阈值和范围来自动调整 Pod 的副本数量，以确保 CPU 使用率保持在目标值附近。
 
 这三个配置文件共同协作，形成了一个完整的应用部署和自动化管理的流程。Deployment 负责管理应用程序的部署和更新，Service 负责暴露应用程序的服务，HorizontalPodAutoscaler 负责根据负载情况自动调整应用程序的副本数量，以确保应用程序具有足够的资源来处理流量，并同时最大程度地减少资源的浪费。
+
+
+# Service
+
+Kubernetes 中的 Service 是一种抽象，用于定义一组 Pod 的逻辑集合和访问它们的方法。Service 充当了 Pod 集合的稳定访问点，使得其他应用程序可以通过 Service 名称来访问这些 Pod，而不必关心它们的具体 IP 地址或端口号。以下是 Kubernetes Service 的一些重要特性和用途：
+
+1. **稳定的访问点**：Service 提供了一个稳定的访问点，用于访问一组 Pod。无论 Pod 的 IP 地址如何变化（例如 Pod 扩容、缩容或重新调度），Service 都会确保对外提供稳定的访问。
+
+2. **负载均衡**：Service 可以将请求均匀地分发给后端 Pod，以实现负载均衡。根据 Service 的类型（如 ClusterIP、NodePort 或 LoadBalancer），可以在集群内部或集群外部实现负载均衡。
+
+3. **服务发现**：通过 Service，其他应用程序可以通过 Service 名称来访问后端 Pod，而不必了解 Pod 的具体 IP 地址。这简化了应用程序之间的通信，并支持微服务架构中的服务发现。
+
+4. **Session Affinity**：Service 支持会话亲和性，可以将请求路由到特定的后端 Pod，以确保特定会话的所有请求都被发送到同一个 Pod 上。这对于需要保持会话状态的应用程序非常有用。
+
+5. **多种类型**：Kubernetes 提供了多种类型的 Service，包括 ClusterIP、NodePort、LoadBalancer 和 ExternalName。每种类型都适用于不同的使用场景和需求。
+
+6. **服务监控和日志**：Service 通常与其他 Kubernetes 组件集成，例如 Ingress、监控系统和日志系统，以实现服务的监控和日志记录。
+
+![image-20240513211719161](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202405132117271.png)
+
+## 示例配置文件
+
+这是一个描述 Kubernetes Service 的 YAML 配置文件的模板
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: string
+  namespace: string
+  labels:
+    - name: string
+  annotations:
+    - name: string
+spec:
+  selector: []
+  type: string
+  clusterIP: string
+  sessionAffinity: string
+  ports:
+    - name: string
+      protocol: string
+      port: int
+      targetPort: int
+      nodePort: int
+status:
+  loadBalancer:
+    ingress:
+      ip: string
+      hostname: string
+```
+
+- `apiVersion` 和 `kind`：这两个字段指定了 YAML 文件中定义的 Kubernetes 对象的类型，这里是 Service。
+
+- `metadata`：包含了对象的元数据，比如名称、标签、注解等。
+  - `name`：指定了 Service 的名称。
+  - `namespace`：指定了 Service 所属的 Namespace。
+  - `labels`：指定了 Service 的标签，用于标识和选择 Service。
+  - `annotations`：指定了 Service 的注解，包含了额外的元数据信息。
+
+- `spec`：指定了 Service 的规格，包括了 Service 的选择器、类型、ClusterIP、会话亲和性、端口等。
+  - `selector`：指定了用于选择后端 Pod 的标签选择器。
+  - `type`：指定了 Service 的类型，可以是 ClusterIP、NodePort、LoadBalancer 或者 ExternalName。
+  - `clusterIP`：指定了 Service 的 ClusterIP，用于集群内部访问。
+  - `sessionAffinity`：指定了会话亲和性，可以是 None 或者 ClientIP。
+  - `ports`：指定了 Service 开放的端口列表。
+    - `name`：指定了端口的名称。
+    - `protocol`：指定了端口的协议，可以是 TCP 或者 UDP。
+    - `port`：指定了 Service 所监听的端口号。
+    - `targetPort`：指定了后端 Pod 所监听的端口号。
+    - `nodePort`：如果 Service 类型是 NodePort，则指定了 NodePort 的端口号。
+
+- `status`：包含了 Service 的状态信息。
+  - `loadBalancer`：指定了负载均衡器的状态信息。
+    - `ingress`：指定了负载均衡器的入口地址信息，可以是 IP 或者主机名。
+
+这是一个基本的 Service 配置模板，你可以根据实际需求填入相应的值来创建自己的 Service 对象。
+
+![image-20240428204159255](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042403.png)
+
+![image-20240428204240481](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042562.png)
+
+## Service 的基本用法
+
+（1）一般来说，对外提供服务的应用程序需要通过某种机制来实现，对于容器应用最简便的方式就是通过TCP/IP 机制及监听IP 和端口号来实现。创建一个基本功能的Service
+
+```yml
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: mywebapp
+spec:
+  replicas: 2
+  template:
+    metadata:
+      name: mywebapp
+      labels:
+        app: mywebapp
+    spec:
+      containers:
+      - name: mywebapp
+        image: tomcat
+        ports:
+        - containerPort: 8080
+```
+
+（2）我们可以通过kubectl get pods -l app=mywebapp -o yaml | grep podIP 来获取Pod 的IP 地址和端口号来访问Tomcat 服务，但是直接通过Pod 的IP 地址和端口访问应用服务是不可靠的，因为当Pod 所在的Node 发生故障时， Pod 将被kubernetes 重新调度到另一台Node，Pod 的地址会发生改变。我们可以通过配置文件来定义Service，再通过kubectl create 来创建，这样可以通过Service 地址来访问后端的Pod.
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mywebAppService
+spec:
+  ports:
+  - port: 8081
+    targetPort: 8080
+  selector:
+    app: mywebapp
+```
+
+你提供的第一个配置文件是一个基本的 ReplicationController（现在已经被称为 Deployment）配置，用于部署一个名为 "mywebapp" 的 Tomcat 应用程序。该应用程序将会在两个 Pod 中运行，每个 Pod 都会监听 8080 端口。
+
+第二个配置文件是一个定义了 Service 的 YAML 文件，它将创建一个名为 "mywebAppService" 的 Service，用于暴露后端的 Tomcat 应用程序。该 Service 将监听 8081 端口，并将流量转发到后端 Pod 的 8080 端口。它通过 selector 将流量路由到具有 "app=mywebapp" 标签的 Pod。
+
+现在你可以使用 Service 的 ClusterIP 地址（和端口）来访问你的 Tomcat 应用程序，而不是直接使用 Pod 的 IP 地址。例如，如果你的 Service 名称为 "mywebAppService"，那么你可以通过 `http://<Service ClusterIP>:8081` 的方式来访问你的应用程序。 
+
+通过这种方式，无论 Pod 在哪个节点上重新调度，Service 的 ClusterIP 都将保持不变，从而确保了对应用程序的可靠访问。
+
+## 多端口Service
+
+有时一个容器应用也可能需要提供多个端口的服务，那么在Service 的定义中也可以相应地设置为将多个端口对应到多个应用服务。
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: mywebAppService
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    name: web
+  - port: 8005
+    targetPort: 8005
+    name: management
+  selector:
+    app: mywebapp
+```
+
+在提供的 YAML 配置文件中，有两个端口定义：
+
+1. `port: 8080`：这个端口被命名为 "web"，它将流量转发到后端 Pod 的 8080 端口上，用于提供 Web 服务。
+
+2. `port: 8005`：这个端口被命名为 "management"，它将流量转发到后端 Pod 的 8005 端口上，用于提供管理功能或服务。
+
+通过这种配置，你可以在同一个 Service 中同时提供多个端口的服务，并通过不同的端口名称区分它们。当你需要访问不同的服务或功能时，可以使用不同的端口来访问，而不必创建多个单独的 Service。
+
+## 外部服务Service
+
+在某些特殊环境中，应用系统需要将一个外部数据库作为后端服务进行连接，或将另一个集群或Namespace 中的服务作为服务的后端，这时可以通过创建一个无Label Selector的Service 来实现。
+
+```yml
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-service
+spec:
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: my-service
+subsets:
+- addresses:
+  - IP: 10.254.74.3
+  ports:
+  - port: 8080
+```
+
+
+在某些情况下，你可能希望将一个外部服务或者另一个集群或 Namespace 中的服务作为后端服务连接到你的 Kubernetes Service 中。这时候，你可以创建一个没有 Label Selector 的 Service，并通过手动创建 Endpoints 对象来指定后端服务的地址和端口。
+
+在 YAML 配置文件中，有两个部分：
+
+1. **Service 配置**：这个部分定义了一个名为 "my-service" 的 Service，它没有指定 Selector，也就是没有关联到任何特定的 Pod。它仅仅定义了一个端口，用于暴露服务。
+
+2. **Endpoints 配置**：这个部分定义了一个名为 "my-service" 的 Endpoints 对象，它指定了后端服务的地址和端口。在这个例子中，后端服务的 IP 地址为 10.254.74.3，端口为 8080。这样，Service 将流量转发到这个指定的后端服务。
+
+通过这种配置，你可以将任何外部的服务或者集群中的服务作为后端服务连接到你的 Kubernetes Service 中，实现对外提供服务的功能。
+
+
+# Label 标签
+
+标签（Label）是 Kubernetes 中的一种重要概念，用于对资源对象进行分类和组织。它们是键值对，可以附加到各种 Kubernetes 资源对象（如 Pod、Service、Deployment 等）的**元数据**中。一个Label 是一个key=value 的键值对，其中key 与value 由用户自己指定
+
+标签的作用有以下几个方面：
+
+1. **标识和分类**：标签可以帮助用户对资源对象进行分类和标识。例如，可以为一组 Pod 添加相同的标签，以表示它们属于同一个应用程序或服务。
+2. **选择器**：标签可以用作选择器，用于在 Kubernetes 中选择特定的资源对象。例如，可以使用标签选择器来指定一个 Service 只路由到具有特定标签的 Pod。
+3. **管理和操作**：标签可以用于组织和管理资源对象。例如，可以使用标签来确定哪些 Pod 属于一个特定的部署，并对它们进行扩展、缩减或更新操作。
+4. **路由和策略**：标签可以用于定义路由规则和访问策略。例如，可以基于标签定义网络策略，限制特定标签的 Pod 之间的通信。
+
+Label 的最常见的用法是使用 metadata.labels 字段，来为对象添加 Label，通过 spec.selector 来引用对象
+
+## 示例
+
+Labels（标签）和 Label Selectors（标签选择器）是 Kubernetes 中非常重要的概念，它们允许您对资源对象进行分组管理，并在需要时选择特定的资源对象。
+
+Labels 是键值对的形式，附加到 Kubernetes 资源对象（如 Pod、ReplicationController、Service 等）的元数据中。Label 可以是任何字符串，但是建议使用具有描述性的名称来帮助识别和组织资源对象。
+
+Label Selectors 则是用于选择具有特定标签集合的资源对象的机制。它们用于定义一组标签的条件，以便从集群中选择相应的资源对象。Label Selectors 可以用于多种 Kubernetes 资源对象，如 Service、ReplicaSet、ReplicationController 等。
+
+下面是一个简单的示例，演示了如何在 Pod 和 Service 中使用 Labels 和 Label Selectors：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod
+  labels:
+    app: nginx       # 将标签 "app=nginx" 附加到 Pod 上
+spec:
+  containers:
+  - name: nginx
+    image: nginx
+    ports:
+    - containerPort: 80
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-service
+spec:
+  selector:
+    app: nginx       # 指定 Label Selector，选择具有标签 "app=nginx" 的 Pod
+  ports:
+  - port: 80
+    targetPort: 80
+  type: ClusterIP
+```
+
+在这个示例中，Pod "nginx-pod" 被附加了一个标签 "app=nginx"。而 Service "nginx-service" 的 Selector 字段指定了一个 Label Selector，选择具有标签 "app=nginx" 的 Pod。
+
+这样一来，Service 将流量路由到具有相应标签的 Pod 上，实现了服务发现和负载均衡的功能。Labels 和 Label Selectors 的结合使用为 Kubernetes 中的资源对象提供了强大的分组和选择机制，使得管理和操作集群中的应用变得更加灵活和高效。
+
+# Volume 存储卷
+
+Volume 在 Kubernetes 中是指用于持久化数据的抽象概念，可以用来将存储挂载到 Pod 中。它提供了一种灵活的方式来管理容器中的数据，可以使用各种类型的存储后端，如本地磁盘、网络存储、云存储等。
+
+在 Kubernetes 中，Volume 可以与 Pod 一起使用，以便在 Pod 重新调度、迁移或失败时保持数据的持久性。通过将 Volume 挂载到 Pod 中，容器可以访问其中的数据，并且数据会保留在 Volume 所指定的存储介质上。
+
+Volume 可以用来存储应用程序的配置文件、日志、数据库文件等持久化数据。Kubernetes 提供了多种类型的 Volume，包括但不限于：
+
+1. EmptyDir：在 Pod 的生命周期内存在的临时存储，当 Pod 被删除时数据也会被删除。
+2. HostPath：将主机上的文件系统挂载到 Pod 中，适用于需要与主机共享文件的场景。
+3. PersistentVolumeClaim（PVC）：用于动态请求持久存储的抽象概念，可以与 PersistentVolume（PV）结合使用，以便将外部存储动态地挂载到 Pod 中。
+4. ConfigMap 和 Secret：用于将配置文件和敏感信息挂载到 Pod 中，以供应用程序使用。
+
+在 Kubernetes 中，Volume 是 Pod 中能够被多个容器访问的共享目录。它可以被挂载到 Pod 中的一个或多个容器中的特定路径下，从而实现容器之间共享数据的需求。Volume 与 Pod 的生命周期相同，但与容器的生命周期不相关，这意味着当容器终止或重启时，Volume 中的数据不会丢失，除非整个 Pod 被删除。
+
+## Volume 类型
+
+要使用 volume，pod 需要指定 volume 的类型和内容（ 字段），和映射到容器的位置（ 字段）。Kubernetes 支持多种类型的 Volume 包括：emptyDir、hostPath、gcePersistentDisk、awsElasticBlockStore、nfs、iscsi、flocker、glusterfs、rbd、cephfs、gitRepo、secret、persistentVolumeClaim、downwardAPI、azureFileVolume、azureDisk、vsphereVolume、Quobyte、PortworxVolume、ScaleIO。
+
+当您在 Kubernetes 中使用 Volume 时，可以根据实际需求选择不同类型的 Volume。下面详细介绍一些常见的 Volume 类型及其特点：
+
+1. **EmptyDir：** EmptyDir 是一种临时存储，随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。适合用于临时存储数据，例如容器之间共享临时文件。
+2. **HostPath：** HostPath 允许将主机上的文件系统目录挂载到 Pod 中的容器中。这种类型的 Volume 可以用于需要与主机共享文件系统的场景，但不推荐在生产环境中使用，因为可能会引起安全性和可移植性问题。
+3. **PersistentVolumeClaim（PVC）：** PersistentVolumeClaim 是一种抽象概念，用于动态请求持久存储的资源。通过 PersistentVolumeClaim，Pod 可以请求持久化存储资源，而不需要关心具体的存储后端。PersistentVolumeClaim 可以与 PersistentVolume 结合使用，以便将外部持久化存储动态地挂载到 Pod 中。
+4. **ConfigMap 和 Secret：** ConfigMap 和 Secret 也可以被挂载为 Volume，用于将配置文件和敏感信息挂载到 Pod 中。ConfigMap 用于存储配置数据，而 Secret 用于存储敏感信息，它们可以被容器用来读取配置和凭证信息。
+5. **NFS、iSCSI、GlusterFS、CephFS 等网络存储：** Kubernetes 支持将各种网络存储挂载为 Volume，例如 NFS、iSCSI、GlusterFS、CephFS 等。这些类型的 Volume 可以用于将外部网络存储挂载到 Pod 中，实现持久化存储和数据共享。
+
+除了上述列举的几种常见类型外，Kubernetes 还支持许多其他类型的 Volume，如 Azure 文件存储、AWS 弹性块存储、Git 仓库、DownwardAPI 等。通过选择适合您需求的 Volume 类型，您可以更好地管理 Pod 中的数据并满足各种应用场景下的需求。
+
+### EmptyDir
+
+EmptyDir 类型的 Volume 是 Kubernetes 中一种临时性的 Volume 类型，它用于在 Pod 中创建一个空目录，该目录的生命周期与 Pod 相关联，当 Pod 被删除时，EmptyDir 中的数据也会被清除。以下是关于 EmptyDir 类型的 Volume 的详细说明：
+
+1. **临时存储**：EmptyDir Volume 是一个临时性的存储空间，它在 Pod 启动时被创建，当 Pod 被删除时会被清空。这意味着 EmptyDir 中的数据不会被持久化存储，适用于临时性的数据存储需求。
+2. **Pod 内部共享**：EmptyDir Volume 可以被 Pod 中的多个容器共享，这使得容器之间可以共享临时数据，例如容器之间的通信、共享临时文件等。
+3. **空目录创建**：EmptyDir Volume 创建时是一个空目录，可以被容器中的应用程序读写数据。这种方式可以方便容器内部的应用程序临时存储数据。
+4. **容量限制**：EmptyDir Volume 可以设置容量限制，以限制存储空间的大小。当存储空间超出限制时，Pod 可能会因为存储空间不足而失败。
+5. **适用性**：EmptyDir Volume 适用于需要在容器之间共享临时数据、临时存储数据的场景，例如临时文件、临时缓存等。
+6. **数据共享与清理**：由于 EmptyDir Volume 是临时性的，数据在 Pod 删除时会被清空，因此不适合用于需要持久化存储数据的场景。如果需要持久化存储数据，建议使用其他类型的 Volume，如 PersistentVolume。
+
+ EmptyDir 是一种临时存储，它会在 Pod 被调度到某个宿主机上时创建，并且同一个 Pod 中的所有容器都可以读写 EmptyDir 中的同一个文件。当 Pod 离开所在的宿主机时，EmptyDir 中的数据会被永久删除，因此 EmptyDir 主要用作临时空间。
+
+EmptyDir 的特点使其非常适合用于一些临时性的存储需求，例如：
+
+- Web 服务器写日志：Web 服务器可以将访问日志等临时数据写入 EmptyDir 中，以便后续处理或分析。
+- 临时文件目录：某些应用程序可能需要在运行过程中生成临时文件，这些临时文件可以存储在 EmptyDir 中，而不会占用持久化存储资源。
+
+由于 EmptyDir 中的数据在 Pod 离开宿主机时会被删除，因此不适合存储需要持久保存的数据。但对于临时性的数据存储需求，EmptyDir 提供了一种简单高效的解决方案。在合适的场景下，EmptyDir 可以帮助您实现临时数据存储的需求，同时避免占用持久化存储资源。比如 Web 服务器写日志或者 tmp 文件需要的临时目录。
+
+yml 示例
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+    - image: docker.io/nazarpc/webserver
+      name: test-container
+      volumeMounts:
+        - mountPath: /cache
+          name: cache-volume
+  volumes:
+    - name: cache-volume
+      emptyDir: {}
+```
+
+这个Kubernetes配置文件示例中，指定了一个名为`cache-volume`的EmptyDir类型的Volume，并将其挂载到了`/cache`路径下。让我逐步详细解释一下这个配置文件：
+
+1. **apiVersion 和 kind：**
+   - `apiVersion: v1` 表示该配置文件所使用的 Kubernetes API 版本为 v1。
+   - `kind: Pod` 表示这个配置文件描述的是一个 Pod 对象。
+2. **metadata：**
+   - 在 metadata 字段下的 `name: test-pd` 指定了该 Pod 的名称为 `test-pd`，这个名称可根据实际需求进行修改。
+3. **spec：**
+   - `spec` 字段指定了 Pod 的规格，包括容器和卷的相关信息。
+   - 在 `containers` 字段下，定义了一个容器：
+     - `image: docker.io/nazarpc/webserver` 指定了容器所使用的镜像为 `docker.io/nazarpc/webserver`。
+     - `name: test-container` 指定了容器的名称为 `test-container`，这个名称也可以根据实际情况进行修改。
+     - `volumeMounts` 字段用于将卷挂载到容器内部的路径下，这里指定了将名为 `cache-volume` 的卷挂载到 `/cache` 路径下。
+   - 在 `volumes` 字段下，定义了一个卷，这个卷不是外部的服务器，而是在 Pod 启动时创建的临时存储空间，当 Pod 被删除时，这个卷的数据也会被清除。：
+     - `name: cache-volume` 指定了卷的名称为 `cache-volume`，用于与容器中的 `volumeMounts` 对应。
+     - `emptyDir: {}` 指定了这个卷是一个 EmptyDir 类型的卷，表示创建一个空目录作为卷，即临时存储卷，它会随着 Pod 的创建而创建，在 Pod 被删除时数据也会被清除。由于这里使用的是 emptyDir 类型的卷，它只存在于单个 Pod 实例的生命周期中，并且仅在该 Pod 的所有容器之间共享。
+
+这样配置文件中的 `cache-volume` EmptyDir 类型的 Volume 就准备好了，它可以被 `test-container` 容器使用，并且在 Pod 被删除时其中的数据会被清除，适合用于临时存储需求。
+
+### HostPath
+
+HostPath 类型的 Volume 是 Kubernetes 中一种常见的 Volume 类型，它允许将宿主机上的文件或目录直接挂载到 Pod 中的容器中。以下是关于 HostPath 类型的 Volume 的详细说明：
+
+1. **宿主机文件系统挂载**：HostPath Volume 允许将宿主机上的文件系统中的文件或目录挂载到 Pod 中的容器中。这种方式可以方便容器访问宿主机上的数据，例如配置文件、日志文件等。
+2. **主机路径关联**：使用 HostPath Volume 需要指定宿主机上的路径（HostPath），容器中的应用程序可以直接访问该路径下的文件。这种方式适用于需要在容器内部访问宿主机文件系统的场景。
+3. **权限和安全性**：在配置 HostPath Volume 时，需要考虑权限和安全性方面的问题。由于容器可以直接访问宿主机文件系统，因此需要确保适当配置宿主机文件系统的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
+4. **主机文件系统依赖性**：使用 HostPath Volume 需要依赖宿主机文件系统的路径，因此在不同宿主机上部署时需要确保路径的一致性。这也意味着同一个 Volume 在不同宿主机上可能会有不同的数据内容。
+5. **适用性**：HostPath Volume 适用于一些特定的场景，例如需要在容器内部访问宿主机文件系统的情况，或者需要共享宿主机上的一些数据给容器使用的场景。
+
+HostPath 类型的 Volume 允许容器访问当前宿主机上的指定目录。通过在 Kubernetes 的 Pod 配置文件中使用 HostPath 类型的 Volume，可以将宿主机上的目录挂载到容器中，使得容器可以访问宿主机上的文件系统资源。
+
+下面是一个简单的示例，演示了如何在 Pod 中使用 HostPath 类型的 Volume：
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-pd
+spec:
+  containers:
+    - name: test-container
+      image: nginx
+      volumeMounts:
+        - mountPath: /usr/share/nginx/html
+          name: host-volume
+  volumes:
+    - name: host-volume
+      hostPath:
+        path: /var/www/html
+        type: Directory
+```
+
+在这个示例中，我们创建了一个 Pod，其中包含一个名为 `test-container` 的容器，使用了 `nginx` 镜像。我们定义了一个 HostPath 类型的 Volume，将宿主机上的 `/var/www/html` 目录挂载到容器中的 `/usr/share/nginx/html` 路径下。这样，容器中的应用程序就可以访问宿主机上 `/var/www/html` 目录中的内容。
+
+需要注意的是，使用 HostPath 类型的 Volume 可能会带来一些安全风险，因为容器可以访问宿主机上的文件系统资源。在生产环境中，建议谨慎使用 HostPath 类型的 Volume，并确保只挂载必要的目录，以减少潜在的安全风险。
+
+当一个 Pod 使用 HostPath 类型的 Volume 挂载宿主机上的特定目录时，这些数据不会随着 Pod 的迁移而自动在不同宿主机之间同步。
+
+一旦这个pod 离开了这个宿主机，HostDir 中的数据虽然不会被永久删除，但数据也不会随 pod 迁移到其他宿主机上
+
+因此，需要注意的是，由于各个宿主机上的文件系统结构和内容并不一定完全相同，所以相同 pod 的 HostDir 可能会在不同的宿主机上表现出不同的行为
+
+在使用 HostPath 类型的 Volume 时，需要注意以下几点：
+
+1. 数据不会随 Pod 的迁移而自动同步到其他宿主机上，可能会导致数据在不同宿主机上的不一致性。
+2. 宿主机上的文件系统结构和内容可能不同，因此在不同宿主机上使用相同的 HostDir 可能会产生意料之外的结果。
+3. 需要谨慎考虑数据的持久性和一致性，以及可能出现的数据不一致性问题。
+
+在实际应用中，如果需要跨宿主机持久化数据并保持一致性，可以考虑使用网络存储卷（如 NFS、Ceph 等）或者云存储服务来存储数据，以确保数据在不同宿主机之间的一致性和可靠性。
+
+### NFS
+
+NFS（Network File System）是一种分布式文件系统协议，允许一个计算机上的用户通过网络访问另一个计算机上的文件。在 Kubernetes 中，NFS 类型的 Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中，实现容器间的文件共享。以下是 NFS 类型的 Volume 的一些详细介绍：
+
+1. **远程文件系统挂载**：NFS Volume 允许将远程的 NFS 服务器上的文件系统挂载到 Pod 中的容器中。这使得多个容器可以共享同一个远程文件系统，实现容器间的数据共享。
+2. **共享性**：NFS Volume 可以在同一个 Pod 内的多个容器之间共享文件系统。这意味着不同容器可以读写相同的文件，从而实现数据共享和协作。
+3. **灵活性**：通过 NFS Volume，可以将不同的 NFS 服务器上的文件系统挂载到同一个 Pod 中的不同容器中。这使得容器可以访问不同来源的数据，从而满足多样化的应用需求。
+4. **网络依赖性**：使用 NFS Volume 需要依赖网络连接，因为它涉及到远程文件系统的挂载和访问。因此，需要确保网络稳定性和性能，以保证文件共享的可靠性和性能。
+5. **权限和安全性**：在配置 NFS Volume 时，需要考虑权限和安全性方面的问题。需要确保适当配置 NFS 服务器的访问权限，并在 Kubernetes 中配置适当的 Volume 权限和访问控制策略，以保证文件共享的安全性。
+
+NFS（Network File System）类型的 Volume 允许在同一个 Pod 内的多个容器之间共享一块现有的网络硬盘。通过在 Kubernetes 的 Pod 配置文件中使用 NFS 类型的 Volume，可以将一个远程的 NFS 服务器上的文件系统挂载到多个容器中，实现容器间的文件共享。
+
+下面是一个简单的示例，演示了如何在 Pod 中使用 NFS 类型的 Volume：
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nfs-pod
+spec:
+  containers:
+    - name: container1
+      image: nginx
+      volumeMounts:
+        - mountPath: /shared-data
+          name: nfs-volume
+    - name: container2
+      image: busybox
+      volumeMounts:
+        - mountPath: /shared-data
+          name: nfs-volume
+  volumes:
+    - name: nfs-volume
+      nfs:
+        server: nfs-server-ip
+        path: /path/to/shared/directory
+```
+
+在这个示例中，我们创建了一个 Pod，其中包含两个容器 `container1` 和 `container2`。我们定义了一个 NFS 类型的 Volume，将 NFS 服务器上的 `/path/to/shared/directory` 目录挂载到这两个容器中的 `/shared-data` 路径下。这样，这两个容器就可以共享这个 NFS 服务器上的文件系统。
+
+需要注意的是，使用 NFS 类型的 Volume 可以实现容器间的文件共享，但也需要考虑网络延迟、性能和安全性等因素。确保 NFS 服务器可靠性和性能良好，以及适当配置权限和访问控制，以保证文件共享的安全性和可靠性。
+
 
 # 存储管理 PVC 和 PV
 
@@ -4133,276 +4794,6 @@ kubectl patch deployment my-nginx --patch '{"spec": {"template": {"metadata": {"
 - 使用该 ConfigMap 挂载的环境变量不会自动同步更新，需要手动触发滚动更新。
 - 使用该 ConfigMap 挂载的卷中的数据可能需要一段时间才能同步更新，实际更新时间可能会有所延迟，一般大约需要 10 秒左右。
 
-# Namespace
-
-Kubernetes Namespace 是一种在 Kubernetes 集群中用于隔离和组织资源的机制。它可以让你将集群中的资源划分为不同的虚拟组，每个组都有自己的命名空间。Namespace 提供了一种逻辑上的隔离，使得多个用户、团队或应用程序可以在同一个集群上共享资源而不会发生冲突。
-
-以下是 Kubernetes Namespace 的一些关键特性和用途：
-
-1. **资源隔离**：Namespace 允许你将集群中的资源（如 Pod、Service、Volume 等）划分为不同的逻辑单元。这意味着你可以为不同的团队、项目或环境创建独立的 Namespace，以确保彼此之间的资源不会相互干扰。
-
-2. **命名空间范围**：Kubernetes 中有一些预定义的 Namespace，如 default、kube-system 和 kube-public。此外，你还可以创建自己的自定义 Namespace。每个 Namespace 都拥有自己的唯一名称，资源名称在同一个 Namespace 中必须是唯一的，但在不同 Namespace 中可以重复。
-
-3. **资源配额和限制**：通过 Namespace，你可以为每个 Namespace 设置资源配额和限制，以确保某个 Namespace 中的资源使用不会超出预期的范围。这对于多租户环境特别有用。
-
-4. **访问控制**：Namespace 也可以用于实现访问控制。通过 Kubernetes 的 RBAC（Role-Based Access Control）机制，你可以为不同的 Namespace 设置不同的权限，从而限制用户或服务对特定 Namespace 中资源的访问。
-
-5. **环境分离**：通常情况下，你可以将不同的环境（如开发、测试、生产）放置在不同的 Namespace 中，以实现环境之间的逻辑分离和管理。
-
-总的来说，Kubernetes Namespace 是一种非常有用的资源管理和隔离机制，可以帮助你更好地组织和管理集群中的资源，并提供多租户支持、访问控制和资源配额等功能。
-
-默认情况下，如果不显式指定 Namespace，Kubernetes 会将资源对象创建到名为 "default" 的 Namespace 中。这个默认的 Namespace 在集群启动后会自动创建，并且通常情况下被用作集群中不特定于任何特定 Namespace 的资源的默认位置。
-
-这意味着如果你没有显式地为 Pod、Replication Controller（RC）、Service 或其他资源指定 Namespace，它们将被创建到默认的 "default" Namespace 中。这样做可以简化 Kubernetes 初学者的使用体验，并使它们能够快速开始尝试和部署应用程序，而无需过多关注 Namespace 的概念。
-
-然而，在实际生产环境中，为了更好地组织和管理资源，并实现资源隔离、访问控制和配额控制等功能，通常会创建多个自定义 Namespace，并将不同的资源对象分配到不同的 Namespace 中。这样可以更好地管理集群，并确保不同用户、团队或项目之间的资源不会相互干扰。
-
-## Namespace 创建
-
-```yaml
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: development
-```
-
-解释如下：
-
-- `apiVersion: v1`：指定了 Kubernetes API 的版本，这里是 v1 版本。
-- `kind: Namespace`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Namespace。
-- `metadata`：包含了对象的元数据，比如名称、标签等。
-  - `name: development`：指定了 Namespace 的名称为 "development"。这表示将要创建一个名为 "development" 的 Namespace。
-
-通过这个配置文件，可以使用 Kubernetes 命令或 API 来创建名为 "development" 的 Namespace，用于组织和隔离资源。
-
-创建一个名为 "busybox" 的 Pod 的 YAML 配置文件，并将其指定到上面名为 "development" 的 Namespace 中：
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: busybox
-  namespace: development
-spec:
-  containers:
-  - image: busybox
-    command:
-    - sleep
-    - "3600"
-    name: busybox
-```
-
-解释如下：
-
-- `apiVersion: v1`：指定了 Kubernetes API 的版本。
-- `kind: Pod`：指定了要创建的 Kubernetes 对象的类型，这里是一个 Pod。
-- `metadata`：包含了 Pod 的元数据，比如名称、标签等。
-  - `name: busybox`：指定了 Pod 的名称为 "busybox"。
-  - `namespace: development`：指定了 Pod 所属的 Namespace 为 "development"。
-- `spec`：指定了 Pod 的规格，包括容器等。
-  - `containers`：指定了 Pod 中的容器列表。
-    - `image: busybox`：指定了容器所使用的镜像为 "busybox"。
-    - `command`：指定了容器启动时执行的命令，这里是让容器休眠 3600 秒。
-    - `name: busybox`：指定了容器的名称为 "busybox"。
-
-通过这个配置文件，可以创建一个名为 "busybox" 的 Pod，并将其放置在名为 "development" 的 Namespace 中。
-
-## Namespace 查看
-
-```yml
-kubectl get pods --namespace=development
-```
-
-# Service
-
-Kubernetes 中的 Service 是一种抽象，用于定义一组 Pod 的逻辑集合和访问它们的方法。Service 充当了 Pod 集合的稳定访问点，使得其他应用程序可以通过 Service 名称来访问这些 Pod，而不必关心它们的具体 IP 地址或端口号。以下是 Kubernetes Service 的一些重要特性和用途：
-
-1. **稳定的访问点**：Service 提供了一个稳定的访问点，用于访问一组 Pod。无论 Pod 的 IP 地址如何变化（例如 Pod 扩容、缩容或重新调度），Service 都会确保对外提供稳定的访问。
-
-2. **负载均衡**：Service 可以将请求均匀地分发给后端 Pod，以实现负载均衡。根据 Service 的类型（如 ClusterIP、NodePort 或 LoadBalancer），可以在集群内部或集群外部实现负载均衡。
-
-3. **服务发现**：通过 Service，其他应用程序可以通过 Service 名称来访问后端 Pod，而不必了解 Pod 的具体 IP 地址。这简化了应用程序之间的通信，并支持微服务架构中的服务发现。
-
-4. **Session Affinity**：Service 支持会话亲和性，可以将请求路由到特定的后端 Pod，以确保特定会话的所有请求都被发送到同一个 Pod 上。这对于需要保持会话状态的应用程序非常有用。
-
-5. **多种类型**：Kubernetes 提供了多种类型的 Service，包括 ClusterIP、NodePort、LoadBalancer 和 ExternalName。每种类型都适用于不同的使用场景和需求。
-
-6. **服务监控和日志**：Service 通常与其他 Kubernetes 组件集成，例如 Ingress、监控系统和日志系统，以实现服务的监控和日志记录。
-
-## 示例配置文件
-
-这是一个描述 Kubernetes Service 的 YAML 配置文件的模板
-
-```yaml
-apiVersion: v1
-kind: Service
-metadata:
-  name: string
-  namespace: string
-  labels:
-    - name: string
-  annotations:
-    - name: string
-spec:
-  selector: []
-  type: string
-  clusterIP: string
-  sessionAffinity: string
-  ports:
-    - name: string
-      protocol: string
-      port: int
-      targetPort: int
-      nodePort: int
-status:
-  loadBalancer:
-    ingress:
-      ip: string
-      hostname: string
-```
-
-- `apiVersion` 和 `kind`：这两个字段指定了 YAML 文件中定义的 Kubernetes 对象的类型，这里是 Service。
-
-- `metadata`：包含了对象的元数据，比如名称、标签、注解等。
-  - `name`：指定了 Service 的名称。
-  - `namespace`：指定了 Service 所属的 Namespace。
-  - `labels`：指定了 Service 的标签，用于标识和选择 Service。
-  - `annotations`：指定了 Service 的注解，包含了额外的元数据信息。
-
-- `spec`：指定了 Service 的规格，包括了 Service 的选择器、类型、ClusterIP、会话亲和性、端口等。
-  - `selector`：指定了用于选择后端 Pod 的标签选择器。
-  - `type`：指定了 Service 的类型，可以是 ClusterIP、NodePort、LoadBalancer 或者 ExternalName。
-  - `clusterIP`：指定了 Service 的 ClusterIP，用于集群内部访问。
-  - `sessionAffinity`：指定了会话亲和性，可以是 None 或者 ClientIP。
-  - `ports`：指定了 Service 开放的端口列表。
-    - `name`：指定了端口的名称。
-    - `protocol`：指定了端口的协议，可以是 TCP 或者 UDP。
-    - `port`：指定了 Service 所监听的端口号。
-    - `targetPort`：指定了后端 Pod 所监听的端口号。
-    - `nodePort`：如果 Service 类型是 NodePort，则指定了 NodePort 的端口号。
-
-- `status`：包含了 Service 的状态信息。
-  - `loadBalancer`：指定了负载均衡器的状态信息。
-    - `ingress`：指定了负载均衡器的入口地址信息，可以是 IP 或者主机名。
-
-这是一个基本的 Service 配置模板，你可以根据实际需求填入相应的值来创建自己的 Service 对象。
-
-![image-20240428204159255](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042403.png)
-
-![image-20240428204240481](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202404282042562.png)
-
-## Service 的基本用法
-
-（1）一般来说，对外提供服务的应用程序需要通过某种机制来实现，对于容器应用最简便的方式就是通过TCP/IP 机制及监听IP 和端口号来实现。创建一个基本功能的Service
-
-```yml
-apiVersion: v1
-kind: ReplicationController
-metadata:
-  name: mywebapp
-spec:
-  replicas: 2
-  template:
-    metadata:
-      name: mywebapp
-      labels:
-        app: mywebapp
-    spec:
-      containers:
-      - name: mywebapp
-        image: tomcat
-        ports:
-        - containerPort: 8080
-```
-
-（2）我们可以通过kubectl get pods -l app=mywebapp -o yaml | grep podIP 来获取Pod 的IP 地址和端口号来访问Tomcat 服务，但是直接通过Pod 的IP 地址和端口访问应用服务是不可靠的，因为当Pod 所在的Node 发生故障时， Pod 将被kubernetes 重新调度到另一台Node，Pod 的地址会发生改变。我们可以通过配置文件来定义Service，再通过kubectl create 来创建，这样可以通过Service 地址来访问后端的Pod.
-
-```yml
-apiVersion: v1
-kind: Service
-metadata:
-  name: mywebAppService
-spec:
-  ports:
-  - port: 8081
-    targetPort: 8080
-  selector:
-    app: mywebapp
-```
-
-你提供的第一个配置文件是一个基本的 ReplicationController（现在已经被称为 Deployment）配置，用于部署一个名为 "mywebapp" 的 Tomcat 应用程序。该应用程序将会在两个 Pod 中运行，每个 Pod 都会监听 8080 端口。
-
-第二个配置文件是一个定义了 Service 的 YAML 文件，它将创建一个名为 "mywebAppService" 的 Service，用于暴露后端的 Tomcat 应用程序。该 Service 将监听 8081 端口，并将流量转发到后端 Pod 的 8080 端口。它通过 selector 将流量路由到具有 "app=mywebapp" 标签的 Pod。
-
-现在你可以使用 Service 的 ClusterIP 地址（和端口）来访问你的 Tomcat 应用程序，而不是直接使用 Pod 的 IP 地址。例如，如果你的 Service 名称为 "mywebAppService"，那么你可以通过 `http://<Service ClusterIP>:8081` 的方式来访问你的应用程序。 
-
-通过这种方式，无论 Pod 在哪个节点上重新调度，Service 的 ClusterIP 都将保持不变，从而确保了对应用程序的可靠访问。
-
-## 多端口Service
-
-有时一个容器应用也可能需要提供多个端口的服务，那么在Service 的定义中也可以相应地设置为将多个端口对应到多个应用服务。
-
-```yml
-apiVersion: v1
-kind: Service
-metadata:
-  name: mywebAppService
-spec:
-  ports:
-  - port: 8080
-    targetPort: 8080
-    name: web
-  - port: 8005
-    targetPort: 8005
-    name: management
-  selector:
-    app: mywebapp
-```
-
-在提供的 YAML 配置文件中，有两个端口定义：
-
-1. `port: 8080`：这个端口被命名为 "web"，它将流量转发到后端 Pod 的 8080 端口上，用于提供 Web 服务。
-
-2. `port: 8005`：这个端口被命名为 "management"，它将流量转发到后端 Pod 的 8005 端口上，用于提供管理功能或服务。
-
-通过这种配置，你可以在同一个 Service 中同时提供多个端口的服务，并通过不同的端口名称区分它们。当你需要访问不同的服务或功能时，可以使用不同的端口来访问，而不必创建多个单独的 Service。
-
-## 外部服务Service
-
-在某些特殊环境中，应用系统需要将一个外部数据库作为后端服务进行连接，或将另一个集群或Namespace 中的服务作为服务的后端，这时可以通过创建一个无Label Selector的Service 来实现。
-
-```yml
-apiVersion: v1
-kind: Service
-metadata:
-  name: my-service
-spec:
-  ports:
-  - protocol: TCP
-    port: 80
-    targetPort: 80
----
-apiVersion: v1
-kind: Endpoints
-metadata:
-  name: my-service
-subsets:
-- addresses:
-  - IP: 10.254.74.3
-  ports:
-  - port: 8080
-```
-
-
-在某些情况下，你可能希望将一个外部服务或者另一个集群或 Namespace 中的服务作为后端服务连接到你的 Kubernetes Service 中。这时候，你可以创建一个没有 Label Selector 的 Service，并通过手动创建 Endpoints 对象来指定后端服务的地址和端口。
-
-在 YAML 配置文件中，有两个部分：
-
-1. **Service 配置**：这个部分定义了一个名为 "my-service" 的 Service，它没有指定 Selector，也就是没有关联到任何特定的 Pod。它仅仅定义了一个端口，用于暴露服务。
-
-2. **Endpoints 配置**：这个部分定义了一个名为 "my-service" 的 Endpoints 对象，它指定了后端服务的地址和端口。在这个例子中，后端服务的 IP 地址为 10.254.74.3，端口为 8080。这样，Service 将流量转发到这个指定的后端服务。
-
-通过这种配置，你可以将任何外部的服务或者集群中的服务作为后端服务连接到你的 Kubernetes Service 中，实现对外提供服务的功能。
 
 # 健康检查
 
