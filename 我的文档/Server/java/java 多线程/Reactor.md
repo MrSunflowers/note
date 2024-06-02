@@ -205,3 +205,119 @@ public class ReactiveStreamsProcessorExample {
 
 # Reactor
 
+高并发 ： 缓存，异步，队排好
+高可用 ： 分片，复制，选领导
+
+Reactor 框架可无缝对接 java Stream、CompletableFuture、Duration 等 API 接口
+
+## 背压（Backpressure）机制
+
+Reactor 是一个响应式编程库，它支持背压（Backpressure）机制，这是一种处理生产者和消费者之间速率不匹配问题的策略。在响应式流中，背压允许消费者控制生产者发送数据的速度，以避免资源耗尽或处理延迟。Reactor 提供了多种背压策略，允许开发者根据具体场景选择合适的处理方式。
+
+以下是 Reactor 中提供的几种背压策略：
+
+1. **onBackpressureBuffer**：这是 Reactor 默认的背压策略。当消费者无法跟上生产者的发送速度时，生产者发送的数据会被缓存在一个队列中。这个队列的大小是有限的，如果队列满了，生产者会停止发送数据，直到消费者能够处理更多的数据。这种策略可以防止内存溢出，但可能会导致数据丢失，如果队列满了，新的数据会被丢弃。
+
+2. **onBackpressureDrop**：在这种策略下，如果消费者跟不上生产者的发送速度，生产者发送的数据会被直接丢弃。这种策略不会导致内存溢出，但可能会丢失数据。
+
+3. **onBackpressureLatest**：这种策略会立即推送最新的数据给消费者，而忽略旧的数据。如果消费者跟不上生产者的发送速度，旧的数据会被丢弃。
+
+4. **onBackpressureError**：在这种策略下，如果消费者跟不上生产者的发送速度，生产者会抛出一个异常，通知消费者处理速率不匹配的问题。
+
+5. **limitRate(n)**：这种策略限制生产者一次最多发送 n 个数据。如果消费者跟不上生产者的发送速度，生产者会停止发送数据，直到消费者能够处理更多的数据。
+
+在实际应用中，开发者可以根据具体的需求选择合适的背压策略。例如，如果数据丢失是可以接受的，可以选择 onBackpressureDrop 策略；如果数据的实时性非常重要，可以选择 onBackpressureLatest 策略；如果需要确保数据的完整性，可以选择 onBackpressureBuffer 策略。
+
+在使用背压策略时，开发者需要确保消费者能够正确处理背压信号，例如通过实现 `Subscriber` 接口的 `onSubscribe` 方法中的 `request` 方法来请求数据。
+
+![image-20240601185240968](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202406011853355.png)
+
+## Flux
+
+在 Reactor 中，数据流被分为了两种
+
+- `Flux`：表示一个包含 0 到 N 个元素的异步序列。它可以发出三种类型的信号：元素、完成和错误。
+- `Mono`：表示一个可能包含 0 或 1 个元素的异步序列。它主要用于表示一个可能不存在的值。
+
+它们都是 Publisher 的实现，即数据发布者
+
+定义一个 Flux 数据流
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        Flux<Integer> flux = Flux.just(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+    }
+}
+```
+
+定义的数据流没有使用即没有任何意义
+ 
+```java
+public class Main {
+    public static void main(String[] args) {
+        Flux<Integer> flux = Flux.just(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        flux.subscribe(System.out::println);// 订阅，即交由谁消费
+    }
+}
+```
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        Flux<Integer> flux = Flux.just(1, 2, 3, 4, 5, 6, 7, 8, 9, 10);
+        flux.subscribe(System.out::println);// 订阅，即交由谁消费，也是数据流处理器
+        flux.subscribe(System.out::println);// 可以有多个处理器，上一个处理器处理完后这个再处理
+    }
+}
+```
+
+## Mono
+
+定义一个 Mono 数据流
+
+```java
+public class Main {
+    public static void main(String[] args) {
+        Mono<Integer> mono = Mono.just(1); // Mono 流中只允许有一个元素
+        mono.subscribe(System.out::println);
+    }
+}
+```
+
+## 流的事件感知
+
+```java
+public class Main {
+    public static void main(String[] args) throws IOException {
+        Flux<Integer> flux = Flux.just(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+                // 当流结束后的回调
+                .doOnComplete(() -> {
+                    System.out.println("done");
+                });
+
+        flux.subscribe(System.out::println);// 订阅，即交由谁消费，也是数据流处理器
+
+        System.in.read();
+    }
+}
+```
+
+流的中间操作,与 java 8 的 Stream 类似
+
+```java
+public class Main {
+    public static void main(String[] args) throws IOException {
+        Flux<Integer> flux = Flux.just(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+                .filter((i) -> i > 2) // 过滤流
+                // 当流结束后的回调
+                .doOnComplete(() -> System.out.println("done"));
+
+        flux.subscribe(System.out::println);// 订阅，即交由谁消费，也是数据流处理器
+        flux.subscribe(System.out::println);// 订阅，即交由谁消费，也是数据流处理器
+
+        System.in.read();
+    }
+}
+```
+
