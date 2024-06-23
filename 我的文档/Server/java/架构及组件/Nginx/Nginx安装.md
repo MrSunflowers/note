@@ -1,4 +1,15 @@
-版本区别
+# 前置条件
+
+## 环境
+
+在通过源码安装前，需要一定的前置环境：
+
+1. GCC，一般系统自带，没有需要先安装
+2. pcre（正则表达式） 支持，安装命令 `yum install pcre*`
+3. zlib，`yum install zlib zlib-devel`
+4. 如果需要 SSL 支持的话，安装 openSSL : `yum install openssl openssl-devel`
+
+## 版本区别
 
 常用版本分为四大阵营
 
@@ -156,3 +167,30 @@ sudo systemctl disable firewalld
 
 
 测试，访问 http://192.168.1.130/
+
+# Nginx的基本运行
+
+测试配置文件：
+
+安装路径下的/nginx/sbin/nginx -t 
+
+启动：
+
+安装路径下的/nginx/sbin/nginx 
+
+停止
+
+安装路径下的/nginx/sbin/nginx -s stop 
+或者是：nginx -s quit
+
+重启
+
+安装路径下的/nginx/sbin/nginx -s reload 
+
+查看进程
+
+ps -ef grep nginx
+
+安装过后，如果从外面访问不了，多半是被防火墙挡住了，可以关闭掉防火墙：
+/sbin/service iptables stop
+
