@@ -234,7 +234,7 @@ Java 7引入了字符串常量池的概念，这个概念是Java虚拟机（JVM�
    - 实例数据是对象真正存储数据的地方，包括对象的字段（Field），无论是基本类型还是引用类型。实例数据的排列顺序会受到虚拟机分配策略和字段声明顺序的影响。
 
 3. **对齐填充（Padding）**：
-   - 为了保证对象的大小是某个字节大小的整数倍（通常是8字节），在实例数据之后可能会有对齐填充。这主要是为了提高内存访问效率，因为现代计算机系统通常对内存访问有对齐要求。
+   - 这并不是必然存在的，也没有特别的含义，它仅仅起着占位符的作用。由于HotSpot虚拟机的自动内存管理系统要求对象起始地址必须是8字节的整数倍，换句话说就是，任何对象的大小都必须是8字节的整数倍。为了保证对象的大小是某个字节大小的整数倍（通常是8字节），在实例数据之后可能会有对齐填充。这主要是为了提高内存访问效率，因为现代计算机系统通常对内存访问有对齐要求。
 
 在64位的HotSpot虚拟机中，对象头的大小通常是12字节（Mark Word 8字节 + 类指针4字节），如果启用了压缩指针（-XX:+UseCompressedOops），则类指针会减少到4字节，对象头总共为12字节。如果对象是数组类型，对象头还会包含一个额外的数组长度字段。
 
@@ -289,6 +289,112 @@ HotSpot虚拟机默认的字段分配顺序如下：
 **CompactFields参数**
 
 `-XX:+CompactFields`参数（默认为true）允许子类中较窄的字段插入到父类字段的空隙中。这样做可以更有效地利用内存空间，尤其是在父类字段之间存在未使用的空间时。例如，如果父类有一个int字段，而子类有一个byte字段，那么子类的byte字段可以存储在父类int字段的空隙中，而不是单独占用一个空间。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# 常见问题和解决思路
+
+## Java堆溢出
+
+```
+java.lang.OutOfMemoryError: Java heap space
+Dumping heap to java_pid3404.hprof ...
+Heap dump file created [22045981 bytes in 0.663 secs]
+```
+
+通过参数-XX：+HeapDumpOnOutOf-MemoryError可以让虚拟机在出现内存溢出异常的时候Dump出当前的内存堆转储快照以便进行事后分析
+
+Java堆内存的OutOfMemoryError异常是实际应用中最常见的内存溢出异常情况。出现Java堆内存溢出时，异常堆栈信息“java.lang.OutOfMemoryError”会跟随进一步提示“Java heap space”。
+
+要解决这个内存区域的异常，常规的处理方法是首先通过内存映像分析工具（如Eclipse Memory Analyzer）对Dump出来的堆转储快照进行分析。第一步首先应确认内存中导致OOM的对象是否是必要的，也就是要先分清楚到底是出现了内存泄漏（Memory Leak）还是内存溢出（Memory Overflow）。
+
+如果是内存泄漏，可进一步通过工具查看泄漏对象到GC Roots的引用链，找到泄漏对象是通过怎样的引用路径、与哪些GC Roots相关联，才导致垃圾收集器无法回收它们，根据泄漏对象的类型信息以及它到GC Roots引用链的信息，一般可以比较准确地定位到这些对象创建的位置，进而找出产生内存泄漏的代码的具体位置。
+
+如果不是内存泄漏，换句话说就是内存中的对象确实都是必须存活的，那就应当检查Java虚拟机的堆参数（-Xmx与-Xms）设置，与机器的内存对比，看看是否还有向上调整的空间。再从代码上检查是否存在某些对象生命周期过长、持有状态时间过长、存储结构设计不合理等情况，尽量减少程序运行期的内存消耗。
+
+## 虚拟机栈和本地方法栈溢出
+
+由于HotSpot虚拟机中并不区分虚拟机栈和本地方法栈，因此对于HotSpot来说，-Xoss参数（设置本地方法栈大小）虽然存在，但实际上是没有任何效果的，栈容量只能由-Xss参数来设定。关于虚拟机栈和本地方法栈，在《Java虚拟机规范》中描述了两种异常：
+
+- 1）如果线程请求的栈深度大于虚拟机所允许的最大深度，将抛出 StackOverflowError 异常。
+- 2）如果虚拟机的栈内存允许动态扩展，当扩展栈容量无法申请到足够的内存时，将抛出 OutOfMemoryError异常。
+
+《Java虚拟机规范》明确允许Java虚拟机实现自行选择是否支持栈的动态扩展，而 HotSpot 虚拟机的选择是不支持扩展，所以除非在创建线程申请内存时就因无法获得足够内存而出现 OutOfMemoryError异常，否则在线程运行时是不会因为扩展而导致内存溢出的，只会因为栈容量无法容纳新的栈帧而导致StackOverflowError异常。
+
+```
+stack length:2402
+Exception in thread "main" java.lang.StackOverflowError
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:20)
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:21)
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:21)
+……后续异常堆栈信息省略
+```
+
+对于不同版本的Java虚拟机和不同的操作系统，栈容量最小值可能会有所限制，这主要取决于操作系统内存分页大小。譬如-Xss128k可以正常用于32位Windows系统下的JDK 6，但是如果用于64位Windows系统下的JDK 11，则会提示栈容量最小不能低于180K，而在Linux下这个值则可能是228K，如果低于这个最小限制，HotSpot虚拟器启动时会给出如下提示：
+
+```
+The Java thread stack size specified is too small. Specify at least 228k
+```
+
+无论是由于栈帧太大还是虚拟机栈容量太小，当新的栈帧内存无法分配的时候，HotSpot虚拟机抛出的都是StackOverflowError异常。可是如果在允许动态扩展栈容量大小的虚拟机上，相同代码则会导致不一样的情况。譬如远古时代的Classic虚拟机，这款虚拟机可以支持动态扩展栈内存的容量，在Windows上的JDK 1.0.2运行的话（如果这时候要调整栈容量就应该改用-oss参数了），得到的结果是：
+
+```
+stack length:3716
+java.lang.OutOfMemoryError
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:27)
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:28)
+	at org.fenixsoft.oom. JavaVMStackSOF.leak(JavaVMStackSOF.java:28)
+……后续异常堆栈信息省略
+```
+
+可见相同的代码在Classic虚拟机中成功产生了OutOfMemoryError而不是StackOver-flowError异常。如果测试时不限于单线程，通过不断建立线程的方式，在HotSpot上也是可以产生内存溢出异常的，具体如代码清单2-6所示。但是这样产生的内存溢出异常和栈空间是否足够并不存在任何直接的关系，主要取决于操作系统本身的内存使用状态。甚至可以说，在这种情况下，给每个线程的栈分配的内存越大，反而越容易产生内存溢出异常。
+
+原因其实不难理解，操作系统分配给每个进程的内存是有限制的，譬如32位Windows的单个进程最大内存限制为2GB。HotSpot虚拟机提供了参数可以控制Java堆和方法区这两部分的内存的最大值，那剩余的内存即为2GB（操作系统限制）减去最大堆容量，再减去最大方法区容量，由于程序计数器消耗内存很小，可以忽略掉，如果把直接内存和虚拟机进程本身耗费的内存也去掉的话，剩下的内存就由虚拟机栈和本地方法栈来分配了。因此为每个线程分配到的栈内存越大，可以建立的线程数量自然就越少，建立线程时就越容易把剩下的内存耗尽。
+
+出现StackOverflowError异常时，会有明确错误堆栈可供分析，相对而言比较容易定位到问题所在。如果使用HotSpot虚拟机默认参数，栈深度在大多数情况下（因为每个方法压入栈的帧大小并不是一样的，所以只能说大多数情况下）到达1000~2000是完全没有问题，对于正常的方法调用（包括不能做尾递归优化的递归调用），这个深度应该完全够用了。但是，如果是建立过多线程导致的内存溢出，在不能减少线程数量或者更换64位虚拟机的情况下，就只能通过减少最大堆和减少栈容量来换取更多的线程。
+
+这种通过“减少内存”的手段来解决内存溢出的方式，如果没有这方面处理经验，一般比较难以想到，这一点读者需要在开发32位系统的多线程应用时注意。也是由于这种问题较为隐蔽，从 JDK 7起，以上提示信息中 “unable to create native thread” 后面，虚拟机会特别注明原因可能是“ possibly out of memory or process/resource limits reached ”。
+
+```
+Exception in thread "main" java.lang.OutOfMemoryError: unable to create native thread
+```
+
+
+
+
+
 
 
 
