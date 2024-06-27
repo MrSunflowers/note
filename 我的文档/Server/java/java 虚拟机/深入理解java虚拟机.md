@@ -364,7 +364,7 @@ Exception in thread "main" java.lang.OutOfMemoryError
    - 在Java虚拟机（JVM）中，对象的创建和内存分配是频繁发生的操作，特别是在多线程环境下，这些操作必须是线程安全的。为了保证线程安全，JVM采用了多种机制来管理内存分配，其中就包括了CAS（Compare-And-Swap）操作和本地线程分配缓冲（TLAB）。
    - **CAS**：CAS是一种无锁的同步机制，它通过硬件支持来实现原子操作。在JVM中，CAS操作通常用于更新对象的引用，即在分配内存时更新指向新对象的指针。CAS操作会检查内存中的值是否与预期值相同，如果相同，则将内存中的值更新为新值，并返回成功；如果不同，则不更新值，并返回失败。由于CAS操作是原子的，因此可以保证在并发环境下，对象的分配是线程安全的。
    - **TLAB**：称为本地线程分配缓冲，TLAB是JVM为每个线程在堆内存中预先分配的一小块区域。每个线程在自己的TLAB中分配对象，只有本地缓冲区用完
-了，分配新的缓存区时才需要同步锁定，这样可以避免多线程同时在堆上分配对象时的同步开销。当线程的TLAB用完后，它需要向JVM申请新的TLAB，这个过程可能会涉及到同步锁定。但是，由于TLAB的使用频率远高于申请新TLAB的频率，因此整体上可以减少同步操作，提高内存分配的效率。在JVM启动时，可以通过设置JVM参数 -XX:+UseTLAB 来启用或禁用TLAB。默认情况下JVM会启用TLAB。TLAB（Thread Local Allocation Buffer）的默认大小在不同的JVM实现和版本中可能会有所不同。在HotSpot JVM中，TLAB的默认大小是根据Eden空间的大小动态计算的，通常情况下，TLAB的大小大约是Eden空间的1%。这个比例可以通过JVM参数-XX:TLABWasteTargetPercent 来调整，但通常使用默认值即可。如果需要更精确的控制，可以使用-XX:TLABSize参数来设置一个固定的初始大小。
+   了，分配新的缓存区时才需要同步锁定，这样可以避免多线程同时在堆上分配对象时的同步开销。当线程的TLAB用完后，它需要向JVM申请新的TLAB，这个过程可能会涉及到同步锁定。但是，由于TLAB的使用频率远高于申请新TLAB的频率，因此整体上可以减少同步操作，提高内存分配的效率。在JVM启动时，可以通过设置JVM参数 -XX:+UseTLAB 来启用或禁用TLAB。默认情况下JVM会启用TLAB。TLAB（Thread Local Allocation Buffer）的默认大小在不同的JVM实现和版本中可能会有所不同。在HotSpot JVM中，TLAB的默认大小是根据Eden空间的大小动态计算的，通常情况下，TLAB的大小大约是Eden空间的1%。这个比例可以通过JVM参数-XX:TLABWasteTargetPercent 来调整，但通常使用默认值即可。如果需要更精确的控制，可以使用-XX:TLABSize参数来设置一个固定的初始大小。
 
 4. **内存空间初始化为零值**：
    - 内存分配完成后，JVM需要将分配到的内存空间（不包括对象头）初始化为零值（对于对象头，JVM会初始化为默认值）。这一步保证了对象的实例字段在Java代码中未显式初始化前，可以拥有一个确定的初始值。
@@ -1028,35 +1028,179 @@ ZGC收集器特别适合于需要高吞吐量和低延迟的应用，如大型�
 
 当然，以上都是仅从理论出发的分析，实战中切不可纸上谈兵，根据系统实际情况去测试才是选择收集器的最终依据。
 
-# 虚拟机及垃圾收集器日志
+## 垃圾收集器参数总结
 
+HotSpot虚拟机中的各种垃圾收集器到此全部介绍完毕，在描述过程中提到了很多虚拟机非稳定的运行参数，下面表3-4中整理了这些参数，供读者实践时参考。
 
+![深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明3](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202406272248366.png)
 
+![深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明4](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202406272248962.png)
 
+## 虚拟机及垃圾收集器日志
 
+阅读分析虚拟机和垃圾收集器的日志是处理Java虚拟机内存问题必备的基础技能，垃圾收集器日志是一系列人为设定的规则，多少有点随开发者编码时的心情而定，没有任何的“业界标准”可言，换句话说，每个收集器的日志格式都可能不一样。
 
+除此以外还有一个麻烦，在JDK 9以前，HotSpot并没有提供统一的日志处理框架，虚拟机各个功能模块的日志开关分布在不同的参数上，日志级别、循环日志大小、输出格式、重定向等设置在不同功能上都要单独解决。直到JDK 9，这种混乱不堪的局面才终于消失，HotSpot所有功能的日志都收归到了“-Xlog”参数上，这个参数的能力也相应被极大拓展了。
 
+`-Xlog` 选项的格式如下：
 
+```
+-Xlog[:[selector][:[output][:[decorators][:output-options]]]]
+```
 
+让我们逐部分解释这个选项的各个组成部分：
 
+1. **-Xlog**：这是JVM的命令行选项，用于启用日志记录。
 
+2. **selector**：这是日志记录的选择器，用于指定哪些日志消息会被记录。选择器可以包含多个组件，用逗号分隔。每个组件可以是以下之一：
+   - `class=<class>`：记录指定类的日志。
+   - `method=<method>`：记录指定方法的日志。
+   - `tag=<tag>`：记录具有特定标签的日志。
+   - `level=<level>`：记录指定级别的日志（例如，`info`、`warning`、`error`等）。
+   - `gc`：记录垃圾回收相关的日志。
+   - `safepoint`：记录安全点相关的日志。
+   - `all`：记录所有日志。
 
+3. **output**：这是日志输出的路径。如果没有指定，日志将默认输出到标准错误（stderr）。可以指定一个文件路径，例如 `/path/to/logfile.log`。
 
+4. **decorators**：这是日志消息的装饰器，用于在日志消息中添加额外信息。装饰器可以是以下之一：
+   - `time`：添加时间戳。
+   - `uptimemillis`：添加自JVM启动以来的毫秒数。
+   - `uptimenanos`：添加自JVM启动以来的纳秒数。
+   - `timemillis`：添加自纪元以来的毫秒数。
+   - `timenanos`：添加自纪元以来的纳秒数。
+   - `level`：添加日志级别。
+   - `tags`：添加日志标签。
+   - `pid`：添加进程ID。
+   - `tid`：添加线程ID。
+   - `file`：添加源文件名。
+   - `line`：添加源文件行号。
+   - `module`：添加模块名。
+   - `component`：添加组件名。
 
+5. **output-options**：这是输出选项，用于控制日志文件的行为。例如，可以使用 `filesize=10m` 来限制日志文件的最大大小，或者使用 `filecount=5` 来限制日志文件的数量。
 
+举个例子，如果你想要记录所有垃圾回收相关的日志，并将它们输出到 `/var/log/jvm-gc.log` 文件中，同时希望在每条日志中包含时间戳和线程ID，你可以使用以下命令：
 
+```
+-Xlog:gc*:file=/var/log/jvm-gc.log:time,tid
+```
 
+这个命令会启动JVM，并配置它以记录所有垃圾回收相关的日志，将这些日志输出到指定的文件中，并在每条日志消息中包含时间戳和线程ID。
 
+请注意，`-Xlog` 选项的具体语法和可用的组件可能会随着JVM版本的不同而有所变化。因此，建议查阅你所使用的JVM版本的官方文档以获取最准确的信息。
 
+下面举几个例子，展示在 JDK 9 统一日志框架前、后是如何获得垃圾收集器过程的相关信息，以下均以JDK 9的G1收集器（JDK 9下默认收集器就是G1，所以命令行中没有指定收集器）为例。
 
+1）查看GC基本信息，在JDK 9之前使用 `-XX:+PrintGC`，JDK 9后使用 `-Xlog:gc:`。
 
+```bash
+bash-3.2$ java -Xlog:gc GCTest
+[0.222s][info][gc] Using G1
+[2.825s][info][gc] GC(0) Pause Young (G1 Evacuation Pause) 26M->5M(256M) 355.623ms
+[3.096s][info][gc] GC(1) Pause Young (G1 Evacuation Pause) 14M->7M(256M) 50.030ms
+[3.385s][info][gc] GC(2) Pause Young (G1 Evacuation Pause) 17M->10M(256M) 40.576ms
+```
 
+2）查看GC详细信息，在JDK 9之前使用 `-XX:+PrintGCDetails`，在JDK 9之后使用 `-Xlog:gc*`，用通配符 `*` 将GC标签下所有细分过程都打印出来。如果把日志级别调整到 `Debug` 或者 `Trace`（基于版面篇幅考虑，例子中并没有），还将获得更多细节信息。
 
+```bash
+bash-3.2$ java -Xlog:gc* GCTest
+[0.233s][info][gc,heap] Heap region size: 1M
+[0.383s][info][gc ] Using G1
+[0.383s][info][gc,heap,coops] Heap address: 0xfffffffe50400000, size: 4064 MB, Compressed Oops mode: Non-zero based:
+0xfffffffe50000000, Oop shift amount: 3
+[3.064s][info][gc,start ] GC(0) Pause Young (G1 Evacuation Pause)
+[3.420s][info][gc,task ] GC(0) Using 23 workers of 23 for evacuation
+[3.421s][info][gc,phases ] GC(0) Pre Evacuate Collection Set: 0.2ms
+[3.421s][info][gc,phases ] GC(0) Evacuate Collection Set: 348.0ms
+[3.421s][info][gc,phases ] GC(0) Post Evacuate Collection Set: 6.2ms
+[3.421s][info][gc,phases ] GC(0) Other: 2.8ms
+[3.421s][info][gc,heap ] GC(0) Eden regions: 24->0(9)
+[3.421s][info][gc,heap ] GC(0) Survivor regions: 0->3(3)
+[3.421s][info][gc,heap ] GC(0) Old regions: 0->2
+[3.421s][info][gc,heap ] GC(0) Humongous regions: 2->1
+[3.421s][info][gc,metaspace ] GC(0) Metaspace: 4719K->4719K(1056768K)
+[3.421s][info][gc ] GC(0) Pause Young (G1 Evacuation Pause) 26M->5M(256M) 357.743ms
+[3.422s][info][gc,cpu ] GC(0) User=0.70s Sys=5.13s Real=0.36s
+[3.648s][info][gc,start ] GC(1) Pause Young (G1 Evacuation Pause)
+[3.648s][info][gc,task ] GC(1) Using 23 workers of 23 for evacuation
+[3.699s][info][gc,phases ] GC(1) Pre Evacuate Collection Set: 0.3ms
+[3.699s][info][gc,phases ] GC(1) Evacuate Collection Set: 45.6ms
+[3.699s][info][gc,phases ] GC(1) Post Evacuate Collection Set: 3.4ms
+[3.699s][info][gc,phases ] GC(1) Other: 1.7ms
+[3.699s][info][gc,heap ] GC(1) Eden regions: 9->0(10)
+[3.699s][info][gc,heap ] GC(1) Survivor regions: 3->2(2)
+[3.699s][info][gc,heap ] GC(1) Old regions: 2->5
+[3.700s][info][gc,heap ] GC(1) Humongous regions: 1->1
+[3.700s][info][gc,metaspace ] GC(1) Metaspace: 4726K->4726K(1056768K)
+[3.700s][info][gc ] GC(1) Pause Young (G1 Evacuation Pause) 14M->7M(256M) 51.872ms
+[3.700s][info][gc,cpu ] GC(1) User=0.56s Sys=0.46s Real=0.05s
+```
 
+3）查看GC前后的堆、方法区可用容量变化，在JDK 9之前使用 `-XX:+PrintHeapAtGC`，JDK 9之后使用 `-Xlog:gc+heap=debug:`。
 
+```bash
+bash-3.2$ java -Xlog:gc+heap=debug GCTest
+[0.113s][info][gc,heap] Heap region size: 1M
+[0.113s][debug][gc,heap] Minimum heap 8388608 Initial heap 268435456 Maximum heap 4261412864
+[2.529s][debug][gc,heap] GC(0) Heap before GC invocations=0 (full 0):
+[2.529s][debug][gc,heap] GC(0) garbage-first heap total 262144K, used 26624K [0xfffffffe50400000, 0xfffffffe50500800, 0xffffffff4e400000)
+[2.529s][debug][gc,heap] GC(0) region size 1024K, 24 young (24576K), 0 survivors (0K)
+[2.530s][debug][gc,heap] GC(0) Metaspace used 4719K, capacity 4844K, committed 5120K, reserved 1056768K
+[2.530s][debug][gc,heap] GC(0) class space used 413K, capacity 464K, committed 512K, reserved 1048576K
+[2.892s][info ][gc,heap] GC(0) Eden regions: 24->0(9)
+[2.892s][info ][gc,heap] GC(0) Survivor regions: 0->3(3)
+[2.892s][info ][gc,heap] GC(0) Old regions: 0->2
+[2.892s][info ][gc,heap] GC(0) Humongous regions: 2->1
+[2.893s][debug][gc,heap] GC(0) Heap after GC invocations=1 (full 0):
+[2.893s][debug][gc,heap] GC(0) garbage-first heap total 262144K, used 5850K [0xfffffffe50400000, 0xfffffffe50500800,
+[2.893s][debug][gc,heap] GC(0) region size 1024K, 3 young (3072K), 3 survivors (3072K)
+[2.893s][debug][gc,heap] GC(0) Metaspace used 4719K, capacity 4844K, committed 5120K, reserved 1056768K
+[2.893s][debug][gc,heap] GC(0) class space used 413K, capacity 464K, committed 512K, reserved 1048576K
+```
 
+4）查看GC过程中用户线程并发时间以及停顿的时间，在JDK 9之前使用 `-XX:+PrintGCApplicationConcurrentTime` 以及 `-XX:+PrintGCApplicationStoppedTime`，JDK 9之后使用 `-Xlog:safepoint`。
 
+```bash
+bash-3.2$ java -Xlog:safepoint GCTest
+[1.376s][info][safepoint] Application time: 0.3091519 seconds
+[1.377s][info][safepoint] Total time for which application threads were stopped: 0.0004600 seconds, Stopping threads 0.0002648 seconds
+[2.386s][info][safepoint] Application time: 1.0091637 seconds
+[2.387s][info][safepoint] Total time for which application threads were stopped: 0.0005217 seconds, Stopping threads 0.0002297 seconds
+```
 
+5）查看收集器Ergonomics机制（自动设置堆空间各分代区域大小、收集目标等内容，从Parallel收集器开始支持）自动调节的相关信息。在JDK 9之前使用 `-XX:+PrintAdaptiveSizePolicy`，JDK 9之后使用 `-Xlog:gc+ergo*=trace:`。
 
+```bash
+bash-3.2$ java -Xlog:gc+ergo*=trace GCTest
+[0.122s][debug][gc,ergo,refine] Initial Refinement Zones: green: 23, 69, red: 115, min yellow size: 46
+[0.142s][debug][gc,ergo,heap ] Expand the heap. requested expansion amount:268435456B expansion amount:268435456B
+[2.475s][trace][gc,ergo,cset ] GC(0) Start choosing CSet. pending cards: 0 predicted base time: 10.00ms remaining 190.00ms target pause time: 200.00ms
+[2.476s][trace][gc,ergo,cset ] GC(0) Add young regions to CSet. eden: 24 regions, survivors: 0 regions, predicted region time: 367.19ms, target pause time: 200.00ms
+[2.476s][debug][gc,ergo,cset ] GC(0) Finish choosing CSet. old: 0 regions, predicted old region time: 0.00ms, time remaining: 0.00
+[2.826s][debug][gc,ergo ] GC(0) Running G1 Clear Card Table Task using 1 workers for 1 units of work for 24 regions.
+[2.827s][debug][gc,ergo ] GC(0) Running G1 Free Collection Set using 1 workers for collection set length 24
+[2.828s][trace][gc,ergo,refine] GC(0) Updating Refinement Zones: update_rs time: 0.004ms, update_rs buffers: 0, goal time: 19.999ms
+```
+
+6）查看熬过收集后剩余对象的年龄分布信息，在JDK 9之前使用 `-XX:+PrintTenuringDistribution`，JDK 9之后使用 `-Xlog:gc+age=trace:`。
+
+```bash
+bash-3.2$ java -Xlog:gc+age=trace GCTest
+[2.406s][debug][gc,age] GC(0) Desired survivor size 1572864 bytes, new threshold 15 (max threshold 15)
+[2.745s][trace][gc,age] GC(0) Age table with threshold 15 (max threshold 15)
+[2.745s][trace][gc,age] GC(0) - age 1: 3100640 bytes, 3100640 total
+[4.700s][debug][gc,age] GC(5) Desired survivor size 2097152 bytes, new threshold 15 (max threshold 15)
+[4.810s][trace][gc,age] GC(5) Age table with threshold 15 (max threshold 15)
+[4.810s][trace][gc,age] GC(5) - age 1: 2658280 bytes, 2658280 total
+[4.810s][trace][gc,age] GC(5) - age 2: 1527360 bytes, 4185640 total
+```
+
+下表给出了全部在JDK 9中被废弃的日志相关参数及它们在JDK9后使用-Xlog的代替配置形式。
+
+![深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202406272247839.png)
+
+![深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明2](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202406272247670.png)
 
 
