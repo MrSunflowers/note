@@ -1917,38 +1917,216 @@ Java虚拟机规范定义了类的生命周期，但具体的实现细节可能�
 
 # 高效并发
 
+## java 内存模型
+
+在Java内存模型（Java Memory Model, JMM）中，提到了“工作内存”和“主内存”的概念，这是为了描述多线程环境下线程间共享变量的可见性问题。在JMM中：
+
+- **主内存（Main Memory）**：可以类比为堆内存，是所有线程共享的内存区域，用于存储所有线程共享的变量，如实例变量、静态变量等。
+- **工作内存（Working Memory）**：可以类比为栈内存，是每个线程私有的内存区域，用于存储线程私有的变量，如局部变量、方法参数等。工作内存还存储了主内存中共享变量的副本。
+
+从更基础的层次上说，主内存直接对应于物理硬件的内存，而为了获取更好的运行速度，虚拟机（或者是硬件、操作系统本身的优化措施）可能会让工作内存优先存储于寄存器和高速缓存中，因为程序运行时主要访问的是工作内存。
+
+JMM规定，线程对变量的所有操作（读取、赋值等）都必须在工作内存中进行，而不能直接读写主内存中的数据，不同的线程之间也无法直接访问对方工作内存中的变量，线程间变量值的传递均需要通过主内存来完成，线程在读取共享变量时，必须从主内存中读取；在写入共享变量时，必须先将变量的值从工作内存写回主内存。这样可以保证线程间的可见性，避免了线程安全问题。
+
+在实际的Java程序中，开发者通常不需要直接管理堆和栈的内存分配和回收，这些工作由JVM自动完成。开发者需要关注的是如何合理地使用内存，避免内存泄漏和过度消耗资源。在多线程编程中，还需要注意线程同步和共享变量的可见性问题，以确保程序的正确性和性能。
+
+## volatile
+
+### volatile 并不是线程安全的
+
+当一个变量被定义成volatile之后，它将具备两项特性：第一项是保证此变量对所有线程的可见性，这里的“可见性”是指当一条线程修改了这个变量的值，新值对于其他线程来说是可以立即得知的。而普通变量并不能做到这一点，普通变量的值在线程间传递时均需要通过主内存来完成。比如，线程A修改一个普通变量的值，然后向主内存进行回写，另外一条线程B在线程A回写完成了之后再对主内存进行读取操作，新变量值才会对线程B可见。
+
+关于volatile变量的可见性，经常会被开发人员误解，他们会误以为下面的描述是正确的：“volatile变量对所有线程是立即可见的，对volatile变量所有的写操作都能立刻反映到其他线程之中。换句话说，volatile变量在各个线程中是一致的，所以基于volatile变量的运算在并发下是线程安全的”。这句话的论据部分并没有错，但是由其论据并不能得出“基于volatile变量的运算在并发下是线程安全的”这样的结论。volatile变量在各个线程的工作内存中是不存在一致性问题的（从物理存储的角度看，各个线程的工作内存中volatile变量也可以存在不一致的情况，但由于每次使用之前都要先刷新，执行引擎看不到不一致的情况，因此可以认为不存在一致性问题），但是Java里面的运算操作符并非原子操作，这导致volatile变量的运算在并发下一样是不安全的，我们可以通过一段简单的演示来说明原因
+
+```java
+/**
+ * volatile变量自增运算测试
+ */
+public class VolatileTest {
+    public static volatile int race = 0;
+
+    public static void increase() {
+        race++;
+    }
+
+    private static final int THREADS_COUNT = 20;
+
+    public static void main(String[] args) {
+        Thread[] threads = new Thread[THREADS_COUNT];
+        for (int i = 0; i < THREADS_COUNT; i++) {
+            threads[i] = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    for (int i = 0; i < 10000; i++) {
+                        increase();
+                    }
+                }
+            });
+            threads[i].start();
+        }
+
+        // 等待所有累加线程都结束
+        while (Thread.activeCount() > 1) {
+            Thread.yield();
+        }
+        System.out.println(race);
+    }
+}
+```
 
 
+这段代码发起了20个线程，每个线程对race变量进行10000次自增操作，如果这段代码能够正确并发的话，最后输出的结果应该是200000。读者运行完这段代码之后，并不会获得期望的结果，而且会发现每次运行程序，输出的结果都不一样，都是一个小于200000的数字。这是为什么呢？
 
+问题就出在自增运算“race++”之中，我们用Javap反编译这段代码后会得到代码清单所示，发现只有一行代码的increase()方法在Class文件中是由4条字节码指令构成（return指令不是由race++产生的，这条指令可以不计算），从字节码层面上已经很容易分析出并发失败的原因了：当getstatic指令把race的值取到操作栈顶时，volatile关键字保证了race的值在此时是正确的，但是在执行iconst_1、iadd这些指令的时候，其他线程可能已经把race的值改变了，而操作栈顶的值就变成了过期的数据，所以putstatic指令执行后就可能把较小的race值同步回主内存之中。
 
+```
+public static void increase();
+	Code:
+		Stack=2, Locals=0, Args_size=0
+		0: getstatic #13; //Field race:I
+		3: iconst_1
+		4: iadd
+		5: putstatic #13; //Field race:I
+		8: return
+	LineNumberTable:
+		line 14: 0
+		line 15: 8
+```
 
+由于volatile变量只能保证可见性，在不符合以下两条规则的运算场景中，我们仍然要通过加锁（使用synchronized、java.util.concurrent中的锁或原子类）来保证原子性：
 
+- 运算结果并不依赖变量的当前值，或者能够确保只有单一的线程修改变量的值。
+- 变量不需要与其他的状态变量共同参与不变约束。
 
+而在像代码所示的这类场景中就很适合使用volatile变量来控制并发，当shutdown()方法被调用时，能保证所有线程中执行的doWork()方法都立即停下来。
 
+```java
+volatile boolean shutdownRequested;
+public void shutdown() {
+	shutdownRequested = true;
+}
+public void doWork() {
+	while (!shutdownRequested) {
+	// 代码的业务逻辑
+	}
+}
+```
 
+### 指令重排序
 
+使用volatile变量的第二个语义是禁止指令重排序优化，普通的变量仅会保证在该方法的执行过程中所有依赖赋值结果的地方都能获取到正确的结果，而不能保证变量赋值操作的顺序与程序代码中的执行顺序一致。因为在同一个线程的方法执行过程中无法感知到这点，这就是Java内存模型中描述的所谓“线程内表现为串行的语义”（Within-Thread As-If-Serial Semantics）。
 
+```java
+Map<String, String> configOptions;
+char[] configText;
+// 此变量必须定义为volatile
+volatile boolean initialized = false;
 
+// 假设以下代码在线程A中执行
+// 模拟读取配置信息，当读取完成后
+// 将initialized设置为true,通知其他线程配置可用
+configOptions = new HashMap<>();
+configText = readConfigFile(fileName);
+processConfigOptions(configText, configOptions);
+initialized = true;
 
+// 假设以下代码在线程B中执行
+// 等待initialized为true，代表线程A已经把配置信息初始化完成
+while (!initialized) {
+    sleep();
+}
 
+// 使用线程A中初始化好的配置信息
+doSomethingWithConfig();
+```
 
+代码中所示的程序是一段伪代码，其中描述的场景是开发中常见配置读取过程，只是我们在处理配置文件时一般不会出现并发，所以没有察觉这会有问题。读者试想一下，如果定义initialized变量时没有使用volatile修饰，就可能会由于指令重排序的优化，导致位于线程A中最后一条代码“initialized=true”被提前执行（这里虽然使用Java作为伪代码，但所指的重排序优化是机器级的优化操作，提前执行是指这条语句对应的汇编代码被提前执行），这样在线程B中使用配置信息的代码就可能出现错误，而volatile关键字则可以避免此类情况的发生
 
+## java 线程的实现
 
+参考 <a href = "深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明.pdf"> 《深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明》</a>
 
+## 线程安全与锁优化
 
+### 自旋锁与自适应自旋
 
+参考 <a href = "../Server/java/java 多线程/多线程基础.md"> 多线程基础.md </a>
 
+### 锁消除
 
+锁消除（Lock Elimination）是Java虚拟机（JVM）在运行时优化的一种技术，它通过分析程序的字节码，识别出那些不可能发生并发冲突的锁操作，并将这些锁操作消除，以减少不必要的同步开销，提高程序的执行效率。
 
+在Java中，锁是实现线程同步的重要机制，用于保证在多线程环境下对共享资源的访问是安全的。然而，锁的使用也会带来一定的性能开销，比如上下文切换的开销、锁的获取和释放开销等。如果JVM能够确定某些锁操作在实际运行中不会发生并发冲突，那么就可以将这些锁操作消除，从而减少不必要的开销。
 
+锁消除的实现依赖于JVM的逃逸分析（Escape Analysis）技术。逃逸分析是一种确定对象是否被外部引用的技术。如果JVM通过逃逸分析确定一个对象不会被其他线程访问，那么就可以认为这个对象的锁操作是安全的，可以被消除。
 
+例如，考虑以下代码：
 
+```java
+public class LockEliminationExample {
+    private Object lock = new Object();
 
+    public void doSomething() {
+        synchronized (lock) {
+            // 执行一些操作
+        }
+    }
+}
+```
 
+如果JVM通过逃逸分析确定`lock`对象只在当前线程中使用，那么它就可以安全地消除`synchronized`块中的锁操作，因为没有其他线程会尝试获取这个锁。
 
+锁消除的实现是自动的，不需要程序员手动干预。JVM会根据程序的运行情况动态地进行优化。然而，锁消除并不是在所有情况下都适用，它依赖于JVM的逃逸分析技术，而逃逸分析的准确性又受到程序行为的影响。因此，锁消除的效果可能会因程序的不同而有所差异。
 
+### 锁粗化
 
+锁粗化（Lock Coarsening）是Java虚拟机（JVM）在运行时优化的一种技术，它通过合并连续的锁操作来减少锁的开销。在某些情况下，如果JVM检测到一系列连续的、小范围的同步块，它可能会将这些同步块合并成一个较大的同步块，从而减少锁的获取和释放次数，提高程序的性能。
 
+锁粗化通常适用于以下场景：
+
+1. **连续的同步块**：当一个线程在短时间内连续进入多个同步块时，这些同步块可能会被合并成一个较大的同步块。
+
+2. **连续的锁操作**：如果一个线程在短时间内连续对同一个对象进行多次加锁和解锁操作，这些操作可能会被合并成一次加锁和一次解锁。
+
+3. **小范围的同步块**：如果一个同步块的范围非常小，比如只包含几行代码，那么JVM可能会考虑将其与相邻的同步块合并。
+
+例如，考虑以下代码：
+
+```java
+public class LockCoarseningExample {
+    private final Object lock = new Object();
+
+    public void doSomething() {
+        synchronized (lock) {
+            // 第一个同步块
+            doSomethingElse();
+        }
+
+        synchronized (lock) {
+            // 第二个同步块
+            doSomethingElse();
+        }
+    }
+
+    private void doSomethingElse() {
+        // 一些操作
+    }
+}
+```
+
+在上述代码中，如果JVM检测到`doSomething`方法中的两个同步块是连续的，并且它们都对同一个对象`lock`进行加锁和解锁，那么JVM可能会将这两个同步块合并成一个较大的同步块，从而减少锁的获取和释放次数。
+
+锁粗化的好处是减少了锁的开销，提高了程序的性能。然而，锁粗化并不是在所有情况下都适用。如果合并后的同步块范围过大，可能会导致其他线程长时间等待，从而降低程序的并发性能。因此，JVM在进行锁粗化时会权衡利弊，确保优化后的代码仍然能够保持良好的并发性能。
+
+需要注意的是，锁粗化是JVM在运行时自动进行的优化，不需要程序员手动干预。程序员在编写代码时应该关注代码的正确性和可读性，而不是过分依赖于JVM的优化。在实际开发中，应该尽量避免不必要的同步操作，以减少锁的使用，从而提高程序的性能。
+
+### 轻量级锁
+
+参考 <a href = "深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明.pdf"> 《深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明》</a>
+
+### 偏向锁
+
+参考 <a href = "深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明.pdf"> 《深入理解Java虚拟机：JVM高级特性与最佳实践（第3版）周志明》</a>
 
 # 常见问题
 
