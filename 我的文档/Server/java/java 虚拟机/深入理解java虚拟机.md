@@ -2174,7 +2174,7 @@ public static void main(String[] args) {
     System.out.println(c == (a + b)); // 输出 true
     System.out.println(c.equals(a + b)); // 输出 true
     System.out.println(g == (a + b)); // 输出 true
-    System.out.println(g.equals(a + b)); // 输出 true
+    System.out.println(g.equals(a + b)); // 输出 false
 }
 ```
 
@@ -2182,13 +2182,13 @@ public static void main(String[] args) {
 
 2. `e == f`：`e`和`f`都是`Integer`类型，并且值都是321，这个值不在-128到127的范围内，因此每次都会创建新的`Integer`对象。所以`e`和`f`指向不同的对象，`e == f`的结果是`false`。
 
-3. `c == (a + b)`：这里`a + b`会先将`Integer`对象`a`和`b`自动拆箱为基本类型`int`，然后进行加法运算，结果为`3`，再将结果自动装箱为`Integer`对象。由于结果是3，它在-128到127的范围内，所以使用了缓存的实例，`c`和`(a + b)`指向同一个对象，因此`c == (a + b)`的结果是`true`。
+3. `c == (a + b)`：这里`a + b`会先将`Integer`对象`a`和`b`自动拆箱为基本类型`int`，然后进行加法运算，结果为`3`，再将 c 自动拆箱并比较，他们的值相等，因此`c == (a + b)`的结果是`true`。
 
 4. `c.equals(a + b)`：`c.equals()`方法比较的是值，而不是引用。`a + b`的结果是`3`，与`c`的值相同，所以`c.equals(a + b)`的结果是`true`。
 
-5. `g == (a + b)`：`g`是`Long`类型，而`(a + b)`是`Integer`类型。由于它们是不同的类型，即使它们的值相同，`==`比较的是引用，所以`g == (a + b)`的结果是`false`。
+5. `g == (a + b)`：这里`a + b`会先将`Integer`对象`a`和`b`自动拆箱为基本类型`int`，然后进行加法运算，结果为`3`，再将 c 自动拆箱并比较，他们的值相等，所以`g == (a + b)`的结果是`true`。
 
-6. `g.equals(a + b)`：`g.equals()`方法比较的是值，而不是引用。`a + b`的结果是`3`，与`g`的值相同，所以`g.equals(a + b)`的结果是`true`。
+6. `g.equals(a + b)`：这里`a + b`会先将`Integer`对象`a`和`b`自动拆箱为基本类型`int`，然后进行加法运算，结果为`3`，再将 3 自动装箱为 Integer，由于 g 的类型为 Long，类型不同，因为 Long 的 equals 实现中只比较类型相同的，类型不同的时候直接返回 false, 所以`g.equals(a + b)`的结果是`false`。
 
 总结来说，当使用`==`操作符比较两个`Integer`对象时，如果它们的值在-128到127之间，它们可能指向同一个对象，因此比较结果为`true`。如果值不在这个范围内，或者比较的是不同类型的包装类对象，结果通常为`false`。使用`.equals()`方法比较时，比较的是值，所以只要值相同，结果就是`true`。
 
