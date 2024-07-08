@@ -1,4 +1,12 @@
-# spring bean 的实例化流程
+# spring
+
+## 依赖注入方式
+
+- 构造函数注入
+- setter 注入
+- 接口注入
+
+## spring bean 的实例化流程
 
 Spring Bean的实例化流程是Spring框架的核心部分之一，它涉及了Spring容器如何创建和管理应用程序中的对象。以下是Spring Bean实例化的基本流程：
 
@@ -42,7 +50,7 @@ Spring Bean的实例化流程是Spring框架的核心部分之一，它涉及了
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202201101031279.png)
 
-# Autowired 和 resource 的区别
+## Autowired 和 resource 的区别
 
 `@Autowired` 和 `@Resource` 是Spring框架中用于依赖注入的两个注解，它们都可以用来自动装配Spring管理的bean。尽管它们的目的相似，但它们在使用方式和注入机制上存在一些差异。
 
@@ -69,7 +77,7 @@ Spring Bean的实例化流程是Spring框架的核心部分之一，它涉及了
 
 在实际开发中，选择使用`@Autowired`还是`@Resource`取决于你的具体需求和偏好。如果你需要更灵活的装配方式，或者希望在装配失败时得到明确的异常提示，`@Autowired`可能是更好的选择。如果你倾向于按名称装配，并且希望在装配失败时避免异常，那么`@Resource`可能更适合你。
 
-# 循环依赖问题
+## 循环依赖问题
 
 &emsp;&emsp;bean 已经创建完成，总结一下循环依赖的整体处理流程，用例子来说明可能更容易理解，创建两个 bean
 
@@ -121,7 +129,9 @@ public class UserA {
 5. 将获取到的 UserA 填充至 UserB 中，UserB 完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时将 UserB 从三级缓存 `singletonFactories` 中移除，现在三级缓存 `singletonFactories` 中没有缓存的 bean 了。
 6. 获取到 UserB 的 UserA 随后完成创建过程，并将完整的单例对象存入一级缓存 `singletonObjects` 中，同时从二级缓存 `earlySingletonObjects` 中移除，现在二级缓存 `earlySingletonObjects` 中也没有缓存的 bean 了，循环引用处理完成。
 
-# DispatcherServlet 的工作流程
+# Spring MVC
+
+## DispatcherServlet 的工作流程
 
 `DispatcherServlet` 是Spring MVC框架的核心组件，负责处理Web应用中的请求和响应。以下是`DispatcherServlet`的工作流程：
 
