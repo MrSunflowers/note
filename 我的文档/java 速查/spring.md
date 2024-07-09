@@ -186,4 +186,44 @@ public class DispatcherServlet extends HttpServlet {
 
 通过`DispatcherServlet`，Spring MVC实现了请求的分发、处理和响应的整个流程，使得开发者可以专注于业务逻辑的实现，而无需关心底层的请求处理细节。
 
+# Spring Boot
+
+## Spring Boot 自动配置原理
+
+Spring Boot 自动配置是 Spring Boot 框架的核心特性之一，它旨在简化 Spring 应用的配置。自动配置能够根据类路径中的jar依赖、已定义的bean以及各种属性设置来自动配置Spring应用。Spring Boot的自动配置通过以下机制实现：
+
+1. **条件注解**：Spring Boot使用一系列的条件注解来决定是否要自动配置某个bean。例如，如果你的项目中包含了某个特定的jar包，Spring Boot可能会自动配置与之相关的bean。常见的条件注解包括`@ConditionalOnClass`、`@ConditionalOnMissingBean`、`@ConditionalOnProperty`等。
+
+2. **@EnableAutoConfiguration**：在Spring Boot应用的主类或配置类上使用`@SpringBootApplication`注解，该注解内部包含了`@EnableAutoConfiguration`注解。`@EnableAutoConfiguration`注解会触发自动配置的加载过程。
+
+3. **spring.factories文件**：Spring Boot查找`/META-INF/spring.factories`文件，该文件中列出了所有可能需要自动配置的类。Spring Boot会读取这个文件，并根据文件中定义的配置类来决定是否进行自动配置。
+
+4. **排除特定自动配置**：如果开发者不希望使用某些自动配置，可以通过`@SpringBootApplication`注解的`exclude`属性来排除它们，或者使用`spring.autoconfigure.exclude`属性在配置文件中排除。
+
+5. **配置属性绑定**：Spring Boot自动配置会读取`application.properties`或`application.yml`中的配置属性，并将这些属性绑定到相应的bean上，以便于自定义自动配置的行为。
+
+6. **智能推断**：Spring Boot会根据类路径中的jar包和bean的定义智能推断需要配置哪些组件。例如，如果类路径中存在`H2`数据库的jar包，Spring Boot可能会自动配置一个内存数据库。
+
+7. **自定义自动配置**：开发者也可以编写自己的自动配置类，并在`/META-INF/spring.factories`文件中注册，以便Spring Boot在启动时加载。
+
+通过这些机制，Spring Boot能够根据应用的实际情况，智能地进行配置，极大地简化了开发者的配置工作。开发者只需要关注业务逻辑的实现，而不需要手动配置大量的Spring框架细节。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
