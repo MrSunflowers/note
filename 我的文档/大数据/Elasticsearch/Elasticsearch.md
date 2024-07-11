@@ -1,6 +1,8 @@
 [TOC]
 # Elasticsearch
 
+OpenSearch 1.2.3 与 Elasticsearch （7.10.1版本）接口保持一致，无兼容性问题
+
 [Elasticsearch Java Rest 手册](https://quanke.gitbooks.io/elasticsearch-java-rest/content/java-high-level-rest-client/supported-apis/bulk-api.html)
 
 [文档](https://www.elastic.co/guide/en/elasticsearch/client/index.html)
