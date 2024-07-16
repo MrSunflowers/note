@@ -1506,3 +1506,274 @@ Keepalived 是进程检测，即它只检测自己进程是否存活，不检测
 ### https 配置
 
 #### 自签名 
+
+# 常见问题
+
+## nginx 如何发现代理的服务器压力过大或服务器反应迟钝
+
+在使用 Nginx 作为反向代理服务器时，监控后端服务器的压力和响应速度是非常重要的。Nginx 提供了多种机制来帮助你发现代理的服务器压力过大或服务器反应迟钝。以下是一些常用的方法：
+
+1. **监控状态码**：
+   Nginx 可以通过检查后端服务器返回的状态码来判断服务器的健康状况。例如，你可以配置 Nginx 仅将请求转发到返回 200 OK 状态码的服务器。如果服务器返回 5xx 错误，Nginx 可以认为该服务器暂时不可用，并将请求转发到其他服务器。
+
+2. **使用 `proxy_next_upstream` 指令**：
+   通过 `proxy_next_upstream` 指令，你可以定义在什么情况下 Nginx 应该将请求转发到下一个服务器。例如，如果一个服务器响应超时或返回错误，Nginx 可以自动将请求转发到下一个服务器。
+
+3. **设置超时**：
+   Nginx 允许你设置多个超时参数，如 `proxy_connect_timeout`、`proxy_send_timeout`、`proxy_read_timeout` 等，这些参数可以帮助你控制 Nginx 等待后端服务器响应的时间。如果后端服务器在这些超时时间内没有响应，Nginx 可以认为服务器压力过大或反应迟钝。
+
+4. **使用 `upstream` 模块的健康检查**：
+   Nginx 的 `upstream` 模块支持简单的健康检查功能。你可以配置 Nginx 定期向后端服务器发送健康检查请求，并根据响应结果决定是否将流量转发到该服务器。
+
+5. **监控 Nginx 日志**：
+   通过分析 Nginx 的访问日志和错误日志，你可以了解后端服务器的响应时间和错误率。如果发现某个服务器的响应时间异常增长或错误率上升，这可能表明服务器压力过大或反应迟钝。
+
+6. **使用外部监控工具**：
+   除了 Nginx 内置的监控功能外，你还可以使用外部监控工具（如 Nagios、Zabbix、Prometheus 等）来监控 Nginx 和后端服务器的性能。这些工具可以提供更详细的性能指标和警报功能。
+
+7. **负载均衡策略**：
+   通过合理配置负载均衡策略，如轮询（round-robin）、最少连接（least_conn）等，可以有效分散请求到不同的后端服务器，避免单个服务器压力过大。
+
+通过上述方法，你可以有效地监控和管理 Nginx 代理的后端服务器，确保服务的稳定性和响应速度。在实际部署时，你可能需要结合多种方法来达到最佳效果。
+
+## Nginx 的健康检查如何实现
+
+Nginx 的 `upstream` 模块提供了基本的健康检查功能，允许你定义一个简单的健康检查机制来监控后端服务器的状态。以下是如何使用 `upstream` 模块的健康检查功能的基本步骤：
+
+1. **定义 upstream 块**：
+   在 Nginx 配置文件中，你需要定义一个 `upstream` 块，其中包含你想要负载均衡的后端服务器列表。
+
+2. **配置健康检查**：
+   在 `upstream` 块中，你可以使用 `server` 指令的 `max_fails` 和 `fail_timeout` 参数来配置健康检查。`max_fails` 指定了在 `fail_timeout` 时间内，如果服务器失败的尝试次数达到这个值，Nginx 将认为该服务器不可用。`fail_timeout` 指定了服务器被认为是不可用的时间长度。
+
+   示例配置如下：
+
+   ```nginx
+   http {
+       upstream myapp {
+           server backend1.example.com max_fails=3 fail_timeout=30s;
+           server backend2.example.com max_fails=3 fail_timeout=30s;
+           # 更多服务器...
+       }
+
+       server {
+           listen 80;
+
+           location / {
+               proxy_pass http://myapp;
+           }
+       }
+   }
+   ```
+
+   在这个例子中，如果 `backend1.example.com` 或 `backend2.example.com` 在 30 秒内失败了 3 次，Nginx 将认为该服务器不可用，并在接下来的 30 秒内不再将请求转发到该服务器。
+
+3. **使用 `health_check` 指令**（Nginx 1.19.0 及以上版本）：
+   对于 Nginx 1.19.0 及以上版本，你可以使用 `health_check` 指令来启用更高级的健康检查功能。这个指令允许你定义一个特定的路径用于健康检查请求。
+
+   示例配置如下：
+
+   ```nginx
+   http {
+       upstream myapp {
+           server backend1.example.com;
+           server backend2.example.com;
+           # 更多服务器...
+
+           health_check interval=30s;
+       }
+
+       server {
+           listen 80;
+
+           location / {
+               proxy_pass http://myapp;
+           }
+
+           location /healthz {
+               health_check;
+           }
+       }
+   }
+   ```
+
+   在这个配置中，Nginx 将定期（每 30 秒）向 `myapp` 上游组中的服务器发送请求到 `/healthz` 路径，以检查它们的健康状态。
+
+4. **重启 Nginx**：
+   修改配置文件后，需要重启 Nginx 以应用更改。
+
+请注意，`health_check` 指令在 Nginx 的某些版本中可能需要额外的模块支持，如 `ngx_http_upstream_module`。确保你的 Nginx 版本支持你想要使用的健康检查功能。
+
+通过上述步骤，你可以实现 Nginx 的基本健康检查功能，以监控后端服务器的健康状态。对于更复杂的健康检查需求，你可能需要考虑使用外部的健康检查工具或服务。
+
+## Nginx 设置请求超时后将请求发往其他服务器
+
+在 Nginx 中，你可以通过配置 `proxy_next_upstream` 指令来实现当请求超时或遇到错误时，将请求转发到其他服务器。这个指令允许你定义在什么情况下请求应该被转发到上游服务器组中的下一个服务器。
+
+以下是一个配置示例，展示了如何设置请求超时后将请求发往其他服务器：
+
+```nginx
+http {
+    upstream myapp {
+        server backend1.example.com;
+        server backend2.example.com;
+        # 更多服务器...
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://myapp;
+            proxy_connect_timeout 1s;  # 连接超时时间
+            proxy_send_timeout 2s;     # 发送请求超时时间
+            proxy_read_timeout 3s;     # 读取响应超时时间
+
+            # 当遇到以下情况时，将请求转发到下一个服务器
+            proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+        }
+    }
+}
+```
+
+在这个配置中：
+
+- `proxy_connect_timeout` 指定了 Nginx 等待与后端服务器建立连接的超时时间。
+- `proxy_send_timeout` 指定了 Nginx 等待发送请求到后端服务器的超时时间。
+- `proxy_read_timeout` 指定了 Nginx 等待从后端服务器接收响应的超时时间。
+- `proxy_next_upstream` 指令定义了在哪些情况下请求应该被转发到下一个服务器。例如，如果遇到后端服务器错误（`error`）、超时（`timeout`）、无效的响应头（`invalid_header`）或 HTTP 500、502、503、504 错误，请求将被转发到下一个服务器。
+
+通过合理配置这些超时参数和 `proxy_next_upstream` 指令，你可以确保当后端服务器出现问题时，Nginx 能够及时将请求转发到其他健康的服务器，从而提高系统的可用性和稳定性。
+
+请记得在修改配置后重启 Nginx 以应用更改：
+
+```bash
+sudo systemctl restart nginx
+```
+
+或者使用 Nginx 的命令行工具：
+
+```bash
+sudo nginx -s reload
+```
+
+确保在实际部署前充分测试配置以验证其行为符合预期。
+
+## Nginx 的错误处理机制
+
+Nginx 的错误处理机制主要通过配置指令来实现，允许你定义如何处理各种错误情况，包括服务器错误、超时、请求失败等。以下是一些关键的配置指令和概念，它们共同构成了 Nginx 的错误处理机制：
+
+1. **error_page**：
+   这个指令允许你为特定的 HTTP 状态码指定一个自定义的错误页面。当客户端请求遇到这些状态码时，Nginx 将返回指定的错误页面。
+
+   示例配置：
+   ```nginx
+   error_page 404 /404.html;
+   error_page 500 502 503 504 /50x.html;
+   ```
+
+2. **try_files**：
+   `try_files` 指令用于按顺序检查文件的存在性，并将请求转发到第一个找到的文件或最后一个参数指定的 URI。如果所有文件都不存在，可以指定一个错误页面或重定向到另一个 URI。
+
+   示例配置：
+   ```nginx
+   location / {
+       try_files $uri $uri/ /index.php?$query_string;
+   }
+   ```
+
+3. **proxy_next_upstream** 和 **fastcgi_next_upstream**：
+   这些指令用于定义在遇到错误或超时时，请求应该被转发到上游服务器组中的下一个服务器。这有助于实现负载均衡和容错。
+
+   示例配置：
+   ```nginx
+   location / {
+       proxy_pass http://backend;
+       proxy_next_upstream error timeout invalid_header http_500 http_502 http_503 http_504;
+   }
+   ```
+
+4. **return**：
+   `return` 指令用于直接返回一个指定的 HTTP 状态码和响应体给客户端。
+
+   示例配置：
+   ```nginx
+   location /forbidden {
+       return 403 "Access is forbidden";
+   }
+   ```
+
+5. **rewrite** 和 **break**：
+   这些指令用于在请求处理过程中修改请求的 URI 或终止当前的处理流程。
+
+   示例配置：
+   ```nginx
+   location / {
+       rewrite ^/admin/(.*) /user/$1 break;
+   }
+   ```
+
+6. **error_log**：
+   通过配置 `error_log` 指令，你可以指定 Nginx 错误日志的路径和级别。错误日志是诊断问题和调试配置的重要工具。
+
+   示例配置：
+   ```nginx
+   error_log /var/log/nginx/error.log warn;
+   ```
+
+7. **access_log**：
+   `access_log` 指令用于记录客户端请求的详细信息，包括请求的 URI、状态码、响应时间等。这有助于分析请求模式和性能问题。
+
+   示例配置：
+   ```nginx
+   access_log /var/log/nginx/access.log combined;
+   ```
+
+通过这些配置指令，你可以灵活地定义 Nginx 的错误处理行为，以满足不同的需求和场景。在实际部署时，建议根据应用的具体需求和环境来调整这些配置，以确保最佳的用户体验和系统稳定性。
+
+## Nginx 的 rewrite 和 break 指令区别
+
+在 Nginx 中，`rewrite` 和 `break` 指令都用于控制请求处理流程，但它们的作用和使用场景有所不同。
+
+**rewrite 指令**
+
+`rewrite` 指令用于修改请求的 URI。当 Nginx 处理请求时，如果匹配到 `rewrite` 指令，它会根据指令中定义的规则改变请求的 URI，并根据新的 URI 重新开始处理请求。这意味着 `rewrite` 可以用来重定向请求到不同的位置，或者将请求重写为另一个 URI。
+
+`rewrite` 指令可以使用正则表达式，并且可以有多个规则，按照它们在配置文件中出现的顺序依次执行。如果 `rewrite` 规则匹配并执行，Nginx 会根据新的 URI 重新开始处理请求，这可能包括再次匹配 `location` 块和执行其他 `rewrite` 规则。
+
+示例配置：
+```nginx
+location /oldpath {
+    rewrite ^/oldpath/(.*) /newpath/$1 break;
+}
+```
+
+在这个例子中，任何匹配 `/oldpath` 的请求都会被重写为 `/newpath` 加上原始请求 URI 的路径部分。
+
+**break 指令**
+
+`break` 指令用于终止当前的配置块中的指令执行。当 Nginx 处理请求时，如果遇到 `break` 指令，它会停止执行当前块中的剩余指令，并继续处理请求。`break` 通常用在 `if` 块或 `location` 块中，用于防止指令的进一步执行。
+
+`break` 指令不会改变请求的 URI，它只是停止执行当前块中的指令。这与 `rewrite` 不同，后者会改变请求的 URI 并重新开始处理。
+
+示例配置：
+```nginx
+location /somepath {
+    if ($arg_foo = "bar") {
+        rewrite ^ /otherpath break;
+    }
+}
+```
+
+在这个例子中，如果请求参数中包含 `foo=bar`，则请求会被重写到 `/otherpath`，并且 `if` 块中的其他指令不会被执行。
+
+**总结**
+
+- `rewrite` 用于修改请求的 URI 并可能重新开始处理请求。
+- `break` 用于停止执行当前块中的剩余指令。
+
+在配置 Nginx 时，根据你的需求选择合适的指令非常重要。`rewrite` 适用于需要改变请求路径的场景，而 `break` 适用于需要立即停止当前块中指令执行的场景。
+
+
+
+
