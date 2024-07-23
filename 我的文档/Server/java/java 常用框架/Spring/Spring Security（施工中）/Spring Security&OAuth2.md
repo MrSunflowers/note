@@ -1415,6 +1415,8 @@ public void add(@RequestBody User user){
 
 # 第六章 OAuth2
 
+OAuth2 仅仅是一种授权（登录）方式，与微服务间的状态传输没有任何关系
+
 ## 1、OAuth2简介
 
 ### 1.1、OAuth2是什么
