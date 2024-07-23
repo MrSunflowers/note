@@ -1479,6 +1479,82 @@ client_secret = os.urandom(24).hex()  # 生成24字节的随机数并转换为�
 
 在实际应用中，授权服务器的实现细节可能会有所不同，但基本原理是相似的。授权服务器负责生成和管理这些凭证，并确保它们的安全性。
 
+OAuth 2.0的授权码流程（Authorization Code Flow）是为服务器端应用设计的，它允许应用安全地获取访问令牌，以便访问用户资源。以下是授权码流程的详细步骤：
+
+### 1. 客户端应用请求授权码
+
+客户端应用引导用户到授权服务器的授权端点。这个请求通常包含以下参数：
+
+- `response_type`：设置为`code`，表示请求的是授权码。
+- `client_id`：客户端应用的唯一标识符。
+- `redirect_uri`：授权服务器在授权后将用户代理重定向回的地址。
+- `scope`：请求的权限范围，定义了客户端应用希望访问的用户资源。
+- `state`：可选参数，用于防止跨站请求伪造（CSRF）攻击，同时可以在客户端应用中维持状态。
+
+例如，客户端应用可能会构造如下URL来请求授权码：
+
+```
+https://authorization-server.com/auth?response_type=code&client_id=CLIENT_ID&redirect_uri=REDIRECT_URI&scope=SCOPE&state=STATE
+```
+
+### 2. 用户授权
+
+用户在授权服务器上进行登录，并根据请求的权限范围授权客户端应用访问其资源。
+
+### 3. 授权服务器重定向回客户端应用
+
+授权服务器在用户授权后，将用户代理重定向回客户端应用提供的`redirect_uri`，并附上授权码作为查询参数。例如：
+
+```
+https://client-app.com/callback?code=AUTHORIZATION_CODE&state=STATE
+```
+
+### 4. 客户端应用请求访问令牌
+
+客户端应用使用授权码向授权服务器的令牌端点请求访问令牌。这个请求通常包含以下参数：
+
+- `grant_type`：设置为`authorization_code`，表示使用授权码来请求访问令牌。
+- `code`：从授权服务器获得的授权码。
+- `redirect_uri`：与之前请求授权码时提供的重定向URI相同。
+- `client_id`：客户端应用的唯一标识符。
+- `client_secret`：客户端应用的密钥，用于验证客户端身份。
+
+例如，客户端应用可能会构造如下HTTP请求来请求访问令牌：
+
+```
+POST /token HTTP/1.1
+Host: authorization-server.com
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=authorization_code&code=AUTHORIZATION_CODE&redirect_uri=REDIRECT_URI&client_id=CLIENT_ID&client_secret=CLIENT_SECRET
+```
+
+### 5. 授权服务器响应访问令牌
+
+授权服务器验证请求的有效性，如果一切正常，它将返回一个包含访问令牌和可选刷新令牌的响应。例如：
+
+```
+{
+  "access_token": "ACCESS_TOKEN",
+  "token_type": "Bearer",
+  "expires_in": 3600,
+  "refresh_token": "REFRESH_TOKEN",
+  "scope": "SCOPE"
+}
+```
+
+### 6. 客户端应用使用访问令牌访问资源
+
+客户端应用使用返回的访问令牌来访问用户资源。访问令牌通常需要在HTTP请求的`Authorization`头部中以`Bearer`模式发送。
+
+```
+GET /resource HTTP/1.1
+Host: resource-server.com
+Authorization: Bearer ACCESS_TOKEN
+```
+
+授权码流程是OAuth 2.0中最安全的流程之一，因为它不直接在用户代理中暴露访问令牌，而是使用授权码在服务器端进行交换。此外，授权码通常具有较短的有效期，并且只能使用一次，从而进一步增强了安全性。
+
 ## 1、OAuth2简介
 
 ### 1.1、OAuth2是什么
