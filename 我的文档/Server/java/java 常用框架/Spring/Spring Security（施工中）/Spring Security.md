@@ -252,6 +252,8 @@ UsernamePasswordAuthenticationFilter ：对/login的POST请求做拦截，校验
 
 # 用户名和密码
 
+![image-20240731000217380](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202407310002630.png)
+
 ## UserDetailsService
 
 当什么也没有配置的时候，账号和密码是由Spring Security定义生成的。而在实际项目中账号和密码都是从数据库中查询出来的。 所以我们要通过自定义逻辑控制认证逻辑。
