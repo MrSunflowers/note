@@ -242,11 +242,13 @@ Using generated security password: 9377fbb3-f9be-4fde-98d9-0d956be21cc7
 
 SpringSecurity 采用的是责任链的设计模式，它有一条很长的过滤器链。
 
+![image-20240730233833415](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202407302338629.png)
+
 重点看三个过滤器
 
-FilterSecurityInterceptor：是一个方法级的权限过滤器, 基本位于过滤链的最底部。
-ExceptionTranslationFilter：是个异常过滤器，用来处理在认证授权过程中抛出的异常。
-UsernamePasswordAuthenticationFilter ：对/login的POST请求做拦截，校验表单中用户名，密码。
+FilterSecurityInterceptor：是一个方法级的权限过滤器, 基本位于过滤链的最底部，负责权限校验。
+ExceptionTranslationFilter：是个异常过滤器，用来处理在认证授权过程中抛出的鉴权异常。
+UsernamePasswordAuthenticationFilter ：对/login的POST请求做拦截，校验表单中用户名，密码是否合法。
 
 # 用户名和密码
 
@@ -1945,6 +1947,9 @@ Spring Security 采取过滤链实现认证与授权，只有当前过滤器通�
 一般认证成功后的用户信息是通过 Session 在多个请求之间共享，那么Spring Security中是如何实现将已认证的用户信息对象 Authentication 与 Session 绑定的进行具体分析。
 
 ![image-20240311150239539](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403111502313.png)
+
+# 基于JWT的前后端分离实现
+
 
 
 # 权限模型
