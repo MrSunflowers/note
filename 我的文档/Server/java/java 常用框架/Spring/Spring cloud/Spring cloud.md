@@ -4343,9 +4343,9 @@ db.user=root
 db.password=root
 ```
 
-##### 解决 nacos 1.1.4 版本不支持 mysql 8 的问题
+#### nacos集群搭建
 
-待补充
+https://blog.csdn.net/helloyuyuan/article/details/119422236
 
 ## Sentinel
 
