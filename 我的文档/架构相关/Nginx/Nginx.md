@@ -1780,11 +1780,21 @@ server {
 
 高可用场景及解决方案
 
-利用 Keepalived 的虚拟 IP 来实现，多台机器使用同一虚拟 IP，此IP在多台机器上来回切换，以达到高可用集群的目的
+利用 Keepalived 的虚拟 IP 来实现，多台机器使用同一虚拟 IP，此 IP 在多台机器上来回切换，以达到高可用集群的目的
 
 Keepalived 软件起初是专为 LVS 负载均衡软件设计的，用来管理并监控 LVS 集群系统中各个服务节点的状态，后来又加入了可以实现高可用的 VRRP 功能。因此，Keepalived 除了能够管理 LVS 软件外，还可以作为其他服务（例如：Nginx、Haproxy、MySQL等）的高可用解决方案软件。VRRP 出现的目的就是为了解决静态路由单点故障问题的，它能够保证当个别节点宕机时，整个网络可以不间断地运行。所以，Keepalived 一方面具有配置管理 LVS 的功能，同时还具有对 LVS 下面节点进行健康检查的功能，另一方面也可实现系统网络服务的高可用功能。
 
-keepalived官网http://www.keepalived.org
+keepalived 官网 http://www.keepalived.org
+
+其主要作用包括：
+
+1. **故障检测与转移**：Keepalived 能够监控服务器的健康状态，一旦检测到某台服务器宕机或出现故障，它会自动将该服务器从系统中剔除，并使用其他正常工作的服务器来替代其工作。当故障服务器恢复正常后，Keepalived 可以自动将其重新加入到服务器群中，整个过程无需人工干预。
+
+2. **高可用性保障**：通过使用虚拟路由冗余协议（VRRP），Keepalived 可以实现服务的高可用性。在VRRP模式下，通常有两台服务器运行Keepalived，一台作为主服务器（MASTER），另一台作为备份服务器（BACKUP）。对外表现为一个虚拟IP，主服务器定期向备份服务器发送特定消息，如果备份服务器收不到这些消息，即认为主服务器宕机，备份服务器就会接管虚拟IP，继续提供服务，从而保证服务的连续性。
+
+3. **负载均衡支持**：Keepalived 可以与负载均衡技术（如LVS、Haproxy、Nginx）结合使用，以实现集群的高可用性。它通过监控集群中各个服务节点的状态，确保服务的稳定运行。
+
+4. **多层检测**：Keepalived 可以在IP层（Layer3）、传输层（Layer4）和应用层（Layer5）进行服务器状态的检测。Layer3检测基于ICMP数据包，Layer4检测基于TCP端口状态，而Layer5检测则根据用户设定的条件来检查服务器程序的运行状态。
 
 keepalived服务的三个重要功能：
 
@@ -1792,7 +1802,129 @@ keepalived服务的三个重要功能：
 - 实现LVS集群节点的健康检查中
 - 作为系统网络服务的高可用性（failover）
 
-## 安装keepalived
+
+配置 Keepalived 主要涉及编辑其配置文件 `/etc/keepalived/keepalived.conf`。下面是一个基本的配置步骤和示例：
+
+## Keepalived 使用
+
+### 步骤 1: 安装 Keepalived
+
+在基于Debian的系统（如Ubuntu）上，使用以下命令安装：
+```bash
+sudo apt-get update
+sudo apt-get install keepalived
+```
+在基于Red Hat的系统（如CentOS）上，使用以下命令安装：
+```bash
+sudo yum install keepalived
+```
+
+### 步骤 2: 编辑配置文件
+
+配置文件通常位于 `/etc/keepalived/keepalived.conf`。你可以使用文本编辑器打开并编辑它，例如使用 `nano` 或 `vi`。
+
+### 步骤 3: 配置 VRRP 实例
+
+VRRP（虚拟路由冗余协议）是实现高可用性的关键。以下是一个简单的 VRRP 配置示例：
+
+```conf
+! Configuration File for keepalived
+
+global_defs {
+   notification_email {
+     admin@example.com
+   }
+   notification_email_from keepalived@example.com
+   smtp_server 127.0.0.1
+   smtp_connect_timeout 30
+   router_id LVS_DEVEL
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.0.100
+    }
+}
+```
+
+在这个例子中：
+- `state` 表示当前服务器的角色，可以是 MASTER 或 BACKUP。
+- `interface` 是服务器上用于 VRRP 的网络接口。
+- `virtual_router_id` 是一个在局域网内唯一的标识符。
+- `priority` 决定了在多个 MASTER 之间哪个有更高的优先级。
+- `advert_int` 是 VRRP通告消息的发送间隔（秒）。
+- `authentication` 是用于 VRRP 通信的认证方式。
+- `virtual_ipaddress` 是虚拟IP地址，客户端将使用这个地址访问服务。
+
+### 步骤 4: 配置健康检查
+
+Keepalived 可以配置健康检查来确认服务是否正常运行。这通常通过在 `vrrp_instance` 之外定义 `virtual_server` 来实现：
+
+```conf
+virtual_server_group my_group {
+    192.168.0.100 80
+}
+
+virtual_server 192.168.0.100 80 {
+    delay_loop 6
+    lb_algo rr
+    lb_kind NAT
+    persistence_timeout 50
+    protocol TCP
+
+    real_server 192.168.0.101 80 {
+        weight 1
+        HTTP_GET {
+            url {
+              path /
+              status_code 200
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+}
+```
+
+在这个例子中：
+- `virtual_server_group` 定义了一组虚拟服务器。
+- `virtual_server` 定义了具体的虚拟服务器地址和端口。
+- `real_server` 定义了实际提供服务的服务器地址和端口。
+- `HTTP_GET` 是用于检查服务是否正常运行的健康检查方法。
+
+### 步骤 5: 重启 Keepalived 服务
+
+配置完成后，需要重启 Keepalived 服务以应用更改：
+
+```bash
+sudo systemctl restart keepalived
+```
+
+或者，如果你的系统不使用 `systemctl`，可以使用以下命令：
+
+```bash
+sudo service keepalived restart
+```
+
+### 注意事项
+
+- 确保配置文件的语法正确，可以使用 `keepalived -f /etc/keepalived/keepalived.conf -n` 来检查配置文件的语法。
+- 在生产环境中，根据实际网络环境和需求，可能需要对配置进行更详细的调整和优化。
+- 请确保在修改配置文件之前备份原始文件，以防配置错误导致服务中断。
+
+以上步骤提供了一个基本的 Keepalived 配置框架，具体配置可能需要根据你的网络架构和需求进行调整。
+
+## keepalived 实战
 
 centos安装命令：
 
@@ -1800,17 +1932,15 @@ centos安装命令：
  yum install -y keepalived
 ```
 
-keepalived 实战
-
 keepalived 的配置文件在如下位置：
 
 ```
 /etc/keepalived/keepalived.conf
 ```
 
-在该实战中，101为主nginx，102为备用机，首先需要修改101和102的keepalived.conf配置
+在该实战中，101 为主 nginx，102 为备用机，首先需要修改 101 和 102 的 keepalived.conf 配置
 
-101的keepalived.conf配置，使用ens33网卡
+101 的 keepalived.conf 配置，使用 ens33 网卡
 
 ```
 ! Configuration File for keepalived
@@ -1825,21 +1955,21 @@ vrrp_instance VI_102 # VI_102 为实例名称，集群保持一致 {
     virtual_router_id 51 # 集群保持一致
     priority 100 # 竞选 MASTER 节点的优先级
     advert_int 1 # 检测存活时间，心跳间隔
-	# keepalived 分组名称信息 集群保持一致
+    # keepalived 分组名称信息 集群保持一致
     authentication {
         auth_type PASS
         auth_pass 1111
     }
-	# 虚拟的IP地址，可填写多个
+    # 虚拟的IP地址，可填写多个
     virtual_ipaddress { 
         192.168.8.200
     }
 }
 ```
 
-使用systemctl start keepalived启动keepalived,查看ip发现多了虚拟 ip 192.168.8.200:
+使用 systemctl start keepalived 启动 keepalived,查看 ip 发现多了虚拟 ip 192.168.8.200
 
-102的keepalived.conf配置,使用ens33网卡
+102 的 keepalived.conf 配置,使用 ens33 网卡
 
 ```
 ! Configuration File for keepalived
@@ -1864,15 +1994,237 @@ vrrp_instance VI_102 {
 }
 ```
 
-使用systemctl start keepalived启动keepalived
+使用 systemctl start keepalived 启动 keepalived
 
-在nginx集群状态下，需要访问虚拟IP，即 VIP 162.168.8.200：
+在 nginx 集群状态下，需要访问虚拟 IP，即 VIP 162.168.8.200：
 
 关闭 102，再次访问 192.168.8.200：
 
 发现可以正常访问
 
-Keepalived 是进程检测，即它只检测自己进程是否存活，不检测其他软件情况。可以编写脚本来检测Nginx服务运行情况，当Nginx宕机直接杀死本机Keepalived，以达到IP漂移切换的目的，所以Keepalived可以检测一切软件，如redis、mysql等
+Keepalived 是进程检测，即它只检测自己进程是否存活，不检测其他软件情况。可以编写脚本来检测 Nginx 服务运行情况，当 Nginx 宕机直接杀死本机Keepalived，以达到 IP 漂移切换的目的，所以 Keepalived 可以检测一切软件，如 redis、mysql 等
+
+## 使用脚本检测服务状态
+
+你可以编写一个脚本来检测特定服务（如 Nginx）的状态。如果服务停止运行，脚本可以执行一些操作，比如发送通知或直接杀死 Keepalived 进程，从而触发虚拟IP的漂移。
+
+以下是一个简单的示例脚本，用于检测 Nginx 是否在运行：
+
+```bash
+#!/bin/bash
+
+# 检测 Nginx 是否在运行
+NGINX_STATUS=$(pgrep -f nginx)
+
+# 如果 Nginx 没有运行（即 $NGINX_STATUS 为空），则杀死 Keepalived
+if [ -z "$NGINX_STATUS" ]; then
+    # 杀死 Keepalived 进程，这将触发虚拟IP的漂移
+    pkill keepalived
+    echo "Nginx is down. Killed Keepalived to trigger failover."
+else
+    echo "Nginx is running."
+fi
+```
+
+确保此脚本具有执行权限：
+
+```bash
+chmod +x /path/to/your/script.sh
+```
+
+然后，你可以将此脚本设置为定时任务（使用 `cron`），定期检查 Nginx 的状态。
+
+## Keepalived 的脚本钩子功能
+
+Keepalived 提供了脚本钩子功能，允许在特定事件发生时执行自定义脚本。例如，你可以定义一个脚本来在 VRRP 状态改变时运行，从而实现更复杂的逻辑。
+
+Keepalived 的脚本钩子功能允许在特定的 VRRP 事件发生时执行自定义脚本。这可以用于在服务状态改变时执行额外的逻辑，比如在检测到服务故障时触发某些操作。下面是如何配置 Keepalived 脚本钩子的步骤：
+
+### 步骤 1: 编写脚本
+
+首先，编写一个脚本来执行你希望在 VRRP 状态改变时进行的操作。例如，下面的脚本在检测到 Nginx 停止时会输出一条消息：
+
+```bash
+#!/bin/bash
+
+# 检查 Nginx 是否在运行
+NGINX_STATUS=$(pgrep -f nginx)
+
+# 如果 Nginx 没有运行，则输出一条消息
+if [ -z "$NGINX_STATUS" ]; then
+    echo "Nginx is down."
+    # 在这里可以添加其他逻辑，比如发送通知或执行其他操作
+fi
+```
+
+确保脚本具有执行权限：
+
+```bash
+chmod +x /path/to/your/script.sh
+```
+
+### 步骤 2: 配置 Keepalived
+
+在 Keepalived 的配置文件 `/etc/keepalived/keepalived.conf` 中，添加 `vrrp_script` 部分来指定脚本及其执行频率。以下是一个配置示例：
+
+```conf
+global_defs {
+    notification_email {
+        admin@example.com
+    }
+    notification_email_from keepalived@example.com
+    smtp_server 127.0.0.1
+    smtp_connect_timeout 30
+    router_id LVS_DEVEL
+}
+
+vrrp_script check_nginx {
+    script "/path/to/your/script.sh"  # 指定脚本路径
+    interval 5                         # 每5秒执行一次脚本
+    weight -20                         # 如果脚本返回非零值，优先级减少20
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.0.100
+    }
+}
+```
+
+在这个配置中，`vrrp_script` 部分定义了一个名为 `check_nginx` 的脚本钩子，它会每5秒执行一次指定的脚本。如果脚本返回非零值（表示检测到 Nginx 停止），则当前服务器的 VRRP 优先级会减少20。
+
+### 步骤 3: 重启 Keepalived
+
+配置完成后，需要重启 Keepalived 服务以应用更改：
+
+```bash
+sudo systemctl restart keepalived
+```
+
+或者，如果你的系统不使用 `systemctl`，可以使用以下命令：
+
+```bash
+sudo service keepalived restart
+```
+
+### 注意事项
+
+- 确保脚本路径正确，并且脚本具有执行权限。
+- 脚本钩子的 `weight` 参数可以根据需要调整，以影响 VRRP 优先级。
+- 通过 `interval` 参数可以控制脚本执行的频率。
+- 在生产环境中，确保脚本的逻辑是安全和可靠的，避免不必要的故障转移。
+
+通过这种方式，你可以根据服务的实际运行状态来动态调整 Keepalived 的行为，实现更精细的高可用性控制。
+
+## 通过脚本检测本机 NGINX 的服务状态
+
+要通过 Keepalived 的健康检查来监控 Nginx 服务状态，并在服务超时或无响应时杀死本机的 Keepalived 进程，你可以使用 Keepalived 的 `track_script` 功能。这个功能允许你运行一个或多个脚本，并根据脚本的返回值来调整 VRRP 实例的优先级。
+
+### 步骤 1: 编写检查 Nginx 状态的脚本
+
+首先，创建一个脚本来检查 Nginx 是否在运行。如果 Nginx 服务无响应或超时，脚本将返回一个非零值。
+
+```bash
+#!/bin/bash
+
+# 检查 Nginx 是否在运行
+NGINX_STATUS=$(pgrep -f nginx)
+
+# 设置超时时间（秒）
+TIMEOUT=10
+
+# 使用 curl 检查 Nginx 是否响应
+RESPONSE=$(curl --max-time $TIMEOUT --silent --output /dev/null --head http://localhost/)
+
+# 如果 Nginx 没有运行或 curl 超时，则返回非零值
+if [ -z "$NGINX_STATUS" ] || [ $? -ne 0 ]; then
+    echo "Nginx is down or not responding."
+    exit 1
+else
+    echo "Nginx is up and running."
+    exit 0
+fi
+```
+
+确保脚本具有执行权限：
+
+```bash
+chmod +x /path/to/your/check_nginx.sh
+```
+
+### 步骤 2: 配置 Keepalived
+
+在 Keepalived 的配置文件 `/etc/keepalived/keepalived.conf` 中，添加 `track_script` 部分来指定脚本，并在 `vrrp_instance` 部分中使用 `track_script` 的结果来调整优先级。
+
+```conf
+global_defs {
+    notification_email {
+        admin@example.com
+    }
+    notification_email_from keepalived@example.com
+    smtp_server 127.0.0.1
+    smtp_connect_timeout 30
+    router_id LVS_DEVEL
+}
+
+vrrp_script check_nginx {
+    script "/path/to/your/check_nginx.sh"
+    interval 5
+    weight -20
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.0.100
+    }
+    track_script {
+        check_nginx
+    }
+}
+```
+
+在这个配置中，`track_script` 部分指定了之前创建的脚本。如果脚本返回非零值（表示 Nginx 服务无响应或超时），`weight` 参数将减少20，这可能触发虚拟IP地址的漂移。
+
+### 步骤 3: 重启 Keepalived
+
+配置完成后，需要重启 Keepalived 服务以应用更改：
+
+```bash
+sudo systemctl restart keepalived
+```
+
+或者，如果你的系统不使用 `systemctl`，可以使用以下命令：
+
+```bash
+sudo service keepalived restart
+```
+
+### 注意事项
+
+- 确保脚本路径正确，并且脚本具有执行权限。
+- 根据你的环境调整 `TIMEOUT` 变量的值。
+- 通过 `weight` 参数可以控制脚本执行结果对 VRRP 优先级的影响。
+- 在生产环境中，确保脚本的逻辑是安全和可靠的，避免不必要的故障转移。
+
+通过这种方式，Keepalived 将能够根据 Nginx 的实际运行状态来动态调整其行为，从而实现更精细的高可用性控制。
 
 # 12.https签名配置
 
