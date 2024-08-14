@@ -1924,6 +1924,210 @@ sudo service keepalived restart
 
 以上步骤提供了一个基本的 Keepalived 配置框架，具体配置可能需要根据你的网络架构和需求进行调整。
 
+## keepalived 配置文件
+
+刚安装好的 keepalived 配置文件包含以下部分
+
+```
+! Configuration File for keepalived
+
+global_defs {
+   notification_email {
+     acassen@firewall.loc
+     failover@firewall.loc
+     sysadmin@firewall.loc
+   }
+   notification_email_from Alexandre.Cassen@firewall.loc
+   smtp_server 192.168.200.1
+   smtp_connect_timeout 30
+   router_id LVS_DEVEL
+   vrrp_skip_check_adv_addr
+   vrrp_strict
+   vrrp_garp_interval 0
+   vrrp_gna_interval 0
+}
+
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    advert_int 1
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+    virtual_ipaddress {
+        192.168.200.16
+        192.168.200.17
+        192.168.200.18
+    }
+}
+
+virtual_server 192.168.200.100 443 {
+    delay_loop 6
+    lb_algo rr
+    lb_kind NAT
+    persistence_timeout 50
+    protocol TCP
+
+    real_server 192.168.201.100 443 {
+        weight 1
+        SSL_GET {
+            url {
+              path /
+              digest ff20ad2481f97b1754ef3e12ecd3a9cc
+            }
+            url {
+              path /mrtg/
+              digest 9b3a0c85a887a256d6939da88aabd8cd
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+}
+
+virtual_server 10.10.10.2 1358 {
+    delay_loop 6
+    lb_algo rr 
+    lb_kind NAT
+    persistence_timeout 50
+    protocol TCP
+
+    sorry_server 192.168.200.200 1358
+
+    real_server 192.168.200.2 1358 {
+        weight 1
+        HTTP_GET {
+            url { 
+              path /testurl/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl2/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl3/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+
+    real_server 192.168.200.3 1358 {
+        weight 1
+        HTTP_GET {
+            url { 
+              path /testurl/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334c
+            }
+            url { 
+              path /testurl2/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334c
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+}
+
+virtual_server 10.10.10.3 1358 {
+    delay_loop 3
+    lb_algo rr 
+    lb_kind NAT
+    persistence_timeout 50
+    protocol TCP
+
+    real_server 192.168.200.4 1358 {
+        weight 1
+        HTTP_GET {
+            url { 
+              path /testurl/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl2/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl3/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+
+    real_server 192.168.200.5 1358 {
+        weight 1
+        HTTP_GET {
+            url { 
+              path /testurl/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl2/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            url { 
+              path /testurl3/test.jsp
+              digest 640205b7b0fc66c1ea91c463fac6334d
+            }
+            connect_timeout 3
+            nb_get_retry 3
+            delay_before_retry 3
+        }
+    }
+}
+```
+
+这个配置文件是用于 `keepalived` 的，它是一个用于 Linux 系统的高可用性解决方案，特别是在负载均衡和虚拟路由冗余协议（VRRP）方面。下面我将详细解释每个配置项：
+
+### global_defs 部分
+
+- `notification_email`：定义了在故障转移时接收通知的电子邮件地址列表。
+- `notification_email_from`：定义了发送通知邮件的发件人地址。
+- `smtp_server`：指定用于发送通知邮件的 SMTP 服务器地址。
+- `smtp_connect_timeout`：设置 SMTP 服务器连接的超时时间（秒）。
+- `router_id`：设置 VRRP 实例的路由器标识符，通常用于标识 VRRP 实例。
+- `vrrp_skip_check_adv_addr`：指示 keepalived 在 VRRP 广告中跳过检查地址。
+- `vrrp_strict`：设置 VRRP 的严格模式。
+- `vrrp_garp_interval` 和 `vrrp_gna_interval`：设置 VRRP 的通告间隔，这里都设置为 0，意味着不发送 GARP 或 GNNA 消息。
+
+### vrrp_instance VI_1 部分
+
+- `state`：设置该 VRRP 实例的状态，这里是 `MASTER`，表示这个实例是主节点。
+- `interface`：指定 VRRP 实例使用的网络接口，这里是 `eth0`。
+- `virtual_router_id`：设置虚拟路由器的 ID，这里为 51。
+- `priority`：设置该实例的优先级，这里是 100。
+- `advert_int`：设置 VRRP 广告包的发送间隔（秒）。
+- `authentication`：定义 VRRP 实例的认证方式，这里使用简单密码认证，密码为 `1111`。
+- `virtual_ipaddress`：定义由 VRRP 实例管理的虚拟 IP 地址列表。
+
+### virtual_server 部分
+
+- `virtual_server`：定义虚拟服务器的 IP 地址和端口，这里是 `192.168.200.100` 的 443 端口。
+- `delay_loop`：设置健康检查之间的延迟时间（秒）。
+- `lb_algo`：设置负载均衡算法，这里是轮询（rr）。
+- `lb_kind`：设置负载均衡的类型，这里是 NAT。
+- `persistence_timeout`：设置会话保持的时间（秒）。
+- `protocol`：定义使用的协议，这里是 TCP。
+
+在 `virtual_server` 下，定义了多个 `real_server`，它们是实际提供服务的服务器。每个 `real_server` 配置了 IP 地址、端口、权重（weight）、健康检查方法（如 `HTTP_GET`）和相关参数（如 `connect_timeout`、`nb_get_retry`、`delay_before_retry`）。
+
+例如，对于 `192.168.200.100:443`，有三个 `real_server`，分别位于 `192.168.201.100`、`192.168.200.2` 和 `192.168.200.3`。每个服务器都有自己的健康检查路径和预期的摘要值。
+
+此外，还定义了 `sorry_server`，它是一个备用服务器，当所有其他服务器都不可用时使用。
+
+整体来看，这个配置文件定义了一个高可用的负载均衡环境，其中包含一个主节点和多个实际提供服务的服务器。通过健康检查确保服务的高可用性和负载均衡。
+
 ## keepalived 实战
 
 centos安装命令：
