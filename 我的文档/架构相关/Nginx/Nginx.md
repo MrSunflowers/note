@@ -1726,68 +1726,53 @@ server {
 
 # 10.配置错误提示页面
 
-html目录中添加403.html
+在 Nginx 中配置错误提示页面允许你自定义当用户遇到特定类型的 HTTP 错误时看到的页面。这不仅提升了用户体验，还可以提供更清晰的错误信息、帮助用户理解发生了什么问题，以及如何解决。常见的错误提示页面包括 404（未找到页面）、403（禁止访问）、500（服务器内部错误）等。
 
-修改 nginx.conf
+**配置错误提示页面的步骤**
 
-```
-worker_processes  1;
+1. **创建自定义错误页面**:
+    首先，你需要创建一个 HTML 文件，这个文件将作为错误提示页面。例如，创建一个名为 `404.html` 的文件，用于 404 错误。
 
+2. **配置 Nginx**:
+    在 Nginx 配置文件中，你可以使用 `error_page` 指令来指定当遇到特定错误代码时显示的自定义页面。通常，这些配置位于 `http`、`server` 或 `location` 块中。
 
+    以下是一个配置示例，它告诉 Nginx 当遇到 404 错误时显示 `404.html` 页面：
 
-events {
-    worker_connections  1024;
-}
-
-
-http {
-    include       mime.types;
-    default_type  application/octet-stream;
-
-   
-
-    sendfile        on;
-
-    keepalive_timeout  65;
-
-
-
+    ```nginx
     server {
-        listen       80;
-        server_name  localhost;
+        listen 80;
+        server_name example.com;
 
-        location / {
-            proxy_pass http://192.168.8.101:8080;
-        }
-        
-        
-        location ^~/images/ {
-            valid_referers 192.168.8.102 baidu.com;
-            if ($invalid_referer) {
-                return 403; # 返回错误码
-            }
-            
-            root   /www/resources;
-        }
-        
-		# 403 错误提示页面配置
-        error_page   403  /403.html;
-        location = /403.html {
-            root   html;
-        }
-        error_page   500 502 503 504  /50x.html;
-        location = /50x.html {
-            root   html;
-        }
+        # 其他配置...
 
-        
+        error_page 404 /404.html;
+        location = /404.html {
+            internal;
+        }
     }
+    ```
 
-}
+    在这个例子中，`error_page 404 /404.html;` 指令告诉 Nginx 当发生 404 错误时，显示位于服务器根目录下的 `404.html` 页面。`location = /404.html` 块确保只有直接访问 `404.html` 时才会显示该页面，而 `internal` 指令确保该页面不能通过 URL 直接访问，只能作为错误页面显示。
 
-```
+3. **重启 Nginx**:
+    修改配置文件后，需要重启 Nginx 以使更改生效。可以使用以下命令之一：
 
-也可以返回出错图片
+    ```bash
+    sudo systemctl restart nginx
+    # 或者
+    sudo nginx -s reload
+    ```
+
+**注意事项**
+
+- 确保自定义错误页面位于 Nginx 可以访问的路径下。
+- 使用 `internal` 指令可以防止用户直接通过 URL 访问错误页面，确保错误页面只在错误发生时显示。
+- 你可以为不同的错误代码配置不同的页面，例如 `error_page 500 502 503 504 /50x.html;`。
+- 除了自定义页面，你还可以指定重定向到另一个 URL，例如 `error_page 404 http://example.com/notfound;`。
+
+通过配置自定义错误提示页面，你可以提供更加友好和有用的反馈给用户，同时保持网站的专业形象。
+
+**也可以返回出错图片**
 
 ![image-20231109204701059](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311092047142.png)
 
