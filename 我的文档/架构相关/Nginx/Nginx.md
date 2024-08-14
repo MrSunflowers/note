@@ -2344,13 +2344,15 @@ sudo service keepalived restart
 NGINX_STATUS=$(pgrep -f nginx)
 
 # 设置超时时间（秒）
-TIMEOUT=10
+TIMEOUT=1
 
 # 使用 curl 检查 Nginx 是否响应
 RESPONSE=$(curl --max-time $TIMEOUT --silent --output /dev/null --head http://localhost/)
 
 # 如果 Nginx 没有运行或 curl 超时，则返回非零值
 if [ -z "$NGINX_STATUS" ] || [ $? -ne 0 ]; then
+	# 杀死 Keepalived 进程，这将触发虚拟IP的漂移
+	pkill keepalived
     echo "Nginx is down or not responding."
     exit 1
 else
