@@ -507,7 +507,7 @@ server_name  *.xzj520520.cn;
 
 ![41d0a93f50338db6ed3b62480fc92319](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311052123608.png)
 
-正则匹配格式，必须以~开头，比如：server_name ~^www\d+\.example\.net$;。如果开头没有~，则nginx认为是精确匹配。在逻辑上，需要添加^和$锚定符号。注意，正则匹配格式中.为正则元字符，如果需要匹配.，则需要反斜线转义。如果正则匹配中含有{和}则需要双引号引用起来，避免nginx报错，如果没有加双引号，则nginx会报如下错误：directive "server_name" is not terminated by ";" in ...。
+正则匹配格式，必须以~开头，比如：`server_name ~^www\d+\.example\.net$;`。如果开头没有`~`，则nginx认为是精确匹配。在逻辑上，需要添加`^`和`$`锚定符号。注意，正则匹配格式中`.`为正则元字符，如果需要匹配`.`，则需要反斜线转义。如果正则匹配中含有`{`和`}`则需要双引号引用起来，避免nginx报错，如果没有加双引号，则nginx会报如下错误：`directive "server_name" is not terminated by ";" in ...`。
 
 ### 特殊匹配格式
 
@@ -533,7 +533,35 @@ server_name ""; 匹配Host请求头不存在的情况。
 2. 当定义大量server_name时或特别长的server_name时，需要在http级别调整server_names_hash_max_size和server_names_hash_bucket_size，否则nginx将无法启动。
 ```
 
-附录：
+在使用 Nginx 作为服务器时，需要注意 `server_names_hash_max_size` 和 `server_names_hash_bucket_size` 这两个指令的配置，尤其是在处理大量的 `server_name` 指令或特别长的 `server_name` 字符串时。
+
+1. **server_names_hash_max_size**: 这个指令用于设置 Nginx 服务器名称哈希表的最大大小。哈希表用于快速查找匹配的 `server_name`。如果 Nginx 启动时检测到这个值太小，无法容纳所有服务器名称，它将无法启动，并会报错提示需要增加这个值。
+
+2. **server_names_hash_bucket_size**: 这个指令用于设置哈希表中每个桶的大小。桶是哈希表中用于存储具有相同哈希值的服务器名称的容器。增加这个值可以减少哈希冲突，提高性能，特别是在 `server_name` 非常多或者很长时。
+
+调整这两个参数时，需要根据你的 `server_name` 数量和长度来决定合适的值。通常，如果 Nginx 报告无法启动并提示需要调整这些参数，你需要根据错误信息中的建议来增加这些值。
+
+例如，如果你收到的错误信息提示 `server_names_hash_max_size` 需要增加，你可以按照如下方式调整你的 Nginx 配置文件（通常是 `/etc/nginx/nginx.conf` 或者 `/etc/nginx/conf.d/default.conf`）：
+
+```nginx
+http {
+    ...
+    server_names_hash_max_size 512;
+    server_names_hash_bucket_size 64;
+    ...
+}
+```
+
+在调整这些值之后，需要重新加载或重启 Nginx 以使更改生效。可以使用以下命令之一：
+
+```bash
+sudo nginx -s reload  # 重新加载配置文件
+sudo systemctl restart nginx  # 如果你使用的是systemd管理Nginx服务
+```
+
+请记住，增加这些值会消耗更多的内存，因此需要根据服务器的资源和实际需求来平衡配置。如果不确定如何设置，可以先从较小的值开始，然后根据实际需要逐步调整。
+
+### 附录：
 
 ~* 不区分大小写的匹配（匹配firefox的正则同时匹配FireFox）
 
