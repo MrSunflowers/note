@@ -1526,12 +1526,15 @@ rewrite ^/([0-9]).html$ /index.html?testParam=$1 break; //$1表示第一个匹�
 
 在真实的线上环境可以利用防火墙配置，使我们的应用服务器只允许 网关 nginx 的 IP 和 端口 可以访问，做到一个内外网分离
 
+假设现在要搭建一个内网环境，内网中存在一个应用服务器 Tomcat ，则 Tomcat 不应该被外网环境直接访问，此时就可以利用 NGINX 服务器和 Linux 的防火墙来实现
 
-添加指定端口和ip访问(添加之后记得重新启动防火墙)
+在 Tomcat 服务器的 Linux 添加指定端口和ip访问(添加之后记得重新启动防火墙)
 
 ```
 firewall-cmd --permanent --add-rich-rule="rule family="ipv4" source address="192.168.8.102" port protocol="tcp" port="8080" accept"
 ```
+
+则此时，Tomcat 服务器就只允许配置的 NGINX 服务器访问
 
 移除规则
 
@@ -1544,6 +1547,46 @@ firewall-cmd --permanent --remove-rich-rule="rule family="ipv4" source address="
 ```
 firewall-cmd --reload
 ```
+
+## 查看当前的防火墙规则
+
+要查看当前的 `firewalld` 防火墙规则，你可以使用以下命令：
+
+```bash
+firewall-cmd --list-all
+```
+
+这个命令会列出所有当前激活的区域（zones）的详细信息，包括规则、服务、端口、接口等。输出结果会显示每个区域的配置，包括默认区域的设置。
+
+输出示例可能如下所示：
+
+```
+public (active)
+  target: default
+  icmp-block-inversion: no
+  interfaces: eth0
+  sources: 
+  services: ssh dhcpv6-client http https
+  ports: 8080/tcp
+  protocols: 
+  forward: no
+  sourceports: 
+  icmp-blocks: 
+  rich rules: 
+    rule family="ipv4" source address="192.168.8.102" port protocol="tcp" port="8080" accept
+```
+
+在这个示例中，`rich rules` 部分显示了之前添加的规则，允许来自 IP 地址 `192.168.8.102` 的 TCP 流量通过端口 `8080`。
+
+请注意，根据你的系统配置和已应用的规则数量，输出内容可能会有所不同。如果你只想查看特定区域的规则，可以使用 `--zone=<zone_name>` 选项，例如：
+
+```bash
+firewall-cmd --list-all --zone=public
+```
+
+这将仅显示名为 `public` 的区域的规则。
+
+确保在执行这些命令时你具有足够的权限，通常需要 root 权限。如果你的系统使用的是不同的防火墙管理工具（如 iptables），则需要使用相应的命令和语法来查看规则。
 
 # 9.防盗链
 
