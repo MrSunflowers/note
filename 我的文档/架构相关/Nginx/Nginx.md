@@ -2226,7 +2226,9 @@ sudo service keepalived restart
 
 通过这种方式，Keepalived 将能够根据 Nginx 的实际运行状态来动态调整其行为，从而实现更精细的高可用性控制。
 
-# 12.https签名配置
+# 12.https 签名
+
+参考 《凤凰架构》-周志明
 
 ## 不安全的 HTTP 协议
 
@@ -2337,9 +2339,9 @@ sudo service keepalived restart
 
 其实这并不会发生，因为证书里包含了网站A的信息，包括域名，浏览器把证书里的域名与自己请求的域名比对一下就知道有没有被掉包了。
 
-### https 配置
+## https 配置
 
-#### 自签名 
+### 自签名 
 
 
 
