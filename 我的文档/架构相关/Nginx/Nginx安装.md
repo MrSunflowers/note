@@ -194,3 +194,128 @@ ps -ef grep nginx
 安装过后，如果从外面访问不了，多半是被防火墙挡住了，可以关闭掉防火墙：
 /sbin/service iptables stop
 
+# 第三方模块平滑升级
+
+在使用 NGINX 作为文件下载服务器时，可以有多个 NGINX 组成集群，在集群下游同样由 NGINX 担任网关分发请求，此时，当客户端与文件服务器（NGINX）建立连接时，我们希望后续就由该服务器一直服务该用户，因为建立连接是一个非常耗费资源的动作，此时就需要网关服务器能够识别用户且将用户的请求发往同一台服务器，而普通的 Hash 算法已经不能满足现有的需求，就需要引入更强大的第三方模块来实现，且安装新模块时，我们并不希望对现有配置和服务器状态有所影响，如何平滑的升级 NGINX 就成了眼下的问题，下面以安装 sticky 模块为例来演示如何平滑的升级 NGINX
+
+## 使用 sticky 模块完成对 Nginx 的负载均衡
+
+sticky 使用参考
+
+http://nginx.org/en/docs/http/ngx_http_upstream_module.html#sticky
+
+### 安装 sticky
+
+**1.环境准备**
+
+项目官网
+
+https://bitbucket.org/nginx-goodies/nginx-sticky-module-ng/src/master/
+
+GitHub
+
+https://github.com/bymaximus/nginx-sticky-module-ng
+
+下载地址
+
+https://bitbucket.org/nginx-goodies/nginx-sticky-module-ng/get/1.2.6.zip
+
+编译 nginx-sticky-module-ng 模块依赖于 openssl-devel 包
+
+如果你在编译带有 `nginx-sticky-module-ng` 的 NGINX 时遇到了错误，并且错误提示表明需要 `openssl-devel` 包，这意味着你的系统缺少编译该模块所需的 OpenSSL 开发库。
+
+`openssl-devel` 包含了 OpenSSL 的头文件和库文件，这些是编译依赖于 OpenSSL 的软件（如 `nginx-sticky-module-ng`）所必需的。在不同的 Linux 发行版中，这个包可能有不同的名称，例如在基于 Debian 的系统中，它可能被称为 `libssl-dev`。
+
+要解决这个问题，你需要安装相应的开发包。以下是在一些常见 Linux 发行版上安装 `openssl-devel` 的命令：
+
+对于基于 **Red Hat/CentOS** 的系统（如 CentOS 7 或 Fedora）：
+
+```shell
+sudo yum install openssl-devel
+```
+
+对于基于 **Debian/Ubuntu** 的系统：
+
+```shell
+sudo apt-get install libssl-dev
+```
+
+安装完成后，重新运行 `./configure` 和 `make` 命令来编译 NGINX 和 `nginx-sticky-module-ng` 模块。如果在编译过程中遇到其他问题，确保检查错误信息并根据需要调整配置或源代码。
+
+请记住，在生产环境中部署任何软件之前，始终在测试环境中进行充分的测试。
+
+**2.重新编译 NGINX**
+
+将安装包上传至 NGINX 服务器并解压缩
+
+找到原来安装 NGINX 的源码，重新编译 NGINX
+
+进到源码目录重新编译
+
+```shell
+./configure --prefix=/opt/nginx --add-module=sticky解压的文件夹名称
+```
+
+这里会重新编译生成一个新的 NGINX ，所以在编译时要加上之前编译的参数，比如 `--with-http_ssl_module` 来启用 SSL 支持，如果之前编译没有额外的参数就不需要加
+
+`--add-module` 参数用于指定编译时要添加的第三方模块的目录，如果添加的是 NGINX 自带的模块，则使用 `whith` 参数，比如 `--with-http_ssl_module` 来启用 SSL 支持
+
+执行 make
+
+```shell
+make
+```
+
+如果遇到报错需要修改 sticky 的源码
+
+这通常是因为 `nginx-sticky-module-ng` 模块依赖于 OpenSSL 库来执行哈希计算，而编译器找不到相关的头文件。添加这两行代码将确保编译器能够找到执行哈希计算所需的函数声明。
+
+打开 `ngx_http_sticky_misc.c` 文件
+
+在12行添加
+
+```c
+#include <openssl/sha.h>
+#include <openssl/md5.h>
+```
+
+在修改源码后，你需要重新编译和 make
+
+```shell
+./configure --prefix=/opt/nginx --add-module=sticky解压的文件夹名称
+make
+```
+
+在 make 完成后，编译好的程序在 NGINX 安装包的 objs 文件夹下，需要用新的 NGINX 可执行文件替换掉旧的 NGINX 可执行文件
+
+开始替换前备份之前的程序
+
+```
+mv /usr/local/nginx/sbin/nginx /usr/local/nginx/sbin/nginx.old
+```
+
+把编译好的 Nginx 程序替换到原来的目录里
+
+```shell
+cp objs/nginx /usr/local/nginx/sbin/
+```
+
+在生产环境下，在替换之前通常会经过严格测试后才允许替换，这里除了功能性测试之外还涉及到几个 NGINX 的测试命令
+
+升级检测
+
+```
+make upgrade
+```
+
+检查程序中是否包含新模块
+
+```
+nginx -V
+```
+
+
+
+
+
+
