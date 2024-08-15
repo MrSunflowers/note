@@ -54,7 +54,7 @@ Nginx 的进程是使用经典的「Master-Worker」模型, Nginx 在启动后�
 
 刚安装好的 nginx.conf 如下
 
-```
+```nginx
 #user  nobody;
 worker_processes  1;
 
@@ -175,7 +175,7 @@ http {
 
 去掉注释的简单版如下
 
-```
+```nginx
 worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
 
 events {
@@ -294,7 +294,7 @@ HTTP 协议通常承载于 TCP 协议之上，有时也承载于 TLS 或 SSL 协
 
 配置nginx.cfg
 
-```
+```nginx
 worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
 
 events {
@@ -379,7 +379,7 @@ http {
 
 修改nginx.conf
 
-```
+```nginx
 worker_processes  1; #允许进程数量，建议设置为cpu核心数或者auto自动检测，注意Windows服务器上虽然可以启动多个processes，但是实际只会用其中一个
 
 events {
@@ -485,7 +485,7 @@ http://192.168.8.101:81/
 
 server中可以配置多个域名，例如：
 
-```
+```nginx
 server_name  test81.xzj520520.cn  test82.xzj520520.cn;
 ```
 
@@ -494,7 +494,7 @@ server_name  test81.xzj520520.cn  test82.xzj520520.cn;
 
 使用通配符的方式如下：
 
-```
+```nginx
 server_name  *.xzj520520.cn;
 ```
 
@@ -513,7 +513,7 @@ server_name  *.xzj520520.cn;
 
 采用正则的匹配方式如下:
 
-```
+```nginx
 server_name ""; 匹配Host请求头不存在的情况。
 ```
 
@@ -657,7 +657,7 @@ $ 匹配字符串的结束
 
 在默认的配置文件中
 
-```
+```nginx
 
 worker_processes  1;
 
@@ -695,13 +695,13 @@ proxy_pass 配置有两种形式
 
 ### 单台机器配置语法
 
-```
+```nginx
 proxy_pass + 空格 + 完整网址（一般为非 https 协议）/ http:// + 服务器组别名 + 封号结尾
 ```
 
 示例：
 
-```
+```nginx
 
 worker_processes  1;
 
@@ -741,7 +741,7 @@ upstream httpds 服务器组，与 server 同一级别
 
 基本语法
 
-```
+```nginx
 upstream 别名 {
     server 192.168.1.131:80;
     server 192.168.1.132:80;
@@ -752,7 +752,7 @@ upstream 别名 {
 
 示例：
 
-```
+```nginx
 worker_processes  1;
 
 events {
@@ -797,11 +797,11 @@ http {
 
 见上述示例
 
-### 2.权重 
+#### 权重 
 
 weight 值越大权重越大，权重是相对的
 
-```
+```nginx
 worker_processes  1;
 
 events {
@@ -838,9 +838,9 @@ http {
 }
 ```
 
-### 3.down (宕机)不参与负载均衡
+#### down (宕机) 不参与负载均衡
 
-```
+```nginx
 worker_processes  1;
 
 events {
@@ -877,9 +877,9 @@ http {
 }
 ```
 
-### 4.backup 备用服务器，主机不可用时使用
+#### backup 备用服务器，主机不可用时使用
 
-```
+```nginx
 
 worker_processes  1;
 
@@ -917,7 +917,7 @@ http {
 }
 ```
 
-### 5.IP Hash 
+### 2.IP Hash 
 
 根据客户端的ip地址转发同一台服务器，可以保持会话，但是很少用这种方式去保持会话，例如我们当前正在使用wifi访问，当切换成手机信号访问时，会话就不保持了。
 
@@ -956,15 +956,15 @@ http {
 
 请注意，IP Hash 负载均衡方法在某些情况下可能不是最佳选择，比如当后端服务器数量经常变化时，因为 IP Hash 依赖于后端服务器的固定集合。此外，如果后端服务器的性能差异很大，IP Hash 可能会导致某些服务器过载而其他服务器负载不足。在这种情况下，可能需要考虑其他负载均衡策略，如最少连接（least_conn）或基于权重的轮询（weight）。
 
-### 6.least_conn
+### 3.least_conn
 
 最少连接访问，优先访问连接最少的那一台服务器，这种方式也很少使用，因为连接少，可能是由于该服务器配置较低，刚开始赋予的权重较低。
 
-### 7.url_hash（需要第三方插件） 
+### 4.url_hash（需要第三方插件） 
 
 根据用户访问的url定向转发请求，不同的url转发到不同的服务器进行处理（定向流量转发），一般用于定向寻找资源，例如100个文件散列在10台机器上，就可以根据请求文件资源的哈希定位到具体的机器上。
 
-### 8.fair（需要第三方插件）
+### 5.fair（需要第三方插件）
 
 根据后端服务器响应时间转发请求，这种方式也很少使用，因为容易造成流量倾斜，给某一台服务器压垮。
 
@@ -1222,7 +1222,7 @@ nginx 在处理静态资源的并发访问时，实际上是要比 Tomcat 快一
 
 主要是 location 的配置
 
-```
+```nginx
 #user  nobody;
 worker_processes  1;
 
@@ -1430,7 +1430,7 @@ Nginx 在处理请求时，会按照以下优先级顺序来匹配 `location` �
 
 直接匹配网站根，通过域名访问网站首页比较频繁，使用这个会加速处理，比如说官网。这里是直接转发给后端应用服务器了，也可以是一个静态首页
 
-```
+```nginx
 location = / {
     proxy_pass http://127.0.0.1:8080/; 
 }
@@ -1441,7 +1441,7 @@ location = / {
 
 处理静态文件请求，这是nginx作为http服务器的强项,有两种配置模式，目录匹配或后缀匹配,任选其一或搭配使用
 
-```
+```nginx
 location ^~ /static/ {
     root /webroot/static/;
 }
@@ -1455,7 +1455,7 @@ location ~* \.(html|gif|jpg|jpeg|png|css|js|ico)$ {
 
 通用规则，用来转发动态请求到后端应用服务器
 
-```
+```nginx
 location /api/ {
     proxy_pass http://127.0.0.1:3000/api/
 }
@@ -1706,7 +1706,7 @@ Nginx 的防盗链功能是通过简单的配置实现的，可以有效地防�
 
 在任意的 location 中配置
 
-```
+```nginx
 location ^~/images/ {
     valid_referers 192.168.8.102;  #valid_referers 指令，配置是否允许 referer 头部以及允许哪些 referer 访问。192.168.8.102不是ip而是域名（去掉http:// 前缀）
     if ($invalid_referer) {  # 注意这里if后要加空格
@@ -1736,7 +1736,7 @@ invalid_referer 变量
 
 例
 
-```
+```nginx
 server {
     server_name referer.test.com;
     listen 80;
