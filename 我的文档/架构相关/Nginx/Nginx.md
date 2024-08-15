@@ -923,6 +923,39 @@ http {
 
 用途：线上**临时紧急扩容**，可以在不改动代码和结构的情况下处理一些紧急生产问题。
 
+以下是一个基本的配置示例，展示如何在 NGINX 中设置 IP Hash 负载均衡：
+
+```nginx
+http {
+    upstream myapp1 {
+        ip_hash;
+        server srv1.example.com;
+        server srv2.example.com;
+        server srv3.example.com;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://myapp1;
+        }
+    }
+}
+```
+
+在这个配置中：
+
+- `http` 块是 NGINX 配置的根块。
+- `upstream` 块定义了一个名为 `myapp1` 的服务器组。
+- `ip_hash` 指令启用了 IP Hash 负载均衡方法。
+- `server` 指令列出了后端服务器的地址。这些地址可以是域名或 IP 地址。
+- `server` 块定义了 NGINX 用于接收请求的端口和地址，并将请求代理到 `myapp1` 服务器组。
+
+确保在修改配置文件后，使用 `nginx -t` 检查配置文件的正确性，然后使用 `nginx -s reload` 重新加载 NGINX 以应用更改。
+
+请注意，IP Hash 负载均衡方法在某些情况下可能不是最佳选择，比如当后端服务器数量经常变化时，因为 IP Hash 依赖于后端服务器的固定集合。此外，如果后端服务器的性能差异很大，IP Hash 可能会导致某些服务器过载而其他服务器负载不足。在这种情况下，可能需要考虑其他负载均衡策略，如最少连接（least_conn）或基于权重的轮询（weight）。
+
 ### 6.least_conn
 
 最少连接访问，优先访问连接最少的那一台服务器，这种方式也很少使用，因为连接少，可能是由于该服务器配置较低，刚开始赋予的权重较低。
