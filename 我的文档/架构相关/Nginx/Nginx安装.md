@@ -204,7 +204,7 @@ sticky 使用参考
 
 http://nginx.org/en/docs/http/ngx_http_upstream_module.html#sticky
 
-### 安装 sticky
+## 安装 sticky
 
 **1.环境准备**
 
