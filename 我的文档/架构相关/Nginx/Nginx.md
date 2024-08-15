@@ -1008,6 +1008,46 @@ http {
 
 根据后端服务器响应时间转发请求，这种方式也很少使用，因为容易造成流量倾斜，给某一台服务器压垮。
 
+### 5.sticky（需要第三方插件）
+
+`nginx-sticky-module-ng` 是一个第三方 NGINX 模块，用于实现基于 **cookie** 的会话粘滞性（session stickiness）。这意味着，一旦用户首次访问服务器，他们将被重定向到特定的后端服务器，并且在会话期间，后续的请求也将被发送到同一服务器，直到会话结束或 cookie 过期。
+
+**配置 `upstream` 块**：
+   在 NGINX 配置文件中，使用 `upstream` 块定义后端服务器，并使用 `sticky` 指令来启用会话粘滞性。
+
+   ```nginx
+   upstream backend {
+       sticky；
+       server backend1.example.com;
+       server backend2.example.com;
+   }
+   ```
+
+**配置 `server` 块**：
+   在 `server` 块中，将请求代理到 `upstream` 块定义的后端服务器组。
+
+   ```nginx
+   server {
+       listen 80;
+       location / {
+           proxy_pass http://backend;
+       }
+   }
+   ```
+
+**原理**
+
+`nginx-sticky-module-ng` 的工作原理是通过在用户的浏览器中设置一个特定的，类似于 jsessionid 的 cookie 的 k-v 来实现的（默认 k 的名字为 route ）。当用户首次访问服务器时，NGINX 会检查是否已经存在一个有效的粘滞 route。如果不存在，NGINX 会生成一个新的 route 并将其发送给用户。这个 route 包含了用于识别后端服务器的信息。
+
+在后续的请求中，用户的浏览器会自动发送这个 route。NGINX 读取 route 中的信息，并根据这些信息将请求转发到之前选定的后端服务器。这样，用户的会话就被“粘滞”在了同一个服务器上，直到 route 过期或被清除。
+
+**注意事项**
+
+- 由于是 NGINX 基于 cookie 实现的，这个特性在静态资源服务器上一样适用，不需要后台来维持会话状态。
+- sticky 默认的 cookie 的 key 名称为 ‘route’, 可以通过 `sticky name=名称` 来指定，但不要与现有的 key 冲突，比如 `jsessionid`
+
+
+
 ## 健康检查
 
 Nginx 的 `upstream` 模块提供了基本的健康检查功能，允许你定义一个简单的健康检查机制来监控后端服务器的状态。以下是如何使用 `upstream` 模块的健康检查功能的基本步骤：
