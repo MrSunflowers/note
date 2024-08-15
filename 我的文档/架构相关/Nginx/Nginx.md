@@ -2238,36 +2238,123 @@ chmod +x /path/to/your/script.sh
 
 然后，你可以将此脚本设置为定时任务（使用 `cron`），定期检查 Nginx 的状态。
 
-## Keepalived 的脚本钩子功能
+### 脚本进阶使用
 
-Keepalived 提供了脚本钩子功能，允许在特定事件发生时执行自定义脚本。例如，你可以定义一个脚本来在 VRRP 状态改变时运行，从而实现更复杂的逻辑。
+使用脚本来检测本机的 NGINX 的服务状态，如果 NGINX 存活且可正常提供服务（即没有无响应或响应超时），则什么也不做，否则重启服务器
 
-Keepalived 的脚本钩子功能允许在特定的 VRRP 事件发生时执行自定义脚本。这可以用于在服务状态改变时执行额外的逻辑，比如在检测到服务故障时触发某些操作。下面是如何配置 Keepalived 脚本钩子的步骤：
+1. 配置 Keepalived 开机自启
 
-### 步骤 1: 编写脚本
+```bash
+sudo systemctl enable keepalived
+```
 
-首先，编写一个脚本来执行你希望在 VRRP 状态改变时进行的操作。例如，下面的脚本在检测到 Nginx 停止时会输出一条消息：
+这个命令会创建一个符号链接，将 Keepalived 服务文件链接到 `/etc/systemd/system/` 目录下，确保在系统启动时自动启动 Keepalived。
+
+2. 编写一个脚本来检测本机 NGINX 是否存活，且可对外提供服务，（即没有无响应或响应超时），若不可用则重启本机
 
 ```bash
 #!/bin/bash
 
-# 检查 Nginx 是否在运行
-NGINX_STATUS=$(pgrep -f nginx)
+# 检测 NGINX 状态的函数
+check_nginx() {
+    # 尝试访问 NGINX 的默认页面
+    local response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost)
 
-# 如果 Nginx 没有运行，则输出一条消息
-if [ -z "$NGINX_STATUS" ]; then
-    echo "Nginx is down."
-    # 在这里可以添加其他逻辑，比如发送通知或执行其他操作
-fi
+    # 检查 HTTP 状态码
+    if [ "$response" -eq 200 ]; then
+        echo "NGINX is running and responding properly."
+    else
+        echo "NGINX is not responding properly. Received status code: $response"
+        # 尝试重启服务器
+        reboot
+    fi
+}
+
+# 执行检测
+check_nginx
 ```
 
-确保脚本具有执行权限：
+保存这个脚本到一个文件中，比如 `check_nginx.sh`，然后给它执行权限：
 
 ```bash
-chmod +x /path/to/your/script.sh
+chmod +x check_nginx.sh
 ```
 
-### 步骤 2: 配置 Keepalived
+运行脚本：
+
+```bash
+./check_nginx.sh
+```
+
+3. 创建一个定时任务，每秒执行一次检测脚本，且该定时任务开机后延迟一分钟自动启动
+
+要在 CentOS 系统中创建一个定时任务，可以使用 `cron` 作业来实现每秒执行一次检测脚本，并设置开机后延迟一分钟自动启动。以下是具体步骤：
+
+1. **创建检测脚本**（如果尚未创建）：
+   假设你已经有了一个名为 `check_nginx.sh` 的脚本，确保它有执行权限：
+   ```bash
+   chmod +x /path/to/check_nginx.sh
+   ```
+
+2. **编辑 crontab 文件**：
+   使用 `crontab -e` 命令编辑当前用户的 crontab 文件：
+   ```bash
+   crontab -e
+   ```
+
+3. **添加定时任务**：
+   在打开的 crontab 文件中，添加以下行来设置定时任务：
+   ```bash
+   # 每秒执行一次检测脚本
+   * * * * * /path/to/check_nginx.sh
+
+   # 开机后延迟一分钟执行
+   @reboot sleep 60; /path/to/check_nginx.sh
+   ```
+   这里 `/path/to/check_nginx.sh` 是你的脚本实际路径。`@reboot` 关键字用于设置在系统启动时执行的命令。
+
+4. **保存并退出编辑器**：
+   根据你使用的编辑器，保存更改并退出。例如，在 `vi` 或 `vim` 中，你可以按 `Esc` 键，然后输入 `:wq` 保存并退出。
+
+5. **验证 crontab**：
+   为了确保没有语法错误，可以运行：
+   ```bash
+   crontab -l
+   ```
+   这将列出当前用户的 crontab 作业。
+
+6. **重启系统测试**：
+   为了测试定时任务是否按预期工作，重启你的系统：
+   ```bash
+   sudo reboot
+   ```
+   系统重启后，脚本应该会在大约一分钟的延迟后开始执行，并且每秒执行一次检测。
+
+请注意，频繁地每秒执行脚本可能会对系统性能产生影响，特别是如果脚本执行时间较长或系统资源有限。根据实际情况，你可能需要调整执行频率。
+
+另外，如果你的系统使用的是 `systemd`，你也可以考虑使用 `systemd` 的定时器单元来实现更复杂的定时任务。但对于简单的每秒执行一次的需求，使用 `cron` 是一个简单直接的方法。
+
+## Keepalived 的脚本钩子功能
+
+Keepalived 提供了脚本钩子功能，允许在特定事件发生时执行自定义脚本。例如，你可以定义一个脚本来在 VRRP 状态改变时运行，从而实现更复杂的逻辑。
+
+在 Keepalived 的上下文中，"定事件发生时"指的是与虚拟路由器（Virtual Router）或虚拟服务器（Virtual Server）相关的特定事件。Keepalived 使用 VRRP（Virtual Router Redundancy Protocol）协议来管理虚拟路由器的主备状态，并且可以监控本地服务（如 NGINX、Apache 等）的状态。以下是一些常见的触发脚本钩子的事件：
+
+1. **VRRP 状态变化**：当虚拟路由器的状态发生变化时，例如从主（MASTER）变为备份（BACKUP），或者反过来。这通常发生在网络故障或 Keepalived 服务重启时。
+
+2. **脚本检查失败**：如果在 `vrrp_script` 部分定义的脚本返回非零值，表示检测失败，Keepalived 可以根据配置采取行动，比如调整虚拟路由器的优先级。
+
+3. **服务状态变化**：Keepalived 可以配置为监控本地服务（如 HTTP、SSL、TCP 等）。如果这些服务的状态发生变化（例如服务宕掉或重新启动），可以触发脚本执行。
+
+4. **定时任务**：通过 `vrrp_script` 的 `interval` 参数，可以设置脚本按照固定的时间间隔定期执行，即使没有检测到状态变化也可以执行。
+
+举个例子，如果你有一个脚本用于检查 NGINX 服务是否正常运行，你可以配置 Keepalived 在每次脚本执行时检查 NGINX 的状态。如果脚本返回非零值（表示 NGINX 服务有问题），Keepalived 可以根据脚本钩子的配置来调整虚拟路由器的优先级，或者执行其他自定义操作。
+
+使用脚本钩子可以实现复杂的故障转移逻辑和自定义的高可用性行为，但需要仔细设计脚本以确保它们的稳定性和效率。
+
+下面是如何配置 Keepalived 脚本钩子的步骤：
+
+### 步骤 1: 配置 Keepalived
 
 在 Keepalived 的配置文件 `/etc/keepalived/keepalived.conf` 中，添加 `vrrp_script` 部分来指定脚本及其执行频率。以下是一个配置示例：
 
@@ -2328,109 +2415,6 @@ sudo service keepalived restart
 - 在生产环境中，确保脚本的逻辑是安全和可靠的，避免不必要的故障转移。
 
 通过这种方式，你可以根据服务的实际运行状态来动态调整 Keepalived 的行为，实现更精细的高可用性控制。
-
-## 通过脚本检测本机 NGINX 的服务状态
-
-要通过 Keepalived 的健康检查来监控 Nginx 服务状态，并在服务超时或无响应时杀死本机的 Keepalived 进程，你可以使用 Keepalived 的 `track_script` 功能。这个功能允许你运行一个或多个脚本，并根据脚本的返回值来调整 VRRP 实例的优先级。
-
-### 步骤 1: 编写检查 Nginx 状态的脚本
-
-首先，创建一个脚本来检查 Nginx 是否在运行。如果 Nginx 服务无响应或超时，脚本将返回一个非零值。
-
-```bash
-#!/bin/bash
-
-# 检查 Nginx 是否在运行
-NGINX_STATUS=$(pgrep -f nginx)
-
-# 设置超时时间（秒）
-TIMEOUT=1
-
-# 使用 curl 检查 Nginx 是否响应
-RESPONSE=$(curl --max-time $TIMEOUT --silent --output /dev/null --head http://localhost/)
-
-# 如果 Nginx 没有运行或 curl 超时，则返回非零值
-if [ -z "$NGINX_STATUS" ] || [ $? -ne 0 ]; then
-	# 杀死 Keepalived 进程，这将触发虚拟IP的漂移
-	pkill keepalived
-    echo "Nginx is down or not responding."
-    exit 1
-else
-    echo "Nginx is up and running."
-    exit 0
-fi
-```
-
-确保脚本具有执行权限：
-
-```bash
-chmod +x /path/to/your/check_nginx.sh
-```
-
-### 步骤 2: 配置 Keepalived
-
-在 Keepalived 的配置文件 `/etc/keepalived/keepalived.conf` 中，添加 `track_script` 部分来指定脚本，并在 `vrrp_instance` 部分中使用 `track_script` 的结果来调整优先级。
-
-```conf
-global_defs {
-    notification_email {
-        admin@example.com
-    }
-    notification_email_from keepalived@example.com
-    smtp_server 127.0.0.1
-    smtp_connect_timeout 30
-    router_id LVS_DEVEL
-}
-
-vrrp_script check_nginx {
-    script "/path/to/your/check_nginx.sh"
-    interval 5
-    weight -20
-}
-
-vrrp_instance VI_1 {
-    state MASTER
-    interface eth0
-    virtual_router_id 51
-    priority 100
-    advert_int 1
-    authentication {
-        auth_type PASS
-        auth_pass 1111
-    }
-    virtual_ipaddress {
-        192.168.0.100
-    }
-    track_script {
-        check_nginx
-    }
-}
-```
-
-在这个配置中，`track_script` 部分指定了之前创建的脚本。如果脚本返回非零值（表示 Nginx 服务无响应或超时），`weight` 参数将减少20，这可能触发虚拟IP地址的漂移。
-
-### 步骤 3: 重启 Keepalived
-
-配置完成后，需要重启 Keepalived 服务以应用更改：
-
-```bash
-sudo systemctl restart keepalived
-```
-
-或者，如果你的系统不使用 `systemctl`，可以使用以下命令：
-
-```bash
-sudo service keepalived restart
-```
-
-### 注意事项
-
-- 确保脚本路径正确，并且脚本具有执行权限。
-- 根据你的环境调整 `TIMEOUT` 变量的值。
-- 通过 `weight` 参数可以控制脚本执行结果对 VRRP 优先级的影响。
-- 在生产环境中，确保脚本的逻辑是安全和可靠的，避免不必要的故障转移。
-
-通过这种方式，Keepalived 将能够根据 Nginx 的实际运行状态来动态调整其行为，从而实现更精细的高可用性控制。
 
 # 12.https 签名
 
