@@ -2031,6 +2031,12 @@ sudo systemctl restart keepalived
 sudo service keepalived restart
 ```
 
+### 查看 Keepalived 服务日志
+
+```
+tail -f /var/log/messages
+```
+
 ### 注意事项
 
 - 确保配置文件的语法正确，可以使用 `keepalived -f /etc/keepalived/keepalived.conf -n` 来检查配置文件的语法。
@@ -2370,18 +2376,22 @@ sudo systemctl enable keepalived
 ```bash
 #!/bin/bash
 
+# 设置超时时间（秒）
+TIMEOUT=1
+
 # 检测 NGINX 状态的函数
 check_nginx() {
     # 尝试访问 NGINX 的默认页面
-    local response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost)
-
+    local response=$(curl --max-time $TIMEOUT -s -o /dev/null -w "%{http_code}" http://localhost)
     # 检查 HTTP 状态码
     if [ "$response" -eq 200 ]; then
         echo "NGINX is running and responding properly."
+        return 0
     else
         echo "NGINX is not responding properly. Received status code: $response"
         # 尝试重启服务器
-        reboot
+        sudo reboot
+        return 1
     fi
 }
 
@@ -2392,7 +2402,7 @@ check_nginx
 保存这个脚本到一个文件中，比如 `check_nginx.sh`，然后给它执行权限：
 
 ```bash
-chmod +x check_nginx.sh
+chmod 777 check_nginx.sh
 ```
 
 运行脚本：
@@ -2474,25 +2484,20 @@ Keepalived 提供了脚本钩子功能，允许在特定事件发生时执行自
 在 Keepalived 的配置文件 `/etc/keepalived/keepalived.conf` 中，添加 `vrrp_script` 部分来指定脚本及其执行频率。以下是一个配置示例：
 
 ```conf
+! Configuration File for keepalived
+
 global_defs {
-    notification_email {
-        admin@example.com
-    }
-    notification_email_from keepalived@example.com
-    smtp_server 127.0.0.1
-    smtp_connect_timeout 30
-    router_id LVS_DEVEL
+   router_id NODE1
 }
 
 vrrp_script check_nginx {
-    script "/path/to/your/script.sh"  # 指定脚本路径
-    interval 5                         # 每5秒执行一次脚本
-    weight -20                         # 如果脚本返回非零值，优先级减少20
+    script "/opt/check_nginx.sh"  # 指定脚本路径
+    interval 1                         # 每5秒执行一次脚本
 }
 
 vrrp_instance VI_1 {
     state MASTER
-    interface eth0
+    interface ens33
     virtual_router_id 51
     priority 100
     advert_int 1
@@ -2501,14 +2506,18 @@ vrrp_instance VI_1 {
         auth_pass 1111
     }
     virtual_ipaddress {
-        192.168.0.100
+        192.168.1.200
+    }
+    track_script {
+    	check_nginx				# 你上面定义的名字叫check_nginx
     }
 }
+
 ```
 
 在这个配置中，`vrrp_script` 部分定义了一个名为 `check_nginx` 的脚本钩子，它会每5秒执行一次指定的脚本。如果脚本返回非零值（表示检测到 Nginx 停止），则当前服务器的 VRRP 优先级会减少20。
 
-### 步骤 3: 重启 Keepalived
+### 步骤 2: 重启 Keepalived
 
 配置完成后，需要重启 Keepalived 服务以应用更改：
 
@@ -2528,6 +2537,21 @@ sudo service keepalived restart
 - 脚本钩子的 `weight` 参数可以根据需要调整，以影响 VRRP 优先级。
 - 通过 `interval` 参数可以控制脚本执行的频率。
 - 在生产环境中，确保脚本的逻辑是安全和可靠的，避免不必要的故障转移。
+- 如果脚本无法执行，则可尝试关闭 selinux
+
+`setenforce 0` 是一个命令，用于临时关闭SELinux（Security-Enhanced Linux）的安全策略强制执行。SELinux 是一个内核安全模块，提供了额外的访问控制安全策略，以增强系统安全。
+
+当执行 `setenforce 0` 命令时，SELinux 进入“宽容模式”（Permissive Mode），这意味着它仍然记录安全策略违规行为，但不会强制执行这些策略来阻止违规行为。这有助于在遇到与SELinux策略相关的错误或问题时进行故障排除，因为它允许系统继续运行，同时你可以检查日志文件来确定问题所在。
+
+请注意，将 SELinux 设置为宽容模式仅临时有效，重启系统后，SELinux 会再次以强制模式（Enforcing Mode）启动。如果你希望永久改变 SELinux 的状态，需要编辑`/etc/selinux/config`文件，并将`SELINUX=enforcing`改为`SELINUX=permissive`，然后重启系统。
+
+在处理与SELinux相关的问题时，建议在宽容模式下进行故障排除，并在问题解决后将SELinux重新设置为强制模式，以保持系统的安全防护。
+
+永久关闭
+
+```shell
+sed -i "s/^SELINUX=.*/SELINUX=disabled/g" /etc/selinux/config
+```
 
 通过这种方式，你可以根据服务的实际运行状态来动态调整 Keepalived 的行为，实现更精细的高可用性控制。
 
