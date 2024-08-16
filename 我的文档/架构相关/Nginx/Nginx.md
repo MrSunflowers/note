@@ -2486,7 +2486,7 @@ http {
 
 **注意**：该值不能比 keepalive_timeout 的值小，否则可能没到 keepalive_timeout 规定的超时时间，就因为 send_timeout 规定的值而断开连接了。
 
-## keepalive_request
+## keepalive_requests
 
 单个连接中可并发处理的请求数,默认1000,一般不需要动，足够了
 
