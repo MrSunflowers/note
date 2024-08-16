@@ -2524,7 +2524,7 @@ http {
         location / {
             proxy_pass http://myapp1;
             proxy_http_version 1.1;  # 确保使用 HTTP/1.1
-            proxy_set_header Connection "";  # 移除 Connection 头，允许持久连接
+            proxy_set_header Connection "";  # 前端请求来到 NGINX 后会被清除该属性，并加上 NGINX 自己的，默认 NGINX 加的为 close ，即不支持长连接，所以需要移除 Connection 头，允许持久连接
             keepalive_timeout 60s;  # 设置 NGINX 与上游服务器之间连接的超时时间
             keepalive_requests 1000;  # 设置一个 TCP 连接可以处理的最大并发请求数量
         }
