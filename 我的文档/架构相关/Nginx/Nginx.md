@@ -2317,7 +2317,9 @@ Keep-Alive: timeout=5, max=100
 
 总结一下，`Keep-Alive` 头部主要用于 HTTP/1.0 和早期的 HTTP/1.1 实现中，用于指示是否保持连接打开。在现代的 HTTP 版本中，持久连接是默认行为，通常不需要显式地在头部中声明。
 
-## 关闭 KeepAlive
+## 对客户端的常用配置
+
+### 关闭 KeepAlive
 
 在 NGINX 中关闭 KeepAlive 功能，你需要编辑 NGINX 的配置文件。
 
@@ -2327,7 +2329,7 @@ Keep-Alive: timeout=5, max=100
 keepalive_timeout 0;
 ```
 
-## 禁止某些浏览器使用 KeepAlive
+### 禁止某些浏览器使用 KeepAlive
 
 在 NGINX 中，`keepalive_disable` 指令用于控制哪些客户端可以使用 HTTP 保持连接（Keep-Alive）。保持连接允许在同一个 TCP 连接上发送和接收多个 HTTP 请求/响应，而不是每个请求都建立一个新的连接。这可以减少连接的开销，提高性能。
 
@@ -2411,7 +2413,7 @@ sudo systemctl restart nginx
 
 选择正确的配置位置取决于你想要禁用保持连接的范围。通常，除非有特定的兼容性问题，否则不建议在 `http` 上下文中全局禁用保持连接，因为这可能会影响服务器的性能。
 
-## 设置 keepalive 超时时间
+### 设置 keepalive 超时时间
 
 在 NGINX 中，`keepalive_timeout` 指令用于设置 HTTP 保持连接（Keep-Alive）的超时时间。这意味着，一旦一个 TCP 连接被建立用于多个请求/响应交换，它将在空闲状态下保持打开状态的最长时间。超过这个时间后，如果没有任何新的请求通过该连接，连接将被关闭。
 
@@ -2451,13 +2453,13 @@ keepalive_timeout 60 30;  # 客户端超时时间为 60 秒，服务器端超时
 
 在配置 `keepalive_timeout` 时，需要权衡性能和资源使用。较短的超时时间可以减少服务器资源的占用，但可能会增加建立新连接的频率，从而影响性能。较长的超时时间可以提高性能，但可能会导致资源占用增加，特别是在高流量情况下。通常，60 秒是一个比较合理的默认值，但最佳设置取决于你的具体应用场景和服务器负载。
 
-## 限制 keepalive 保持连接的最大时间 （1.19.10 新功能）
+### 限制 keepalive 保持连接的最大时间 （1.19.10 新功能）
 
 keepalive_time
 
 限制 keepalive 保持连接的最大时间，即无论有没有交互，一个 TCP 连接最长不能超过该值，默认为 1h
 
-## send_timeout
+### send_timeout
 
 在 NGINX 中，`send_timeout` 指令用于设置服务器向客户端发送响应的超时时间。这个超时时间是指在两个连续的写操作之间，服务器等待客户端接收数据的最长时间。如果在指定的时间内客户端没有读取数据，连接将被关闭。
 
@@ -2486,9 +2488,79 @@ http {
 
 **注意**：该值不能比 keepalive_timeout 的值小，否则可能没到 keepalive_timeout 规定的超时时间，就因为 send_timeout 规定的值而断开连接了。
 
-## keepalive_requests
+### keepalive_requests
 
 单个连接中可并发处理的请求数,默认1000,一般不需要动，足够了
+
+## 对上游服务器的常用配置（对反向代理服务器）
+
+首先需要配置使用 http1.1 协议，以便建立更高效的传输。
+
+在 Upstream 中所配置的上游服务器**默认**都是用短连接，即每次请求都会在完成之后断开
+
+1. **启用 HTTP/1.1**：确保 NGINX 与上游服务器之间的通信使用 HTTP/1.1 协议。这通常在 `upstream` 块中指定。
+
+2. **配置 `keepalive`**：在 `upstream` 块中，你可以使用 `keepalive` 指令来指定 NGINX 可以保持打开的上游服务器连接的最大数量。
+
+3. **设置 `keepalive_timeout`**：此指令用于设置 NGINX 保持上游服务器连接打开的超时时间。
+
+4. **设置 `keepalive_requests`**：此指令用于设置一个 TCP 连接可以处理的最大请求数量。
+
+**示例配置**
+
+以下是一个配置示例，展示了如何在 NGINX 中设置这些参数：
+
+```nginx
+http {
+    upstream myapp1 {
+        server backend1.example.com;
+        server backend2.example.com;
+        keepalive 32;  # NGINX 向上游服务器的保留连接数
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://myapp1;
+            proxy_http_version 1.1;  # 确保使用 HTTP/1.1
+            proxy_set_header Connection "";  # 移除 Connection 头，允许持久连接
+            keepalive_timeout 60s;  # 设置 NGINX 与上游服务器之间连接的超时时间
+            keepalive_requests 1000;  # 设置一个 TCP 连接可以处理的最大并发请求数量
+        }
+    }
+}
+```
+
+在这个配置中：
+
+- `keepalive 32;` 表示 NGINX 将保持最多 32 个上游服务器的连接打开。
+- `proxy_http_version 1.1;` 确保代理连接使用 HTTP/1.1 协议。
+- `proxy_set_header Connection "";` 移除 `Connection` 头，允许持久连接。
+- `keepalive_timeout 60s;` 设置连接保持打开的超时时间为 60 秒。
+- `keepalive_requests 1000;` 设置一个 TCP 连接可以处理的最大并发请求数量为 1000。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
