@@ -2540,12 +2540,77 @@ http {
 - `keepalive_timeout 60s;` 设置连接保持打开的超时时间为 60 秒。
 - `keepalive_requests 1000;` 设置一个 TCP 连接可以处理的最大并发请求数量为 1000。
 
+# 反向代理工作流程（面试重点）
 
+假设现在存在这样一个 NGINX 配置
 
+```nginx
+http {
+    upstream myapp1 {
+        server backend1.example.com;
+        server backend2.example.com;
+        keepalive 32;  # NGINX 可以保持打开的上游服务器连接的最大数量
+    }
 
+    server {
+        listen 80;
 
+        location / {
+            proxy_pass http://myapp1;
+            proxy_http_version 1.1;  # 确保使用 HTTP/1.1
+            proxy_set_header Connection "";  # 移除 Connection 头，允许持久连接
+            keepalive_timeout 60s;  # 设置 NGINX 与上游服务器之间连接的超时时间
+            keepalive_requests 1000;  # 设置一个 TCP 连接可以处理的最大请求数量
+        }
+    }
+}
+```
 
+在 nginx 服务器接收到一个客户端发送来的请求时，会先将传输来的二进制流信息解析成为 http 报文，然后通常会经历以下几个阶段
 
+## 处理请求头
+
+## 处理请求体
+
+在读取 http 的请求体数据时，由于客户端发送来的数据可能很大，所以这里会将数据读取到一个缓冲区中，通过 `client_body_buffer_size` 参数来指定缓冲区的大小。
+
+### client_body_buffer_size
+
+在 NGINX 中，`client_body_buffer_size` 指令用于设置读取客户端请求体（即 POST 请求中的数据）时使用的缓冲区大小。这个缓冲区用于暂存客户端发送的数据，直到 NGINX 处理完毕。
+
+**作用**
+
+- **缓冲区大小调整**：通过调整 `client_body_buffer_size`，你可以控制 NGINX 在处理大请求体时的内存使用。如果请求体较大，而缓冲区设置得太小，NGINX 可能无法一次性读取整个请求体，导致需要多次读取操作，这会增加处理请求的延迟。
+
+- **性能优化**：合理设置缓冲区大小可以优化 NGINX 的性能。如果缓冲区设置得过大，可能会导致不必要的内存使用；如果设置得太小，则可能导致频繁的磁盘 I/O 操作，因为 NGINX 可能需要将请求体写入临时文件。
+
+**配置示例**
+
+```nginx
+http {
+    client_body_buffer_size 16k;   # 设置缓冲区大小为 16KB
+    ...
+}
+```
+
+在这个例子中，缓冲区大小被设置为 16KB。你可以根据实际需要调整这个值，比如对于处理大型文件上传的服务器，可能需要将缓冲区设置得更大。
+
+**注意事项**
+
+- **默认值**：`client_body_buffer_size` 的默认值通常足够处理小到中等大小的请求体。对于大多数情况，不需要修改这个值。
+
+- **临时文件**：如果请求体超过了缓冲区大小，NGINX 会将超出部分写入临时文件。因此，确保服务器的临时文件目录（由 `client_body_temp_path` 指令指定）有足够的空间和良好的性能。
+
+- **监控和调整**：在生产环境中，监控 NGINX 的性能和日志，根据实际的请求体大小和服务器负载情况，适当调整 `client_body_buffer_size`。
+
+在将数据读取到缓冲区以后，需要做出一个选择，即
+
+- 数据完全读取完成后再发送给上游服务器
+- 一边读取一边发送给上游服务器
+
+这两种方式的选择通过 `proxy_requset_buffering` 参数来指定
+
+### proxy_requset_buffering
 
 
 
