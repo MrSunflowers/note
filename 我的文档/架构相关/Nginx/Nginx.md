@@ -2315,24 +2315,176 @@ Keep-Alive: timeout=5, max=100
 
 总结一下，`Keep-Alive` 头部主要用于 HTTP/1.0 和早期的 HTTP/1.1 实现中，用于指示是否保持连接打开。在现代的 HTTP 版本中，持久连接是默认行为，通常不需要显式地在头部中声明。
 
+## 关闭 KeepAlive
 
+在 NGINX 中关闭 KeepAlive 功能，你需要编辑 NGINX 的配置文件。
 
+找到 `http`、`server` 或者 `location` 块中的 `keepalive_timeout` 指令。如果 `keepalive_timeout` 没有被设置，你可以添加它。将其值设置为 `0` 来关闭 `KeepAlive` 功能。例如：
 
+```nginx
+keepalive_timeout 0;
+```
 
+## 禁止某些浏览器使用 KeepAlive
 
+在 NGINX 中，`keepalive_disable` 指令用于控制哪些客户端可以使用 HTTP 保持连接（Keep-Alive）。保持连接允许在同一个 TCP 连接上发送和接收多个 HTTP 请求/响应，而不是每个请求都建立一个新的连接。这可以减少连接的开销，提高性能。
 
+`keepalive_disable` 指令可以接受以下参数：
 
+- `msie6`：禁用来自旧版 Microsoft Internet Explorer（版本 6 及以下）的保持连接。旧版 IE 在处理 Keep-Alive 时存在问题，因此默认情况下 NGINX 会禁用这些版本的 IE 的保持连接功能。
+- `none`：不禁用任何客户端的保持连接。
+- `browser`：禁用所有浏览器的保持连接。
+- `nginx`：禁用 NGINX 作为客户端时的保持连接。
+- `safari`：禁用 Safari 浏览器的保持连接。
 
+你可以根据需要组合使用这些参数。例如，如果你想要禁用所有浏览器的保持连接，可以在配置文件中设置如下：
 
+```nginx
+keepalive_disable browser;
+```
 
+如果你想要针对特定浏览器或条件进行设置，可以组合使用多个参数，例如：
 
+```nginx
+keepalive_disable msie6 safari;
+```
 
+这将禁用来自旧版 IE 和 Safari 的保持连接。
 
+请注意，通常情况下，保持连接是被启用的，因为它可以提高服务器的性能。只有在特定情况下，比如当特定浏览器或客户端存在问题时，才需要禁用保持连接。在修改这个设置之前，建议评估是否真的需要这样做，因为禁用保持连接可能会导致服务器性能下降。
 
+`keepalive_disable` 指令通常配置在 NGINX 的 `http`、`server` 或者 `location` 上下文中。具体位置取决于你想要禁用保持连接的范围和条件。下面是一些常见的配置位置和它们的影响：
 
+1. **http 上下文**：如果你想要对所有服务器和位置块应用 `keepalive_disable` 设置，可以将其放在 `http` 块中。这将影响整个 NGINX 服务器。
 
+    ```nginx
+    http {
+        keepalive_disable browser;  # 禁用所有浏览器的保持连接
+        ...
+    }
+    ```
 
+2. **server 上下文**：如果你只想在特定的虚拟主机或服务器块中禁用保持连接，可以将 `keepalive_disable` 放在 `server` 块中。
 
+    ```nginx
+    server {
+        listen 80;
+        server_name example.com;
+        keepalive_disable msie6;  # 仅禁用旧版 IE 的保持连接
+        ...
+    }
+    ```
+
+3. **location 上下文**：如果你只想在特定的路径或位置块中禁用保持连接，可以将 `keepalive_disable` 放在 `location` 块中。
+
+    ```nginx
+    server {
+        listen 80;
+        server_name example.com;
+        location / {
+            keepalive_disable safari;  # 仅禁用 Safari 的保持连接
+            ...
+        }
+    }
+    ```
+
+4. **多个参数组合**：你也可以在同一个上下文中组合使用多个参数，以适应不同的需求。
+
+    ```nginx
+    http {
+        keepalive_disable msie6 browser;  # 禁用旧版 IE 和所有浏览器的保持连接
+        ...
+    }
+    ```
+
+在修改配置文件后，记得重新加载或重启 NGINX 以使更改生效：
+
+```bash
+sudo systemctl reload nginx
+```
+或者
+```bash
+sudo systemctl restart nginx
+```
+
+选择正确的配置位置取决于你想要禁用保持连接的范围。通常，除非有特定的兼容性问题，否则不建议在 `http` 上下文中全局禁用保持连接，因为这可能会影响服务器的性能。
+
+## 设置 keepalive 超时时间
+
+在 NGINX 中，`keepalive_timeout` 指令用于设置 HTTP 保持连接（Keep-Alive）的超时时间。这意味着，一旦一个 TCP 连接被建立用于多个请求/响应交换，它将在空闲状态下保持打开状态的最长时间。超过这个时间后，如果没有任何新的请求通过该连接，连接将被关闭。
+
+`keepalive_timeout` 的单位通常是秒。例如，如果你设置 `keepalive_timeout` 为 60 秒，那么在没有任何请求通过连接的 60 秒后，连接将被关闭。
+
+下面是一个配置示例：
+
+```nginx
+http {
+    keepalive_timeout 60;  # 设置保持连接的超时时间为 60 秒
+    ...
+}
+```
+
+或者，如果你想要在特定的 `server` 或 `location` 块中设置不同的超时时间，可以这样配置：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    keepalive_timeout 60;  # 为这个特定的 server 块设置保持连接的超时时间
+
+    location / {
+        # 其他配置...
+    }
+}
+```
+
+请注意，`keepalive_timeout` 指令有两个参数：第一个参数是设置客户端响应超时时间，第二个参数（可选）是设置服务器端的超时时间。如果只提供一个参数，它将同时应用于客户端和服务器端。
+
+例如：
+
+```nginx
+keepalive_timeout 60 30;  # 客户端超时时间为 60 秒，服务器端超时时间为 30 秒
+```
+
+在配置 `keepalive_timeout` 时，需要权衡性能和资源使用。较短的超时时间可以减少服务器资源的占用，但可能会增加建立新连接的频率，从而影响性能。较长的超时时间可以提高性能，但可能会导致资源占用增加，特别是在高流量情况下。通常，60 秒是一个比较合理的默认值，但最佳设置取决于你的具体应用场景和服务器负载。
+
+## 限制 keepalive 保持连接的最大时间 （1.19.10 新功能）
+
+keepalive_time
+
+限制keepalive保持连接的最大时间
+
+## send_timeout
+
+在 NGINX 中，`send_timeout` 指令用于设置服务器向客户端发送响应的超时时间。这个超时时间是指在两个连续的写操作之间，服务器等待客户端接收数据的最长时间。如果在指定的时间内客户端没有读取数据，连接将被关闭。
+
+这个指令通常用于处理客户端在接收数据时可能出现的超时情况，比如客户端网络延迟高、客户端程序异常或客户端意外断开连接等。通过设置合理的 `send_timeout`，可以避免服务器资源被无效的连接长时间占用。
+
+下面是一个配置示例：
+
+```nginx
+http {
+    send_timeout 30s;   # 设置发送超时时间为 30 秒
+    ...
+}
+```
+
+在这个例子中，如果服务器在发送响应后等待了30秒，但客户端在这段时间内没有读取任何数据，那么服务器将关闭该连接。
+
+`send_timeout` 的设置应根据你的服务器和客户端之间的网络条件以及应用的具体需求来调整。如果网络条件良好，可以设置较短的超时时间以快速释放资源；如果网络条件较差或客户端响应较慢，可能需要设置较长的超时时间。
+
+请注意，`send_timeout` 只影响两个连续写操作之间的等待时间，并不直接控制整个请求-响应周期的超时。对于整个请求处理的超时，通常使用 `proxy_read_timeout`（对于反向代理场景）或 `client_body_timeout` 和 `client_header_timeout`（对于客户端请求体和头部的读取超时）等其他指令。
+
+两次向客户端写操作之间的间隔 如果大于这个时间则关闭连接 默认60s
+
+**此处有坑**，注意耗时的同步操作有可能会丢弃用户连接
+
+该设置表示Nginx服务器与客户端连接后，某次会话中服务器等待客户端响应超过10s，就会自动关闭连接。
+
+## keepalive_request
+
+单个连接中可处理的请求数,默认1000
 
 
 
