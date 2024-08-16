@@ -1046,8 +1046,6 @@ http {
 - 由于是 NGINX 基于 cookie 实现的，这个特性在静态资源服务器上一样适用，不需要后台来维持会话状态。
 - sticky 默认的 cookie 的 key 名称为 ‘route’, 可以通过 `sticky name=名称` 来指定，但不要与现有的 key 冲突，比如 `jsessionid`
 
-
-
 ## 健康检查
 
 Nginx 的 `upstream` 模块提供了基本的健康检查功能，允许你定义一个简单的健康检查机制来监控后端服务器的状态。以下是如何使用 `upstream` 模块的健康检查功能的基本步骤：
@@ -2037,6 +2035,67 @@ chmod 777 check_nginx.sh
 
 ```bash
 ./check_nginx.sh
+```
+
+```shell
+#!/bin/bash
+
+# 设置超时时间（秒）
+TIMEOUT=1
+
+# 设置重试次数
+MAX_RETRIES=5
+RETRY_INTERVAL=30
+
+# 检测 NGINX 状态的函数
+check_nginx() {
+     local retries=0
+     local response=0
+     local nginx_running=false
+
+     # 检查 NGINX 进程是否存在
+     if systemctl is-active --quiet nginx; then
+         nginx_running=true
+     fi
+
+     # 如果 NGINX 进程存在，尝试重新连接
+     if $nginx_running; then
+         while [ $retries -lt $MAX_RETRIES ]; do
+             response=$(curl --max-time $TIMEOUT -s -o /dev/null -w "%{http_code}" http://localhost)
+             if [ "$response" -eq 200 ]; then
+                 echo "NGINX is running and responding properly."
+                 return 0
+             else
+                 echo "NGINX is not responding properly. Received status code: $response. Retrying..."
+                 retries=$((retries+1))
+                 sleep $RETRY_INTERVAL
+             fi
+         done
+     fi
+
+     # 如果 NGINX 进程不存在或重试失败，则尝试重新启动 NGINX
+     if ! $nginx_running || [ $retries -eq $MAX_RETRIES ]; then
+         echo "Attempting to restart NGINX..."
+         systemctl restart nginx
+         sleep $RETRY_INTERVAL # 等待 NGINX 启动
+
+         # 再次检查 NGINX 状态
+         response=$(curl --max-time $TIMEOUT -s -o /dev/null -w "%{http_code}" http://localhost)
+         if [ "$response" -eq 200 ]; then
+             echo "NGINX restarted successfully and is responding properly."
+         else
+             echo "NGINX failed to start properly."
+             return 1
+         fi
+     fi
+
+     # 重新启动 keepalived
+     systemctl restart keepalived
+     echo "keepalived restarted."
+}
+
+# 执行检测
+check_nginx
 ```
 
 ## 使用 Keepalived 的脚本钩子功能
