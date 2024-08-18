@@ -2039,61 +2039,112 @@ chmod 777 check_nginx.sh
 ./check_nginx.sh
 ```
 
+### 示例脚本
+
 ```shell
 #!/bin/bash
 
-# 设置超时时间（秒）
-TIMEOUT=1
+# 设置尝试连接 nginx 的超时时间（秒）
+try_conn_timeout=1
 
-# 设置重试次数
-MAX_RETRIES=5
-RETRY_INTERVAL=30
+# 尝试重启 nginx
+try_restart_nginx(){
+
+    if systemctl is-active --quiet nginx; then
+        echo "try_restart_nginx : nginx is active"
+        return 0
+    else
+        echo "try_restart_nginx : nginx is die, try restart nginx"
+        systemctl restart nginx
+    fi
+
+    if systemctl is-active --quiet nginx; then
+        echo "try_restart_nginx : nginx restart success"
+        return 0
+    else
+        echo "try_restart_nginx : nginx restart fail"
+        return 1
+    fi
+
+}
+
+# 尝试重启 keepalived
+try_restart_keepalived(){
+
+    # 是否需要重启 0 否 1 是
+    local is_need_restart=0
+
+    try_conn_nginx
+    # nginx 联通状态
+    local nginx_conn_status=$?
+
+    if [ "$nginx_conn_status" -eq 0 ]; then
+        # nginx 服务正常
+        echo "nginx 状态恢复，可以重启 keepalived"
+        is_need_restart=1
+    fi
+
+    if [ "$is_need_restart" -eq 0 ]; then
+        # nginx 服务正常
+        echo "nginx 状态故障，不重启 keepalived"
+        return 0
+    fi
+
+
+    if systemctl is-active --quiet keepalived; then
+        echo "try_restart_keepalived : keepalived is active"
+        return 0
+    else
+        echo "try_restart_keepalived : keepalived is die, try restart keepalived"
+        systemctl restart keepalived
+    fi
+
+    if systemctl is-active --quiet keepalived; then
+        echo "try_restart_keepalived : keepalived restart success"
+        return 0
+    else
+        echo "try_restart_keepalived : keepalived restart fail"
+        return 1
+    fi
+
+}
+
+# 尝试访问 NGINX
+try_conn_nginx(){
+    # 尝试访问 NGINX 的默认页面
+    local response
+    response=$(curl --max-time $try_conn_timeout -s -o /dev/null -w "%{http_code}" http://localhost)
+    # 检查 HTTP 状态码
+    if [ "$response" -eq 200 ]; then
+        echo "try_conn_nginx : NGINX is running and responding properly. Received status code: $response"
+        return 0
+    else
+        echo "try_conn_nginx : NGINX is not responding properly. Received status code: $response"
+        return 1
+    fi
+}
+
+
 
 # 检测 NGINX 状态的函数
 check_nginx() {
-     local retries=0
-     local response=0
-     local nginx_running=false
 
-     # 检查 NGINX 进程是否存在
-     if systemctl is-active --quiet nginx; then
-         nginx_running=true
-     fi
+    try_conn_nginx
+    # nginx 联通状态
+    local nginx_conn_status=$?
 
-     # 如果 NGINX 进程存在，尝试重新连接
-     if $nginx_running; then
-         while [ $retries -lt $MAX_RETRIES ]; do
-             response=$(curl --max-time $TIMEOUT -s -o /dev/null -w "%{http_code}" http://localhost)
-             if [ "$response" -eq 200 ]; then
-                 echo "NGINX is running and responding properly."
-                 return 0
-             else
-                 echo "NGINX is not responding properly. Received status code: $response. Retrying..."
-                 retries=$((retries+1))
-                 sleep $RETRY_INTERVAL
-             fi
-         done
-     fi
+    if [ "$nginx_conn_status" -eq 0 ]; then
+        # nginx 服务正常
+        return 0
+    else
+       # 杀死 Keepalived 进程，这将触发虚拟IP的漂移
+       pkill keepalived
+       # 尝试恢复 nginx 服务
+       try_restart_nginx
+       # 尝试重启 keepalived
+       try_restart_keepalived
+    fi
 
-     # 如果 NGINX 进程不存在或重试失败，则尝试重新启动 NGINX
-     if ! $nginx_running || [ $retries -eq $MAX_RETRIES ]; then
-         echo "Attempting to restart NGINX..."
-         systemctl restart nginx
-         sleep $RETRY_INTERVAL # 等待 NGINX 启动
-
-         # 再次检查 NGINX 状态
-         response=$(curl --max-time $TIMEOUT -s -o /dev/null -w "%{http_code}" http://localhost)
-         if [ "$response" -eq 200 ]; then
-             echo "NGINX restarted successfully and is responding properly."
-         else
-             echo "NGINX failed to start properly."
-             return 1
-         fi
-     fi
-
-     # 重新启动 keepalived
-     systemctl restart keepalived
-     echo "keepalived restarted."
 }
 
 # 执行检测

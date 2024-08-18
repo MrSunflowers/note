@@ -4292,7 +4292,7 @@ nacos
 
 ### nacos 集群
 
-对于生产环境来说，单台 nacos 不足以保证高可用性，所以考虑搭建 nacos 集群，在默认情况下，nacos 将配置信息存储在其自带的嵌入式数据库 Apache Derby 中。
+对于生产环境来说，单台 nacos 不足以保证高可用性，所以考虑搭建 nacos 集群，在默认情况下，nacos 将配置信息存储在其自带的嵌入式数据库 Apache Derby 中。集群需要三台服务，并且需要一个总入口在分发（可以是Nginx）。
 
 #### Apache Derby
 
@@ -4346,6 +4346,72 @@ db.password=root
 #### nacos集群搭建
 
 https://blog.csdn.net/helloyuyuan/article/details/119422236
+
+#### 添加开机启动
+
+要在 CentOS 7 上设置 Nacos 开机自动启动，通常需要创建一个 systemd 服务单元文件。以下是创建和启用 Nacos 服务的步骤：
+
+1. **创建 systemd 服务文件**：
+   首先，你需要创建一个 systemd 服务文件，通常位于 `/etc/systemd/system/` 目录下。你可以使用文本编辑器创建一个新的服务文件，例如 `nacos.service`：
+
+   ```bash
+   sudo vi /etc/systemd/system/nacos.service
+   ```
+
+   在该文件中，你需要添加以下内容（根据你的实际安装路径和配置进行调整）：
+
+   ```ini
+   [Unit]
+   Description=nacos
+   After=network.target
+   
+   [Service]
+   
+   # 添加java的环境变量，在systemctl中它不会读取.bash_profile中的环境变量的，必须明确指定
+   Environment="JAVA_HOME=/opt/jdk1.8.0_202"
+   #定义启动类型
+   Type=forking
+   ExecStart=/bin/bash /opt/nacos/bin/startup.sh
+   ExecStop=/bin/bash /opt/nacos/bin/shutdown.sh
+   #是否分配独立空间
+   PrivateTmp=true
+   
+   [Install]
+   WantedBy=multi-user.target
+   ```
+
+   在这里，`ExecStart` 和 `ExecStop` 指令分别指定了启动和停止 Nacos 服务时要执行的脚本。`User` 和 `Group` 应该设置为运行 Nacos 服务的用户和组。`WantedBy=multi-user.target` 表示该服务将在多用户模式下启动。
+   
+2. **启用服务**：
+   创建服务文件后，你需要重新加载 systemd 的配置以识别新的服务文件：
+
+   ```bash
+   sudo systemctl daemon-reload
+   ```
+
+   然后启用服务，使其在开机时自动启动：
+
+   ```bash
+   sudo systemctl enable nacos.service
+   ```
+
+3. **启动服务**：
+   启用服务后，你可以手动启动 Nacos 服务：
+
+   ```bash
+   sudo systemctl start nacos.service
+   ```
+
+4. **检查服务状态**：
+   为了确认 Nacos 服务是否正常运行，可以检查其状态：
+
+   ```bash
+   sudo systemctl status nacos.service
+   ```
+
+确保你已经正确设置了 Nacos 的安装路径和启动脚本路径，并且根据你的系统环境调整了 `User` 和 `Group`。如果 Nacos 服务需要其他特定的环境变量或参数，你可能还需要在服务文件中进行相应的配置。
+
+完成以上步骤后，Nacos 应该会在 CentOS 7 系统启动时自动启动。如果遇到任何问题，检查 Nacos 的日志文件和 systemd 的错误日志可以提供进一步的调试信息。
 
 ## Sentinel
 
@@ -4869,5 +4935,4 @@ Sentinel 系统自适应限流从整体维度对应用入口流量进行控制�
 ![image-20230716172638905](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202307161726020.png)
 
 ### Sentinel SentinelResource 注解
-
 
