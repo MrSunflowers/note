@@ -3079,6 +3079,53 @@ proxy_set_header X-Forwarded-For $remote_addr;
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # 常见问题
 
 ## Nginx 在集群中的作用
