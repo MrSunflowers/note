@@ -3049,6 +3049,7 @@ http_429服务器返回代码为429的响应;
 proxy_set_header X-Forwarded-For $remote_addr;
 ```
 
+然后上游服务器就可以通过读取 header 的 X-Forwarded-For 属性的值来获取到客户机的真实 IP 地址，如果有多层 Nginx 那么可以通过追加方式添加 IP 地址，比如 `X-Forwarded-For:IP1,IP2` ，则最前面的 IP1 即客户机的 IP 地址。
 
 
 
