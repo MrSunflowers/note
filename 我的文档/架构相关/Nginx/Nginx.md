@@ -3412,7 +3412,7 @@ http {
 - `ngx_http_gunzip_module` 不是 Nginx 标准发行版的一部分，可能需要从第三方源获取并安装。
 - 使用此模块时，确保服务器有足够的 CPU 资源来处理动态解压缩的任务，因为这可能会增加服务器的负载。
 - 由于动态解压缩可能会影响响应时间，建议仅在确实需要时使用此模块。
-- **在启用 ngx_http_gunzip_module 模块时 gzip_static 的配置必须是 always**
+- **在启用 ngx_http_gunzip_module 模块时 gzip_static 的配置必须是 always，否则会去找未压缩的文件版本，就会404**，即强制发送压缩包，客户端又不支持的情况下才生效
 
 
 
