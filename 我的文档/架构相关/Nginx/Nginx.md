@@ -3416,7 +3416,7 @@ http {
 
 ## Brotli
 
-Brotli 是一种由谷歌开发的开源数据压缩算法，旨在提供高压缩比和较快的压缩速度，同时保持合理的解压速度。Brotli 的设计目标是替代现有的压缩算法，如 Gzip，以提供更好的性能和压缩效率。
+Brotli 是一种由谷歌开发的开源数据压缩算法，旨在提供高压缩比和较快的压缩速度，同时保持合理的解压速度。Brotli 的设计目标是替代现有的压缩算法，如 Gzip，以提供更好的性能和压缩效率。**注意：只有在 HTTPS 协议下才可以使用 Brotli 压缩算法**。因为浏览器必须发送携带 `Accept-Encoding: br` 头的请求才会使用 Brotli 算法，而这个请求头只有在 HTTPS 协议下浏览器才会加。
 
 ### Brotli 的特点：
 
@@ -3428,36 +3428,83 @@ Brotli 是一种由谷歌开发的开源数据压缩算法，旨在提供高压�
 
 4. **兼容性**：虽然 Brotli 是较新的压缩算法，但现代浏览器和一些服务器软件（如 Nginx 和 Apache）已经开始支持它。为了充分利用 Brotli 的优势，需要确保客户端和服务器端都支持 Brotli 压缩。
 
-### 在 Nginx 中启用 Brotli 压缩
+## 合并客户端请求
 
-要在 Nginx 中启用 Brotli 压缩，你需要确保 Nginx 编译时包含了 Brotli 模块。这通常需要在编译 Nginx 时添加特定的参数，例如：
+在向服务器请求网页页面时，有时候网页页面中会内联非常多的 css，js 等文件，浏览器在解析到这些文件时，会依次向服务器发送请求来获取这些文件，这样就会增加服务器压力。
 
-```bash
-./configure --with-http_brotli_module
-```
+淘宝网提供了一可以将多个客户端请求合并为一个请求的 Nginx 插件，原理是在客户端发起请求时不再使用原来的方式发送请求，而是在发送请求时携带一定的参数，如 `http://test.com/??1.css,2.css` 来将多个请求合并为一个，而在 Nginx 端收到这种请求时，将请求解析为多个文件，动态在内存中合并成为一个文件响应给客户端，这样就减少了服务器的并发请求压力，但这样也带来一个问题，即 Nginx 的零拷贝技术 sendfile 失效，这也是没有办法的，为了减少服务器压力而牺牲掉部分性能的处理方式。
 
-然后，你可以通过修改 Nginx 配置文件来启用 Brotli 压缩，例如：
+### nginx-http-concat
+
+Nginx官方介绍
+
+https://www.nginx.com/resources/wiki/modules/concat/
+
+git地址
+
+https://github.com/alibaba/nginx-http-concat
+
+这里是对 Nginx 的 `ngx_http_concat` 模块的介绍，以及如何安装和配置该模块的步骤。
+
+**Nginx 官方介绍**
+
+`ngx_http_concat` 模块是 Tengine 分发的一部分，Tengine 是由淘宝网开发的 Nginx 分发版，它包含了一些在标准 Nginx 中尚未出现的新模块。`ngx_http_concat` 模块允许将多个客户端请求合并为一个请求，从而减少服务器压力并提高性能。
+
+**模块功能**
+
+- **合并请求**：允许将多个 CSS 或 JavaScript 文件合并为一个请求。
+- **版本控制**：支持通过版本字符串来控制文件缓存。
+- **配置灵活性**：可以定义哪些 MIME 类型的文件可以被合并，以及每个请求最多可以合并多少文件。
+
+**安装步骤**
+
+1. **下载源码**：
+   ```bash
+   git clone git://github.com/alibaba/nginx-http-concat.git
+   ```
+
+2. **编译安装**：
+   在编译 Nginx 时，需要添加模块路径：
+   ```bash
+   ./configure --add-module=/path/to/nginx-http-concat
+   make
+   make install
+   ```
+
+**配置示例**
+
+在 Nginx 配置文件中，可以启用 `concat` 功能并设置相关参数，例如：
 
 ```nginx
-http {
-    brotli on;
-    brotli_comp_level 6;
-    brotli_buffers 16 8k;
-    brotli_types text/html text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
-
-    # 其他配置...
+location /static/css/ {
+    concat on;
+    concat_max_files 30;
 }
 ```
 
-在配置中，`brotli on;` 开启 Brotli 压缩功能，`brotli_comp_level` 设置压缩级别，`brotli_buffers` 设置缓冲区大小，`brotli_types` 指定哪些 MIME 类型的内容需要被压缩。
+在这个配置中：
 
-注意事项
+- `concat on;` 启用合并请求功能。
+- `concat_max_files 30;` 设置每个请求最多可以合并的文件数量为30。
 
-- 启用 Brotli 压缩前，请确认你的服务器和客户端（如浏览器）都支持 Brotli。
-- Brotli 压缩可能需要更多的 CPU 资源，因此在 CPU 资源受限的环境中使用时需要谨慎。
-- Brotli 的压缩效果在不同类型的文件上表现不一，通常文本文件（如 HTML、CSS、JavaScript）压缩效果较好，而图片、视频等二进制文件可能压缩效果不明显。
+**注意事项**
 
-Brotli 作为一种现代的压缩算法，为网络传输提供了更好的性能和效率，特别是在文本内容较多的网站上。随着浏览器和服务器对 Brotli 的广泛支持，它正逐渐成为优化网站性能的重要工具。
+- 确保在配置文件中正确设置了 `concat` 相关的指令。
+- 合并文件时，需要考虑文件大小和服务器的页面大小限制，可能需要调整 `large_client_header_buffers` 指令。
+- 合并文件后，建议对文件进行压缩处理，以进一步减少传输的数据量。
+
+**结论**
+
+通过使用 `ngx_http_concat` 模块，可以有效地减少客户端与服务器之间的请求数量，从而减轻服务器压力并提升页面加载速度。该模块特别适用于需要处理大量静态资源的网站，如电子商务和拍卖网站。安装和配置过程相对简单，但需要确保服务器配置能够支持合并后的文件大小。
+
+# 资源静态化
+
+在一个高并发系统中，比如电商平台，并发量最高的是商品详情页，因为一个人可能只访问一次首页，但是会多次访问详情页，那么，设计和构建这类系统时，处理这种页面的方式就是使用缓存，这里的缓存指的并不是 redis 这种缓存中间件，而是将请求落地为文件，前置到 Nginx 中，每次用户在发送读甚至写请求时，就直接从 Nginx 返回。
+
+一致性问题
+合并文件输出
+集群文件同步
+
 
 
 
