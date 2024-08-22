@@ -3414,9 +3414,50 @@ http {
 - 由于动态解压缩可能会影响响应时间，建议仅在确实需要时使用此模块。
 - **在启用 ngx_http_gunzip_module 模块时 gzip_static 的配置必须是 always，否则会去找未压缩的文件版本，就会404**，即强制发送压缩包，客户端又不支持的情况下才生效
 
+## Brotli
 
+Brotli 是一种由谷歌开发的开源数据压缩算法，旨在提供高压缩比和较快的压缩速度，同时保持合理的解压速度。Brotli 的设计目标是替代现有的压缩算法，如 Gzip，以提供更好的性能和压缩效率。
 
+### Brotli 的特点：
 
+1. **高压缩比**：Brotli 使用了复杂的字典和先进的压缩技术，能够提供比 Gzip 更高的压缩比，尤其在压缩文本数据（如 HTML、CSS、JavaScript 文件）时效果显著。
+
+2. **关键字字典**：Brotli 使用了一个预定义的大型关键字字典，这个字典包含了大量常见的文本片段和模式。在压缩过程中，算法会查找并替换这些模式，以达到更高的压缩效率。
+
+3. **支持多种内容编码**：Brotli 可以作为 HTTP 响应头中的 `Content-Encoding` 选项使用，这意味着它可以在 HTTPS 协议下工作，为网站提供安全的压缩传输。
+
+4. **兼容性**：虽然 Brotli 是较新的压缩算法，但现代浏览器和一些服务器软件（如 Nginx 和 Apache）已经开始支持它。为了充分利用 Brotli 的优势，需要确保客户端和服务器端都支持 Brotli 压缩。
+
+### 在 Nginx 中启用 Brotli 压缩
+
+要在 Nginx 中启用 Brotli 压缩，你需要确保 Nginx 编译时包含了 Brotli 模块。这通常需要在编译 Nginx 时添加特定的参数，例如：
+
+```bash
+./configure --with-http_brotli_module
+```
+
+然后，你可以通过修改 Nginx 配置文件来启用 Brotli 压缩，例如：
+
+```nginx
+http {
+    brotli on;
+    brotli_comp_level 6;
+    brotli_buffers 16 8k;
+    brotli_types text/html text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+    # 其他配置...
+}
+```
+
+在配置中，`brotli on;` 开启 Brotli 压缩功能，`brotli_comp_level` 设置压缩级别，`brotli_buffers` 设置缓冲区大小，`brotli_types` 指定哪些 MIME 类型的内容需要被压缩。
+
+注意事项
+
+- 启用 Brotli 压缩前，请确认你的服务器和客户端（如浏览器）都支持 Brotli。
+- Brotli 压缩可能需要更多的 CPU 资源，因此在 CPU 资源受限的环境中使用时需要谨慎。
+- Brotli 的压缩效果在不同类型的文件上表现不一，通常文本文件（如 HTML、CSS、JavaScript）压缩效果较好，而图片、视频等二进制文件可能压缩效果不明显。
+
+Brotli 作为一种现代的压缩算法，为网络传输提供了更好的性能和效率，特别是在文本内容较多的网站上。随着浏览器和服务器对 Brotli 的广泛支持，它正逐渐成为优化网站性能的重要工具。
 
 
 
