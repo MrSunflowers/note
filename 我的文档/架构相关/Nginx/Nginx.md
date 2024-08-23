@@ -3749,28 +3749,37 @@ secrets file = /etc/rsyncd.secrets
 
 `rsyncd.conf` 文件的配置非常灵活，可以根据您的具体需求进行调整。务必仔细阅读 rsync 的官方文档，以了解所有可用的配置选项和最佳实践。
 
-#### 目标服务器指令（rsync 客户端）
+#### 目标服务器操作指令（rsync 客户端）
 
 查看文件目录
 
 语法
 
 ```
-rsync --list-only 服务器IP::模块名称
+rsync --list-only 服务器IP::模块名称/
 ```
 
 示例
 
 ```
-rsync --list-only 192.168.1.200::files
+rsync --list-only 192.168.1.200::files/
 ```
 
+手动拉取文件
 
+语法
 
+```
+rsync -avz 服务器IP::模块名称/ 拉取文件到本地路径
+```
 
+示例
 
+```
+rsync -avz 192.168.1.200::files/ /path/to/sync/
+```
 
-
+#### 安全认证与免密登录
 
 
 ### 密码文件
