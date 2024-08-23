@@ -3503,13 +3503,126 @@ location /static/css/ {
 
 一般的，一个请求的实际流程大概包括以下步骤：用户发送请求到 Nginx ，Nginx 将请求转发至上游服务器，上游服务器向 DB 请求动态数据，经过一系列计算，使用模板引擎（比如jsp）渲染页面，返回到 Nginx，再返回至用户。
 
-如果每次请求都需要经过这样多的流程，那资源消耗是极大的，所以可以将后端经过计算和渲染的页面直接生成一个文件，存储在 Nginx 上，当下次用户请求时直接从 Nginx 通过 sendfile 零拷贝返回，效率提升是巨大的。
+如果每次请求都需要经过这样多的流程，那资源消耗是极大的，所以可以将后端经过计算和渲染的页面直接生成一个文件，存储在 Nginx 上，当下次用户请求时，直接从 Nginx 通过 sendfile 零拷贝返回，效率提升是巨大的。
 
-这种处理方案即资源静态化，当然，这样处理的方案也会带来更多的问题，比如 Nginx 集群环境下如何同步每台机器的静态资源状态，以及某些动态数据如何更新等。
+这种处理方案即资源静态化，当然，这样处理的方案也会带来更多的问题，比如 Nginx 集群环境下如何同步每台机器的静态资源状态一致性，以及某些动态数据（如商品价格）如何实时更新等。
 
-对于同步每台机器的静态资源，可以采用 Linux 的 rsync 来实现，动态数据动态加载可以通过前端 js 来实现，或通过 Nginx 的 openresty 模板引擎前置来落地实现。
+对于同步每台机器的静态资源，可以采用 Linux 的 rsync 来实现，动态数据动态加载可以通过前端 js 来动态加载实现，或通过 Nginx 的 openresty 模板引擎前置来落地实现。
 
-## 
+## SSI 服务端文件合并
+
+Nginx 可以通过 ngx_http_ssi_module 模块来实现在一个文件中引入另一个文件的功能，比较常用的就是在一个静态的 html 页面中引入一个公共的 top 页面或者 bottom 页面，将它们按顺序拼接为一个文件返回给用户。
+
+官方文档 http://nginx.org/en/docs/http/ngx_http_ssi_module.html
+
+以下是关于 `ngx_http_ssi_module` 的说明：
+
+Nginx SSI 模块概述
+
+- **模块名称**: ngx_http_ssi_module
+- **功能**: 作为过滤器处理通过它的响应中的 SSI (Server Side Includes) 命令。
+- **支持状态**: 支持的 SSI 命令列表不完整。
+
+Nginx 配置文件配置指令
+
+- **ssi**: 开启或关闭响应中 SSI 命令的处理。
+  - 语法: `ssi on | off;`
+  - 默认: `off`
+  - 上下文: http, server, location, if in location
+
+- **ssi_last_modified**: 在 SSI 处理期间保留原始响应的“Last-Modified”头信息，以促进响应缓存。每一个在磁盘上的文件都会维护一个最后修改时间，这里的 “Last-Modified” 信息即代表文件的最后修改时间，当开启该选项时，将以磁盘上主文件的最后修改时间为准，而不是 Nginx 合并文件时间，在客户端使用缓存的时候，会判断文件是否被修改过，如果一直以合并时间为准，会导致客户端缓存失效。
+  - 语法: `ssi_last_modified on | off;`
+  - 默认: `off`
+  - 上下文: http, server, location
+
+- **ssi_min_file_chunk**: 设置响应存储在磁盘上的最小部分大小，从这个大小开始使用 sendfile 发送。在 Nginx 执行文件合并时，会检查合并出来的文件大小，当文件大小达到此配置的大小时，会将文件写入磁盘，写入磁盘以后的文件才可以使用 sendfile 发送。
+  - 语法: `ssi_min_file_chunk size;`
+  - 默认: `1k`
+  - 上下文: http, server, location
+
+- **ssi_silent_errors**: 如果在 SSI 处理期间发生错误，是否抑制输出错误信息。包括脚本命令错误，或引入文件不存在等错误。
+  - 语法: `ssi_silent_errors on | off;`
+  - 默认: `off`
+  - 上下文: http, server, location
+
+- **ssi_types**: 指定除了“text/html”之外，哪些 MIME 类型的响应中可以处理 SSI 命令。
+  - 语法: `ssi_types mime-type ...;`
+  - 默认: `text/html`
+  - 上下文: http, server, location
+
+- **ssi_value_length**: 设置 SSI 命令中参数值的最大长度。
+  - 语法: `ssi_value_length length;`
+  - 默认: `256`
+  - 上下文: http, server, location
+
+### SSI 命令 
+
+SSI (Server-Side Includes) 命令遵循特定的语法格式，用于在 Nginx 中嵌入动态内容或执行条件逻辑。下面是基于提供的文档内容，对 SSI 命令的总结：
+
+SSI 命令通用格式
+```html
+<!--# command parameter1=value1 parameter2=value2 ... -->
+```
+
+支持的 SSI 命令
+
+1. **block**
+   - 定义一个可被 `include` 命令使用的代码块。
+   - 示例：
+     ```html
+     <!--# block name="one" -->
+     <!--# endblock -->
+     ```
+
+2. **config**
+   - 设置 SSI 处理期间的参数，如错误消息和时间格式。
+   - 示例：
+     ```html
+     <!--# config errmsg="Error occurred" timefmt="%d-%b-%Y %H:%M:%S" -->
+     ```
+
+3. **echo**
+   - 输出一个变量的值。
+   - 示例：
+     ```html
+     <!--# echo var="name" -->
+     ```
+
+4. **if**
+   - 执行条件包含。
+   - 示例：
+     ```html
+     <!--# if expr="$name = value" -->
+     <!--# endif -->
+     ```
+
+5. **include**
+   - 将另一个文件或请求的结果包含到当前页面中。
+   - 示例：
+     ```html
+     <!--# include file="footer.html" -->
+     ```
+
+6. **set**
+   - 设置一个变量的值。
+   - 示例：
+     ```html
+     <!--# set var="variable_name" value="value" -->
+     ```
+
+参数说明
+- **command**: 必须的，指定要执行的 SSI 命令。
+- **parameter**: 可选的，根据不同的命令有不同的参数，用于传递额外的信息或设置。
+
+注意事项
+- SSI 命令通常用于 HTML 文件中，但它们必须以 `<!--#` 开始，并以 `-->` 结束。
+
+**内嵌变量**
+
+- **$date_local**: 本地时区的当前时间。
+- **$date_gmt**: GMT 的当前时间。
+
+
 
 
 
