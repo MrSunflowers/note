@@ -3675,19 +3675,100 @@ Rsync 的三种模式
 
 ### 安装
 
-1. 在源服务器和目标服务器分辨安装
+#### 在源服务器和目标服务器分别安装
 
 ```
 yum install -y rsync
 ```
 
-2. 配置目标服务器拉取源服务器文件
+#### 配置源服务器（rsync 服务端）
 
 配置文件通常位于
 
 ```
 /etc/rsyncd.conf
 ```
+
+`rsyncd.conf` 是 rsync 守护进程的配置文件，用于定义 rsync 服务器如何响应客户端请求。这个文件位于 `/etc` 目录下，但其确切位置可能因发行版而异。配置文件中定义了同步模块（module），每个模块可以配置不同的路径、权限、认证方式等。
+
+**配置文件结构**
+
+`rsyncd.conf` 文件通常由一个或多个模块组成，每个模块由方括号内的模块名开始，后跟一系列配置指令。下面是一个简单的配置文件示例：
+
+```conf
+# 全局配置
+uid = nobody
+gid = nobody
+use chroot = yes
+max connections = 4
+timeout = 300
+
+# 定义一个模块 方括号内即模块名称 可以随意起名
+[files]
+path = /path/to/sync
+comment = Sync files
+read only = yes
+list = yes
+uid = root
+gid = root
+auth users = username
+secrets file = /etc/rsyncd.secrets
+```
+
+**关键配置项**
+
+- **uid/gid**: 指定运行 rsync 守护进程的用户和组。
+- **use chroot**: 是否将模块路径限制在 chroot 环境中。
+- **max connections**: 允许的最大连接数。
+- **timeout**: 连接超时时间（秒）。
+- **path**: 模块同步的本地路径。
+- **comment**: 模块的描述信息。
+- **read only**: 是否只读模式，默认为 `yes`。
+- **list**: 是否允许列出模块内容，默认为 `yes`。
+- **uid/gid**: 在模块内覆盖全局的用户和组。
+- **auth users**: 允许访问模块的用户列表。
+- **secrets file**: 存放用户名和密码的文件路径。
+
+**安全性**
+
+- **secrets file**: 用于存放用户名和密码，格式为 `username:password`，每行一个。
+- **auth users**: 指定允许访问的用户，必须与 `secrets file` 中的用户名匹配。
+- **hosts allow** 和 **hosts deny**: 限制允许连接的主机或排除某些主机。
+
+**启动和管理 rsync 守护进程**
+
+- 启动 rsync 守护进程：`rsync --daemon`
+- 停止 rsync 守护进程：通常需要使用系统服务管理命令，如 `systemctl stop rsync` 或 `service rsync stop`。
+- 检查 rsync 守护进程状态：`rsync --daemon --config=/etc/rsyncd.conf`
+
+**注意事项**
+
+- 确保 `/etc/rsyncd.conf` 文件的权限设置正确，通常需要限制为只有 root 用户可以读写。
+- 修改配置文件后，需要重启 rsync 守护进程以使更改生效。
+- 由于 rsync 守护进程具有较高的权限，务必确保配置文件的安全性，避免未授权访问。
+
+`rsyncd.conf` 文件的配置非常灵活，可以根据您的具体需求进行调整。务必仔细阅读 rsync 的官方文档，以了解所有可用的配置选项和最佳实践。
+
+#### 目标服务器指令（rsync 客户端）
+
+查看文件目录
+
+语法
+
+```
+rsync --list-only 服务器IP::模块名称
+```
+
+示例
+
+```
+rsync --list-only 192.168.1.200::files
+```
+
+
+
+
+
 
 
 
