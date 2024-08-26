@@ -3954,6 +3954,64 @@ rsync -avuz --progress --exclude="*.log" /source/ username@remotehost:/dest/
 
 `rsync` 是一个功能强大的工具，通过这些选项，您可以灵活地控制文件同步的行为。
 
+### 服务端推送文件
+
+文件的拉取过程上面已经演示了，现在来看由服务端推送文件。
+
+首先，参照上文步骤，将每一台机器都当成服务端进行配置启动，保证每一台服务器都可以使用命令连接另一台服务器。
+
+然后，将拉取命令反过来，即拉取时，本地路径在后，目标服务器地址在前，则推送时顺序反过来
+
+语法
+
+```
+rsync -avz 本地路径 rsync://服务器IP:/模块名称
+```
+
+示例
+
+```shell
+rsync -avz --password-file=/etc/rsyncd.passwd.client /usr/local/nginx/html/ rsync://sgg@192.168.1.200:/files
+```
+
+默认情况下，rsync 服务端不接受客户端提交上来的文件，要想推送文件到服务端，则需要修改服务端配置的 `read only` 项改为 `no`
+
+```conf
+# 全局配置
+uid = nobody
+gid = nobody
+use chroot = yes
+max connections = 4
+timeout = 300
+
+# 定义一个模块 方括号内即模块名称 可以随意起名
+[files]
+path = /path/to/sync
+comment = Sync files
+# 允许客户端推送文件
+read only = no
+list = yes
+uid = root
+gid = root
+# 可以访问的用户名
+auth users = sgg
+＃ 密码文件，名字可以随意，包括文件后缀
+secrets file = /etc/rsyncd.secrets
+```
+
+
+
+
+
+
+
+
+
+
+
+
+在现有的功能基础上，可以编写一个脚本，每两秒拉取一次文件，或由服务器推送一次，即可实现近实时的文件同步，，但要实现实时文件同步，需要配合 Inotify 一起使用。
+
 ## Inotify
 
 
