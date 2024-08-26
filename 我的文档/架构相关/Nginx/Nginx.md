@@ -3999,30 +3999,214 @@ auth users = sgg
 secrets file = /etc/rsyncd.secrets
 ```
 
+### 近实时文件同步方案
 
-
-
-
-
-
-
-
-
-
-
-在现有的功能基础上，可以编写一个脚本，每两秒拉取一次文件，或由服务器推送一次，即可实现近实时的文件同步，，但要实现实时文件同步，需要配合 Inotify 一起使用。
+在现有的功能基础上，可以编写一个脚本，每两秒拉取一次文件，或由服务器推送一次，即可实现近实时的文件同步，但要实现实时文件同步，需要配合 Inotify 一起使用。
 
 ## Inotify
 
+Inotify 是 Linux 内核提供的一种机制，用于监控文件系统事件。它允许程序监控文件系统的变化，如文件或目录的创建、删除、修改等。Inotify 是一种高效、实时的文件系统事件监控方式，特别适用于需要对文件系统活动做出快速响应的应用程序。
+
+**Inotify 的主要特点**：
+
+1. **实时性**：Inotify 能够实时监控文件系统的变化，几乎无延迟地通知应用程序。
+
+2. **高效性**：相比于传统的轮询（polling）方式，Inotify 在性能上有显著优势，因为它不需要不断地检查文件系统状态，而是由内核主动通知变化。
+
+3. **资源占用低**：Inotify 使用事件驱动模型，仅在有事件发生时才占用 CPU 资源，因此对系统资源的占用较低。
+
+**Inotify 的工作原理**：
+
+- **Inotify 实例**：每个使用 Inotify 的程序都会创建一个 Inotify 实例，这个实例由一个唯一的文件描述符（file descriptor）标识。
+
+- **监控点（Watch）**：程序可以为它感兴趣的文件或目录添加监控点。当这些文件或目录发生指定的事件时，内核会将事件信息发送到相应的 Inotify 实例。
+
+- **事件类型**：Inotify 能够监控多种类型的事件，包括文件或目录的创建、删除、移动、修改等。
+
+- **事件队列**：所有监控到的事件都会被放入一个队列中，程序通过读取文件描述符来获取这些事件。
+
+**使用 Inotify 的程序示例**：
+
+- **文件同步工具**：如 `rsync` 可以利用 Inotify 实时监控文件系统的变化，从而只同步变化的部分，提高效率。
+
+- **备份工具**：一些备份软件使用 Inotify 来监控文件系统的变化，实现增量备份。
+
+- **监控工具**：如 `inotify-tools` 包含的 `inotifywait` 和 `inotifywatch` 工具，可以用来监控文件系统事件。
+
+**注意事项**：
+
+- **资源限制**：Inotify 有资源限制，包括可以创建的监控点数量和事件队列的大小。这些限制可以通过修改内核参数进行调整。
+
+- **内核版本**：Inotify 功能从 Linux 2.6.13 版本开始引入，因此需要较新的内核版本支持。
+
+### 安装
+
+下载 Inotify 安装包
+
+```shell
+wget http://github.com/downloads/rvoicilas/inotify-tools/inotify-tools-3.14.tar.gz
+```
+
+解压
+
+```shell
+tar -xzvf inotify-tools-3.14.tar.gz
+```
+
+进入解压完成目录，编译安装
+
+```shell
+./configure --prefix=/usr/local/inotify
+```
+
+```shell
+make
+```
+
+```shell
+make install
+```
+
+进入安装 bin 目录
+
+```shell
+cd /usr/local/inotify/bin
+```
+
+### 监控目录
+
+```
+/usr/local/inotify/bin/inotifywait -mrq --timefmt '%Y-%m-%d %H:%M:%S' --format '%T %w%f %e' -e close_write,modify,delete,create,attrib,move //usr/local/nginx/html/
+```
+
+上述命令使用了 `inotifywait` 工具来监控 `/usr/local/nginx/html/` 目录下的文件系统事件。`inotifywait` 是 `inotify-tools` 包的一部分，它是一个命令行工具，用于监控文件系统的变化事件。下面是命令的详细解释：
+
+```bash
+/usr/local/inotify/bin/inotifywait -mrq \
+--timefmt '%Y-%m-%d %H:%M:%S' \
+--format '%T %w%f %e' \
+-e close_write,modify,delete,create,attrib,move \
+/usr/local/nginx/html/
+```
+
+**命令解析**
+
+- `/usr/local/inotify/bin/inotifywait`: 这是 `inotifywait` 命令的完整路径。它指定了 `inotifywait` 工具的安装位置。
+
+- `-mrq`: 这是三个选项的组合。
+  - `-m` (监控模式): 使 `inotifywait` 在检测到事件后不退出，持续监控。
+  - `-r` (递归): 监控指定目录及其子目录下的所有文件和目录。
+  - `-q` (静默模式): 减少冗余的输出信息，只输出事件信息。
+
+- `--timefmt '%Y-%m-%d %H:%M:%S'`: 设置时间格式，这里设置为 `年-月-日 时:分:秒` 的格式。
+
+- `--format '%T %w%f %e'`: 设置输出格式，其中：
+  - `%T` 是时间，按照 `--timefmt` 设置的格式显示。
+  - `%w` 是被监控的目录路径。
+  - `%f` 是事件发生的文件名（如果适用）。
+  - `%e` 是发生的事件类型。
+
+- `-e close_write,modify,delete,create,attrib,move`: 指定要监控的事件类型。
+  - `close_write`: 文件被打开并写入后关闭。
+  - `modify`: 文件或目录被修改。
+  - `delete`: 文件或目录被删除。
+  - `create`: 文件或目录被创建。
+  - `attrib`: 文件或目录的属性被修改（例如权限或时间戳）。
+  - `move`: 文件或目录被移动。
+
+- `/usr/local/nginx/html/`: 这是要监控的目录路径。
+
+**使用示例**
+
+当您运行这个命令时，它会持续监控 `/usr/local/nginx/html/` 目录及其子目录下的文件系统事件，并按照指定的格式输出事件信息。例如，如果有一个文件被修改，您可能会看到类似这样的输出：
+
+```
+2023-04-01 12:34:56 /usr/local/nginx/html/page.html CLOSE_WRITE,CLOSE
+```
+
+这表示在指定时间，`page.html` 文件被写入后关闭。
+
+**注意事项**
+
+- 如果您监控的目录非常大或事件非常频繁，`inotify` 的队列可能会溢出。可以通过调整内核参数来增加队列大小，例如 `fs.inotify.max_user_watches`。
+
+### 配合 rsync 实现自动推送脚本
+
+```shell
+#!/bin/bash
+
+/usr/local/inotify/bin/inotifywait -mrq --timefmt '%d/%m/%y %H:%M' --format '%T %w%f %e' -e close_write,modify,delete,create,attrib,move //usr/local/nginx/html/ | while read file
+do
+       
+        rsync -az --delete --password-file=/etc/rsyncd.passwd.client /usr/local/nginx/html/ sgg@192.168.44.102::ftp/
+done
+```
+
+脚本结合了 `inotifywait` 和 `rsync`，目的是在 `/usr/local/nginx/html/` 目录下发生文件系统事件（如文件创建、修改、删除等）时，自动触发文件同步到远程服务器 `192.168.44.102` 上的 `ftp` 模块。下面是脚本的详细解释和一些可能需要考虑的点：
+
+一旦脚本运行，它将持续监控指定目录，并在检测到任何指定的文件系统事件时，自动触发文件同步操作。例如，如果在 `/usr/local/nginx/html/` 目录下创建或修改了文件，`inotifywait` 会检测到 `create` 或 `modify` 事件，并触发 `rsync` 将更改推送到远程服务器。
+
+**此脚本不可用于生产环境**
+
+### inotify 常用参数
+
+表格列出了 `inotifywait` 命令的一些常用参数及其说明。这些参数可以帮助您更精确地控制 `inotify` 的行为，以适应不同的监控需求。下面是对每个参数的详细解释：
+
+| 参数        | 说明                                                         | 含义                                                         |
+| ----------- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| `-r`        | `--recursive`                                                | 递归监控目录。监控指定目录及其所有子目录。                   |
+| `-q`        | `--quiet`                                                    | 安静模式。仅输出事件信息，不输出其他信息。                   |
+| `-m`        | `--monitor`                                                  | 监控模式。使 `inotifywait` 在检测到事件后不退出，持续监控。  |
+| `--exclude` |                                                              | 排除匹配的文件或目录。可以多次使用以排除多个模式。           |
+| `--timefmt` |                                                              | 指定输出时间的格式。例如，`%Y-%m-%d %H:%M:%S`。               |
+| `--format`  |                                                              | 指定输出格式。例如，`%T %w%f %e` 会输出时间、文件路径和事件类型。 |
+| `-e`        | `--event`                                                    | 指定要监控的事件类型。可以指定多个事件，用逗号分隔。例如，`-e create,delete`。 |
+
+**事件类型**
+
+`-e` 参数后可以跟多个事件类型，这些事件类型包括但不限于：
+
+- `access`: 文件或目录被读取。
+- `modify`: 文件或目录的内容被修改。
+- `attrib`: 文件或目录属性被改变。
+- `close_write`: 文件被写入后关闭。
+- `open`: 文件或目录被打开。
+- `move_to`: 文件或目录被移动至另外一个目录。
+- `move_from`: 文件或目录被移动另一个目录或从另一个目录移动至当前目录。
+- `create`: 文件或目录被创建在当前目录。
+- `delete`: 文件或目录被删除。
+- `delete_self`: 监控的文件或目录被删除。
+- `move_self`: 监控的文件或目录被移动。
+- `umount`: 文件系统被卸载。
+
+**使用示例**
+
+假设您想要监控 `/var/log` 目录及其子目录，并且只关注文件的创建、修改和删除事件，您可以使用如下命令：
+
+```bash
+inotifywait -mrq --timefmt '%Y-%m-%d %H:%M:%S' --format '%T %w%f %e' -e create,modify,delete /var/log/
+```
+
+这个命令会持续监控 `/var/log/` 目录及其子目录，并在控制台输出格式化的时间、文件路径和事件类型。
+
+**注意事项**
+
+- 使用 `--exclude` 参数可以排除不需要监控的文件或目录，例如 `--exclude "/*.tmp"` 排除所有 `.tmp` 文件。
+- `inotify` 有资源限制，包括可以监控的事件数量和监控的目录数量。如果超出限制，`inotifywait` 可能会失败。可以通过调整内核参数来增加这些限制，例如 `fs.inotify.max_user_watches`。
+- 确保 `inotify-tools` 已经安装在您的系统上，以便使用 `inotifywait` 命令。
+
+`inotify` 是一个非常有用的工具，特别是在需要实时监控文件系统变化的场景中。通过合理配置参数，您可以灵活地监控和响应文件系统事件。
 
 
 
 
 
 
-- Inotify 是 Linux 内核的一个特性，它允许程序监控文件系统的变化事件，如文件的创建、修改、删除等。
-- Rsync 可以利用 inotify 来监控文件系统事件，从而在文件发生变化时自动触发同步操作，这在需要实时或近实时数据同步的场景中非常有用。
-- 使用 inotify 的 rsync 同步可以显著减少不必要的同步操作，因为它只在文件实际发生变化时才进行同步。
+
+
+
+
+
 
 
 
