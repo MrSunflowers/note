@@ -3628,7 +3628,7 @@ SSI 命令通用格式
 
 ## rsync
 
-remote synchronize 是一个远程数据同步工具，可通过 LAN/WAN 快速同步多台主机之间的文件。也可以使用 rsync 同步本地硬盘中的不同目录。 rsync 是用于替代 rcp 的一个工具，rsync 使用所谓的 rsync算法 进行数据同步，这种算法只传送两个文件的不同部分，而不是每次都整份传送，因此速度相当快。
+remote synchronize 是一个远程数据同步工具，可通过 LAN/WAN 快速同步多台主机之间的文件。也可以使用 rsync 同步本地硬盘中的不同目录。 rsync 是用于替代 rcp 的一个工具，rsync 使用所谓的 rsync 算法进行数据同步，这种算法只传送两个文件的不同部分，而不是每次都整份传送，因此速度相当快。
 
 https://www.samba.org/ftp/rsync/rsync.html
 
@@ -3680,6 +3680,8 @@ Rsync 的三种模式
 ```
 yum install -y rsync
 ```
+
+rsync 分为服务端和客户端，服务端需要以守护模式启动，客户端直接使用命令拉取即可。
 
 #### 配置源服务器（rsync 服务端）
 
@@ -3735,12 +3737,6 @@ secrets file = /etc/rsyncd.secrets
 - **auth users**: 指定允许访问的用户，必须与 `secrets file` 中的用户名匹配。
 - **hosts allow** 和 **hosts deny**: 限制允许连接的主机或排除某些主机。
 
-**启动和管理 rsync 守护进程**
-
-- 启动 rsync 守护进程：`rsync --daemon`
-- 停止 rsync 守护进程：通常需要使用系统服务管理命令，如 `systemctl stop rsync` 或 `service rsync stop`。
-- 检查 rsync 守护进程状态：`rsync --daemon --config=/etc/rsyncd.conf`
-
 **注意事项**
 
 - 确保 `/etc/rsyncd.conf` 文件的权限设置正确，通常需要限制为只有 root 用户可以读写。
@@ -3748,6 +3744,59 @@ secrets file = /etc/rsyncd.secrets
 - 由于 rsync 守护进程具有较高的权限，务必确保配置文件的安全性，避免未授权访问。
 
 `rsyncd.conf` 文件的配置非常灵活，可以根据您的具体需求进行调整。务必仔细阅读 rsync 的官方文档，以了解所有可用的配置选项和最佳实践。
+
+#### 启动和管理 rsync 进程
+
+- 启动 rsync 守护进程：`rsync --daemon`
+- 停止 rsync 守护进程：通常需要使用系统服务管理命令，如 `systemctl stop rsync` 或 `service rsync stop`。
+- 检查 rsync 守护进程状态：`rsync --daemon --config=/etc/rsyncd.conf`
+
+**重启 rsync**
+
+`rsync` 作为守护进程运行时，并没有一个专门的命令来重启它。通常的做法是先停止当前运行的 `rsync` 守护进程，然后重新启动它。下面是在不同操作系统上执行这一操作的一般步骤：
+
+在类 Unix 系统上（如 Linux）
+
+1. **查找 rsync 进程的 PID**：
+   ```bash
+   ps aux | grep rsync
+   ```
+   或者
+   ```bash
+   pgrep rsync
+   ```
+
+2. **终止 rsync 进程**：
+   ```bash
+   kill [PID]
+   ```
+   其中 `[PID]` 是你从第一步中得到的进程 ID。
+
+3. **重新启动 rsync 守护进程**：
+
+   如果 `rsync` 是通过系统服务管理器（如 systemd）管理的，可以使用如下命令：
+   ```bash
+   systemctl restart rsync
+   ```
+   如果不是，你可能需要手动重新启动 rsync 守护进程，这通常意味着重新运行启动 rsync 的命令，例如：
+   ```bash
+   rsync --daemon
+   ```
+
+在 macOS 上
+
+macOS 上的 `rsync` 通常作为 launchd 服务运行，可以使用 `launchctl` 来管理：
+
+1. **卸载 rsync 服务**：
+   ```bash
+   launchctl unload ~/Library/LaunchAgents/homebrew.mxcl.rsync.plist
+   ```
+   （路径可能根据安装方式有所不同）
+
+2. **重新加载 rsync 服务**：
+   ```bash
+   launchctl load ~/Library/LaunchAgents/homebrew.mxcl.rsync.plist
+   ```
 
 #### 目标服务器操作指令（rsync 客户端）
 
@@ -3761,7 +3810,7 @@ rsync --list-only 服务器IP::模块名称/
 
 示例
 
-```
+```shell
 rsync --list-only 192.168.1.200::files/
 ```
 
@@ -3775,25 +3824,101 @@ rsync -avz 服务器IP::模块名称/ 拉取文件到本地路径
 
 示例
 
-```
+```shell
 rsync -avz 192.168.1.200::files/ /path/to/sync/
 ```
 
-#### 安全认证与免密登录
+#### 服务端安全认证
 
+在生产环境中，一般 rsync 服务端会开启安全认证服务，以保证文件安全。在 rsyncd.conf 中可以指定一个密码文件，要求使用特定的用户名和密码进行认证。这样，只有知道这些凭据的用户才能访问 rsync 服务。
 
-### 密码文件
+```conf
+# 全局配置
+uid = nobody
+gid = nobody
+use chroot = yes
+max connections = 4
+timeout = 300
 
-创建文件`/etc/rsync.password`
-
-内容
-
+# 定义一个模块 方括号内即模块名称 可以随意起名
+[files]
+path = /path/to/sync
+comment = Sync files
+read only = yes
+list = yes
+uid = root
+gid = root
+# 可以访问的用户名
+auth users = sgg
+＃ 密码文件，名字可以随意，包括文件后缀
+secrets file = /etc/rsyncd.secrets
 ```
-hello:123
+
+rsyncd.secrets
+
+```conf
+sgg:111
 ```
 
+在上述配置示例中，为 `files` 模块定义了一个 `sgg` 用户，密码为 `111` ，其中配置项 `auth users` 与 `secrets file` 可以配置在全局，也可以配置在模块中。
 
-Inotify 支持
+- **格式正确性**：密码文件 rsyncd.secrets 应该包含用户名和密码，用冒号 : 分隔。如果需要支持多个用户，每个用户占一行。确保每行格式为 username:password，并且没有多余的空格或字符。
+- **安全性**：密码文件应该设置适当的权限，通常应该只有 rsync 进程和系统管理员可以读取。可以使用命令 `chmod 600 /etc/rsyncd.secrets` 来设置权限。
+- **服务端口**：默认情况下，rsync 守护进程使用 873 端口。确保该端口在防火墙中开放，并且没有被其他服务占用。
+- **测试配置**：在正式部署前，应该测试配置文件的正确性。可以使用 `rsync --config=/path/to/rsyncd.conf` 命令来测试配置文件。
+- **日志记录**：考虑配置日志记录，以便跟踪同步操作和认证尝试。可以在 `rsyncd.conf` 中设置 `log file = /var/log/rsync.log`。
+
+重启 rsyncd 服务
+
+客户端访问命令
+
+```shell
+rsync --list-only 192.168.1.200::files/
+```
+
+此时再想要查看服务器文件就会提示需要输入密码，且如何输入都不对
+
+首先，先前创建的密码文件的权限不能太高，给密码权限降权
+
+```shell
+chmod 600 /etc/rsyncd.secrets
+```
+
+然后重启服务，并在客户端指定用户访问
+
+```shell
+rsync --list-only sgg＠192.168.1.200::files/
+```
+
+#### 客户端免密登录
+
+创建密码文件，客户端只需要记录密码
+
+rsyncd.secrets
+
+```conf
+111
+```
+
+设定密码文件权限
+
+```shell
+chmod 600 /etc/rsyncd.secrets
+```
+
+执行命令
+
+```shell
+rsync --list-only --password-file=/etc/rsyncd.secrets sgg＠192.168.1.200::files/
+```
+
+## Inotify
+
+
+
+
+
+
 
 - Inotify 是 Linux 内核的一个特性，它允许程序监控文件系统的变化事件，如文件的创建、修改、删除等。
 - Rsync 可以利用 inotify 来监控文件系统事件，从而在文件发生变化时自动触发同步操作，这在需要实时或近实时数据同步的场景中非常有用。
