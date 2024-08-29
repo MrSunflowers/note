@@ -3953,15 +3953,313 @@ https://github.com/leev/ngx_http_geoip2_module
 
 http://nginx.org/en/docs/http/ngx_http_geoip_module.html#geoip_proxy
 
+# 正向代理
+
+在 Nginx 中，并不存在正向代理与反向代理的差别，更多的时候，只是增加了一些个性化配置，让用户看起来是在使用正向代理。
+
+- 反向代理是指用户无感知的，比如在访问集群内部机器的时候，可以无感知的访问代理服务器，由代理服务器分发请求。
+- 正向代理就是指有感知的，比如服务网关，VPN 服务器，你要访问网址之前必须要配置代理服务器地址。这种模式主要用来限制访问服务器的用户群体，比如只有知道代理服务器地址的用户才能访问。
+
+## nginx 配置示例
+
+一个简单的Nginx正向代理服务器配置可能如下所示：
+
+```nginx
+http {
+    server {
+        listen 8080; # 监听端口
+
+        location / {
+            proxy_pass $scheme://$host$request_uri;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # WebSocket 和 HTTP/2 升级支持
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection "upgrade";
+        }
+    }
+}
+```
+
+在这个配置中，Nginx监听8080端口，并将所有到达该端口的请求转发到原始请求指定的服务器。同时，它还设置了必要的HTTP头信息，以确保请求能正确地被上游服务器处理，包括支持WebSocket和HTTP/2升级。
+
+```nginx
+proxy_pass $scheme://$host$request_uri;
+```
+
+- `proxy_pass`：这是Nginx配置中的一个指令，用于指定当请求被Nginx接收后，应该转发到哪个上游服务器（或地址）。
+- `$scheme`：这是一个Nginx变量，代表当前请求的协议（如http或https）。
+- `$host`：这是另一个Nginx变量，代表请求的主机名（域名）。
+- `$request_uri`：这是Nginx变量，代表原始请求的URI（路径和查询字符串）。
+
+综合起来，`proxy_pass $scheme://$host$request_uri;` 这行配置的作用是将客户端的请求原封不动地转发到与请求相同的协议和主机名上，保持原始的URI不变。这在正向代理的场景中非常有用，因为它允许代理服务器将请求转发到客户端原本想要访问的服务器。
+
+```nginx
+resolver 8.8.8.8;
+```
+
+- `resolver`：这是一个Nginx指令，用于指定DNS解析器的地址。Nginx使用这个地址来解析上游服务器的域名。
+- `8.8.8.8`：这是Google提供的公共DNS服务器地址，它被用作示例。
+
+这行配置告诉Nginx使用Google的公共DNS服务器（8.8.8.8）来解析转发请求时需要的域名。这对于确保域名能被正确解析到对应的IP地址是必要的。
+
+## 客户端配置
+
+客户端配置代理服务器地址为 Nginx 
+
+## 代理 https 请求
+
+对于 https 请求，需要第三方模块支持
+
+https://github.com/chobits/ngx_http_proxy_connect_module
+
+配置
+
+```
+ server {
+     listen                         3128;
+
+     # dns resolver used by forward proxying
+     resolver                       8.8.8.8;
+
+     # forward proxy for CONNECT request
+     proxy_connect;
+     proxy_connect_allow            443 563;
+     proxy_connect_connect_timeout  10s;
+     proxy_connect_read_timeout     10s;
+     proxy_connect_send_timeout     10s;
+
+     # forward proxy for non-CONNECT request
+     location / {
+         proxy_pass http://$host;
+         proxy_set_header Host $host;
+     }
+ }
+```
+
+# 代理缓存（proxy 缓存）
+
+proxy 缓存
+
+官网解释
+
+http://nginx.org/en/docs/http/ngx_http_proxy_module.html#proxy_cache
+
+代理缓存是指 Nginx 在作为代理服务器的过程中，可以将一些相对固定的资源以请求路径为 key 缓存在 Nginx 磁盘上，类似于之前的动静分离，但更加强大灵活，可以设置资源超时时间和自动管理。
+
+## 配置示例
+
+```
+http模块：
+proxy_cache_path /ngx_tmp levels=1:2 keys_zone=test_cache:100m inactive=1d max_size=10g ;
+location模块：
+add_header  Nginx-Cache "$upstream_cache_status";
+proxy_cache test_cache;
+proxy_cache_valid 168h;
+```
+
+配置信息是关于如何在 Nginx 中设置和使用代理缓存（proxy cache）的详细说明。
+
+**设置缓存路径和参数**
+
+首先需要在 `http` 块中，定义缓存的存储路径、层级、键区域、非活动时间、最大大小等参数。
+
+```nginx
+proxy_cache_path /ngx_tmp levels=1:2 keys_zone=test_cache:100m inactive=1d max_size=10g;
+```
+
+- `proxy_cache_path`：指定缓存文件存储的路径，一般会自动创建，这里是 `/ngx_tmp`。
+- `levels`：定义缓存目录的层级结构，这里设置为两级。1 表示一级目录用一个字符表示，2 表示二级目录用两个字符表示。
+- `keys_zone`：定义一个共享内存区域，表示缓存命名空间，后面使用的时候需要用到，用于存储缓存键和元数据。`test_cache` 是区域名称，`100m` 是允许使用的内存区域大小，内存区域不存储文件，只存存文件索引。
+- `inactive`：定义缓存项在不被访问的情况下可以保留的时间，默认为10分钟，这里设置为1天。
+- `max_size`：定义缓存的最大大小，这里设置为10GB。
+
+**然后在 `location` 块中使用缓存**
+
+```nginx
+location / {
+    add_header Nginx-Cache "$upstream_cache_status";
+    proxy_cache test_cache;
+    proxy_cache_valid 168h;
+}
+```
+
+- `add_header Nginx-Cache "$upstream_cache_status";`：添加一个响应头，显示缓存状态，表示是否命中缓存。
+- `proxy_cache test_cache;`：指定使用之前定义的 `test_cache` 命名空间作为缓存区域。
+- `proxy_cache_valid 168h;`：定义缓存有效时间，这里设置为168小时（即一周）。
+
+**这三个配置同时存在时，缓存才生效**
+
+## 其他缓存配置
+
+**使用过期缓存**
+
+**proxy_cache_use_stale**
+
+```nginx
+proxy_cache_use_stale error | timeout | invalid_header | updating | http_500 | http_502 | http_503 | http_504 | http_403 | http_404 | http_429 | off;
+```
+
+- `proxy_cache_use_stale`：当上游服务器出现错误、超时、返回无效头部、正在更新等情况下，允许使用过期缓存返回给客户端。
+
+**后台更新缓存**
+
+**proxy_cache_background_update**
+
+```nginx
+proxy_cache_background_update on;
+```
+
+- `proxy_cache_background_update`：允许在后台开启子请求来更新过期的缓存内容，同时返回过期内容给客户端。
+
+**不使用缓存的情况**
+
+**proxy_no_cache** 和 **proxy_cache_bypass**
+
+```nginx
+proxy_no_cache $cookie_nocache $arg_nocache$arg_comment;
+proxy_no_cache $http_pragma    $http_authorization;
+```
+
+- `proxy_no_cache` 和 `proxy_cache_bypass`：指定在某些条件下不使用缓存，直接向上游服务器请求。如果这些变量存在且不为空或不等于0，则不使用缓存。
+
+**处理 HEAD 请求**
+
+**proxy_cache_convert_head**
+
+```nginx
+proxy_cache_convert_head on;
+```
+
+- `proxy_cache_convert_head`：默认开启，将 HEAD 请求转换为 GET 请求后发送给上游服务器，以便缓存响应体内容。如果关闭，需要在 `cache key` 中添加 `$request_method` 来区分缓存内容。
+
+**缓存更新锁**
+
+**proxy_cache_lock**
+
+```nginx
+proxy_cache_lock off;
+```
+
+- `proxy_cache_lock`：默认关闭，当启用时，一次只允许一个请求更新缓存项，其他请求要么等待缓存项更新完成，要么等待 `proxy_cache_lock_timeout` 设置的时间。
+
+**缓存锁超时**
+
+**proxy_cache_lock_age**
+
+```nginx
+proxy_cache_lock_age 5s;
+```
+
+- `proxy_cache_lock_age`：设置缓存锁的超时时间，默认为5秒。
+
+通过这些配置，您可以灵活地控制 Nginx 代理缓存的行为，以满足不同的性能和缓存策略需求。记得在修改配置后重新加载或重启 Nginx 以使更改生效。
+
+## 缓存清理
+
+手动清理缓存过于复杂，需要引入自动缓存文件清理功能，比如针对某个 url 失效
+
+缓存清理需要第三方模块支持
+
+**purger**
+
+需要第三方模块支持
+
+https://github.com/FRiCKLE/ngx_cache_purge
+
+**配置**
+
+```
+
+        location ~ /purge(/.*) {
+
+            proxy_cache_purge  test_cache  $1;
+        }
+        自定义cachekey
+         proxy_cache_key $uri;
+```
+
+**proxy_cache_key** 
+
+默认`$scheme$proxy_host$request_uri`
+
+缓存的key
 
 
 
+**proxy_cache_revalidate** 
+
+如果缓存过期了，向上游服务器发送“If-Modified-Since” and “If-None-Match来验证是否改变，如果没有就不需要重新下载资源了
 
 
 
+**proxy_cache_valid** 
 
+可以针对不容http状态码设置缓存过期时间
 
+不设置状态码会默认200, 301, 302
 
+```
+proxy_cache_valid 200 302 10m;
+proxy_cache_valid 301      1h;
+proxy_cache_valid any      1m;
+```
+
+any指其他任意状态码
+
+您提供的信息是关于如何使用第三方Nginx模块`ngx_cache_purge`来实现缓存清除功能的配置说明。这个模块允许您从FastCGI、代理、SCGI和uWSGI缓存中清除特定页面。
+
+### **purger** 配置
+
+要使用`ngx_cache_purge`模块清除缓存，您需要设置一个特定的location块来处理清除请求。以下是一个配置示例：
+
+```nginx
+location ~ /purge(/.*) {
+    allow 127.0.0.1; # 允许来自本地的清除请求
+    deny all; # 拒绝其他所有请求
+    proxy_cache_purge test_cache $1; # 使用test_cache区域和请求的URI来清除缓存
+}
+```
+
+在这个配置中，`location ~ /purge(/.*)`定义了一个匹配以`/purge`开头的请求的location块。`$1`代表正则表达式中括号捕获的内容，即请求的URI部分。
+
+### **proxy_cache_key**
+
+`proxy_cache_key`指令用于定义缓存的key，它决定了哪些请求会被视为相同并使用相同的缓存项。
+
+```nginx
+proxy_cache_key $uri;
+```
+
+默认情况下，`proxy_cache_key`的值是`$scheme$proxy_host$request_uri`，但您可以根据需要自定义它。
+
+### **proxy_cache_revalidate**
+
+当缓存过期时，`proxy_cache_revalidate`指令允许Nginx使用条件请求（`If-Modified-Since` 和 `If-None-Match`）来验证上游服务器上的资源是否发生了变化。如果资源未改变，则不需要重新下载资源。
+
+```nginx
+proxy_cache_revalidate on;
+```
+
+### **proxy_cache_valid**
+
+`proxy_cache_valid`指令用于为不同的HTTP状态码设置缓存过期时间。如果不设置状态码，则默认缓存200、301和302状态码的响应。
+
+```nginx
+proxy_cache_valid 200 302 10m; # 缓存200和302状态码的响应10分钟
+proxy_cache_valid 301 1h;      # 缓存301状态码的响应1小时
+proxy_cache_valid any 1m;      # 缓存其他任意状态码的响应1分钟
+```
+
+在这里，`any`关键字表示对所有状态码都适用。
+
+### 总结
+
+通过上述配置，您可以灵活地控制Nginx缓存的行为，包括清除特定页面的缓存、定义缓存的key、验证缓存的有效性以及设置不同状态码的缓存过期时间。这些配置对于管理动态内容的缓存非常有用，可以确保用户总是获取到最新的内容，同时减少不必要的上游服务器请求。
 
 
 
