@@ -4094,74 +4094,9 @@ location / {
 
 **这三个配置同时存在时，缓存才生效**
 
-## 其他缓存配置
-
-**使用过期缓存**
-
-**proxy_cache_use_stale**
-
-```nginx
-proxy_cache_use_stale error | timeout | invalid_header | updating | http_500 | http_502 | http_503 | http_504 | http_403 | http_404 | http_429 | off;
-```
-
-- `proxy_cache_use_stale`：当上游服务器出现错误、超时、返回无效头部、正在更新等情况下，允许使用过期缓存返回给客户端。
-
-**后台更新缓存**
-
-**proxy_cache_background_update**
-
-```nginx
-proxy_cache_background_update on;
-```
-
-- `proxy_cache_background_update`：允许在后台开启子请求来更新过期的缓存内容，同时返回过期内容给客户端。
-
-**不使用缓存的情况**
-
-**proxy_no_cache** 和 **proxy_cache_bypass**
-
-```nginx
-proxy_no_cache $cookie_nocache $arg_nocache$arg_comment;
-proxy_no_cache $http_pragma    $http_authorization;
-```
-
-- `proxy_no_cache` 和 `proxy_cache_bypass`：指定在某些条件下不使用缓存，直接向上游服务器请求。如果这些变量存在且不为空或不等于0，则不使用缓存。
-
-**处理 HEAD 请求**
-
-**proxy_cache_convert_head**
-
-```nginx
-proxy_cache_convert_head on;
-```
-
-- `proxy_cache_convert_head`：默认开启，将 HEAD 请求转换为 GET 请求后发送给上游服务器，以便缓存响应体内容。如果关闭，需要在 `cache key` 中添加 `$request_method` 来区分缓存内容。
-
-**缓存更新锁**
-
-**proxy_cache_lock**
-
-```nginx
-proxy_cache_lock off;
-```
-
-- `proxy_cache_lock`：默认关闭，当启用时，一次只允许一个请求更新缓存项，其他请求要么等待缓存项更新完成，要么等待 `proxy_cache_lock_timeout` 设置的时间。
-
-**缓存锁超时**
-
-**proxy_cache_lock_age**
-
-```nginx
-proxy_cache_lock_age 5s;
-```
-
-- `proxy_cache_lock_age`：设置缓存锁的超时时间，默认为5秒。
-
-通过这些配置，您可以灵活地控制 Nginx 代理缓存的行为，以满足不同的性能和缓存策略需求。记得在修改配置后重新加载或重启 Nginx 以使更改生效。
-
 ## 缓存清理
 
-手动清理缓存过于复杂，需要引入自动缓存文件清理功能，比如针对某个 url 失效
+缓存在将请求缓存为文件时，会记录缓存时的 URL 以及上游服务器返回的请求头信息，在进行缓存清理时，通过手动处理只能将缓存文件全部清除，如果想要实现让某一个 URL 对应的的缓存文件失效，则需要引入自动缓存文件清理功能
 
 缓存清理需要第三方模块支持
 
@@ -4171,49 +4106,18 @@ proxy_cache_lock_age 5s;
 
 https://github.com/FRiCKLE/ngx_cache_purge
 
-**配置**
+编译安装
 
-```
+略
 
-        location ~ /purge(/.*) {
+ngx_cache_purge 的原理是，首先需要配置一个额外的 Nginx 访问地址，通过传递想要清除的缓存 URL 作为参数，来实现清除某一个 URL 对应的文件，所以它需要两个参数配置来配合使用
 
-            proxy_cache_purge  test_cache  $1;
-        }
-        自定义cachekey
-         proxy_cache_key $uri;
-```
+- proxy_cache_purge 定义清除缓存的规则
+- proxy_cache_key 自定义 cachekey 生成规则
 
-**proxy_cache_key** 
+这两个配置要对应使用
 
-默认`$scheme$proxy_host$request_uri`
-
-缓存的key
-
-
-
-**proxy_cache_revalidate** 
-
-如果缓存过期了，向上游服务器发送“If-Modified-Since” and “If-None-Match来验证是否改变，如果没有就不需要重新下载资源了
-
-
-
-**proxy_cache_valid** 
-
-可以针对不容http状态码设置缓存过期时间
-
-不设置状态码会默认200, 301, 302
-
-```
-proxy_cache_valid 200 302 10m;
-proxy_cache_valid 301      1h;
-proxy_cache_valid any      1m;
-```
-
-any指其他任意状态码
-
-您提供的信息是关于如何使用第三方Nginx模块`ngx_cache_purge`来实现缓存清除功能的配置说明。这个模块允许您从FastCGI、代理、SCGI和uWSGI缓存中清除特定页面。
-
-### **purger** 配置
+### purger 配置
 
 要使用`ngx_cache_purge`模块清除缓存，您需要设置一个特定的location块来处理清除请求。以下是一个配置示例：
 
@@ -4227,41 +4131,87 @@ location ~ /purge(/.*) {
 
 在这个配置中，`location ~ /purge(/.*)`定义了一个匹配以`/purge`开头的请求的location块。`$1`代表正则表达式中括号捕获的内容，即请求的URI部分。
 
-### **proxy_cache_key**
-
-`proxy_cache_key`指令用于定义缓存的key，它决定了哪些请求会被视为相同并使用相同的缓存项。
+**另一个配置示例**
 
 ```nginx
-proxy_cache_key $uri;
+＃ 定义 ngx_cache_purge 的访问地址
+location ~ /purge(/.*) {
+    # 定义 test_cache 命名空间下的缓存清除规则 $1 代表使用 uri 作为 key 来匹配清除的资源
+    proxy_cache_purge  test_cache  $1;
+    # 自定义 cachekey 生成规则
+    proxy_cache_key $uri;
+}
 ```
 
-默认情况下，`proxy_cache_key`的值是`$scheme$proxy_host$request_uri`，但您可以根据需要自定义它。
+### 自定义缓存 key 生成规则
 
-### **proxy_cache_revalidate**
+默认情况下，缓存生成 key 的规则为 `$scheme$proxy_host$request_uri` 即 访问协议 ＋ host地址 ＋ 请求地址
 
-当缓存过期时，`proxy_cache_revalidate`指令允许Nginx使用条件请求（`If-Modified-Since` 和 `If-None-Match`）来验证上游服务器上的资源是否发生了变化。如果资源未改变，则不需要重新下载资源。
+使用 **proxy_cache_key**  指令来自定义缓存 key，如 `proxy_cache_key $uri;` 是只使用请求的 uri 来作为缓存的 key
 
-```nginx
-proxy_cache_revalidate on;
+示例：
+
+访问 http://nginxIp:端口/
+
+表示 uri 为 `/` 即缓存 key 为 `/`
+
+访问 http://nginxIp:端口/abc 
+
+表示 uri 为 `/abc` 即缓存 key 为 `/abc`
+
+### 清除缓存
+
+#### 清除单一缓存
+
+访问 http://nginxIp/purge/
+
+表示清除 uri 为 `/` 的资源，一般 `/` 为首页资源
+
+访问 http://nginxIp/purge/abc
+
+表示清除 uri 为 `/abc` 的资源
+
+#### 批量失效
+
+可以通过脚本命令，删除所有缓存文件。
+
+# 断点续传
+
+## http 请求中的 range
+
+在HTTP请求中，`Range` 是一个请求头，它允许客户端请求服务器返回文件的一部分（而不是整个文件）。这在处理大文件下载时特别有用，因为它允许断点续传（即从上次中断的地方继续下载），或者仅下载文件的一部分。比如视频播放网站的进度条拖动。
+
+`Range` 请求头的格式通常如下：
+
+```
+Range: bytes=startByte[-endByte]
 ```
 
-### **proxy_cache_valid**
+这里 `startByte` 是请求开始的字节位置，`endByte` 是可选的，表示结束的字节位置。如果省略 `endByte`，则请求从 `startByte` 到文件末尾的所有内容。
 
-`proxy_cache_valid`指令用于为不同的HTTP状态码设置缓存过期时间。如果不设置状态码，则默认缓存200、301和302状态码的响应。
+例如，如果一个客户端想要下载一个视频文件的一部分，它可能会发送如下请求：
 
-```nginx
-proxy_cache_valid 200 302 10m; # 缓存200和302状态码的响应10分钟
-proxy_cache_valid 301 1h;      # 缓存301状态码的响应1小时
-proxy_cache_valid any 1m;      # 缓存其他任意状态码的响应1分钟
+```
+GET /video.mp4 HTTP/1.1
+Host: example.com
+Range: bytes=200000-
 ```
 
-在这里，`any`关键字表示对所有状态码都适用。
+这个请求告诉服务器，客户端想要从第200,000字节开始直到文件结束的所有内容。
 
-### 总结
+服务器如果支持 `Range` 请求，并且能够满足这个范围请求，它会返回一个 `206 Partial Content` 响应，并在响应头中包含 `Content-Range` 字段，指明实际返回内容的范围。如果请求的范围不合法或无法满足，服务器会返回 `200 OK` 响应，并包含整个文件内容。
 
-通过上述配置，您可以灵活地控制Nginx缓存的行为，包括清除特定页面的缓存、定义缓存的key、验证缓存的有效性以及设置不同状态码的缓存过期时间。这些配置对于管理动态内容的缓存非常有用，可以确保用户总是获取到最新的内容，同时减少不必要的上游服务器请求。
+使用 `Range` 头可以显著减少网络负载，特别是在带宽有限或下载中断时非常有用。然而，并非所有的服务器或文件类型都支持范围请求，这取决于服务器的配置和文件的性质。
+
+默认情况下 Nginx 服务器是支持 range 的
 
 
+
+## 其他 proxy 缓存配置
+
+**proxy_cache_max_range_offset**
+
+range最大值，超过之后不做缓存，默认情况下 不需要对单文件较大的资源做缓存
 
 
 
