@@ -4205,13 +4205,243 @@ Range: bytes=200000-
 
 默认情况下 Nginx 服务器是支持 range 的
 
+在服务器一般响应时会返回 Content-type 来代表返回的数据类型，有一种数据类型是 stream 流的数据类型，这种类型无法使用 range ，因为不知道服务端传递的数据大小和类型，可能传着就停了。
 
+在一些音视频点播平台就会使用 Nginx 作为音视频的静态资源服务器，像直播时就是在直播过程中不断的向磁盘中追加文件，这样也不知道啥时候会追加完，所以可以使用流的形式返回。
 
-## 其他 proxy 缓存配置
+# 其他 proxy 缓存配置
+
+## range 相关
+
+在使用 proxy 代理 Range 请求时，一定要将 Range 请求头发送到上游服务器
 
 **proxy_cache_max_range_offset**
 
 range最大值，超过之后不做缓存，默认情况下 不需要对单文件较大的资源做缓存
+
+`proxy_cache_max_range_offset` 是 Nginx 中的一个指令，用于设置代理缓存时允许的最大范围偏移量。这个指令主要与 `Range` 请求头一起使用，用于控制当客户端请求文件的一部分时，Nginx 代理可以缓存的最大字节范围。
+
+在处理带有 `Range` 请求头的 HTTP 请求时，客户端请求文件的一部分而不是全部。如果 Nginx 作为代理服务器，它可能需要从后端服务器获取文件的一部分，并将其缓存起来以供未来的请求使用。`proxy_cache_max_range_offset` 指令定义了这个缓存部分的最大大小。
+
+例如，如果你设置：
+
+```
+proxy_cache_max_range_offset 1048576;
+```
+
+这意味着 Nginx 代理将只缓存最多 1MB（1048576字节）的文件范围。如果客户端请求超过这个范围的 `Range`，Nginx 将不会缓存这部分内容，而是直接从后端服务器转发数据。
+
+这个指令对于优化缓存性能和管理磁盘空间非常有用，特别是在处理大型文件时。通过限制缓存的范围，可以防止缓存大量数据，这可能会导致磁盘空间不足或缓存效率低下。
+
+请注意，这个指令只影响 Nginx 代理缓存的行为，并不影响服务器如何响应原始的 `Range` 请求。如果需要，你还需要在后端服务器上配置相应的 `Range` 请求处理逻辑。
+
+适用于不想要把整个大的文件全部缓存在代理服务器里的情况，比如只缓存前 5 分钟，因为有一部分用户只看前 5 分钟就离开了。
+
+## 用过期的缓存
+
+**proxy_cache_use_stale**
+
+`proxy_cache_use_stale` 是 Nginx 中的一个指令，它允许 Nginx 在某些条件下使用过时的缓存响应。这在后端服务器暂时不可用或响应缓慢时特别有用，因为它可以提供更快的用户体验，即使内容不是最新的。
+
+这个指令通常与 `proxy_cache` 指令一起使用，后者用于启用和配置 Nginx 的缓存机制。`proxy_cache_use_stale` 可以接受多个参数，以定义在什么情况下使用过时的缓存响应：
+
+可选`error` | `timeout` | `invalid_header` | `updating` | `http_500` | `http_502` | `http_503` | `http_504` | `http_403` | `http_404` | `http_429` | `off`
+
+默认 off
+
+1. `error`：当后端服务器返回错误响应时（例如，连接失败或超时）。
+2. `timeout`：当后端服务器响应超时时。
+3. `invalidating`：当缓存项正在被验证（例如，使用 `proxy_cache_bypass` 或 `proxy_cache_valid` 指令）时。
+4. `http_500`、`http_502`、`http_503`、`http_504`：当后端服务器返回特定的 HTTP 错误代码时。
+5. `updating`：当缓存项正在被更新时。
+6. `expired`：当缓存项已经过期，但还没有被验证为过时。
+
+你可以组合使用这些参数来定义 Nginx 应该如何处理各种情况。例如：
+
+```
+proxy_cache_use_stale error timeout http_500 http_502 http_503 http_504;
+```
+
+这个配置表示如果后端服务器返回错误、超时或特定的 HTTP 错误代码，Nginx 将使用缓存中的过时内容。
+
+使用 `proxy_cache_use_stale` 可以提高网站的可用性和响应速度，尤其是在后端服务不稳定或响应慢的情况下。然而，需要注意的是，使用过时的缓存内容可能会导致用户体验与实际内容不同步，因此需要根据实际应用场景谨慎使用。
+
+## 异步更新缓存
+
+**proxy_cache_background_update**
+
+`proxy_cache_background_update` 是 Nginx 中的一个指令，用于控制当缓存的响应过时时，Nginx 如何处理新的请求。这个指令特别有用，因为它允许 Nginx 在后台更新缓存，同时继续向客户端提供旧的缓存响应，从而避免了缓存失效时的延迟。
+
+当缓存项过期后，Nginx 通常会向后端服务器请求新的内容以更新缓存。如果 `proxy_cache_background_update` 被设置为 `on`，Nginx 将在后台异步地更新缓存，而不是等待新的内容完全加载完成。这意味着，即使缓存项已经过期，Nginx 仍可以立即使用旧的缓存响应来响应客户端的请求，同时在后台悄悄地获取新的内容来更新缓存。默认 off
+
+这个指令的典型用法如下：
+
+```nginx
+proxy_cache_background_update on;
+```
+
+启用这个指令后，Nginx 会这样做：
+
+1. 当缓存项过期时，Nginx 会立即使用旧的缓存响应来响应客户端的请求。
+2. 同时，Nginx 会向后端服务器发起新的请求来获取最新的内容。
+3. 一旦新的内容被成功获取，Nginx 会更新缓存项，以便后续请求可以获取到最新的数据。
+
+这种机制特别适合于那些对响应时间要求很高的场景，因为它可以最小化因缓存失效导致的延迟。然而，需要注意的是，如果客户端请求非常频繁，可能会导致后台更新任务堆积，从而对服务器资源造成一定压力。因此，使用此指令时应根据实际的服务器负载和业务需求进行权衡。
+
+`proxy_cache_background_update` 是 Nginx 提供的高级缓存管理功能之一，可以显著提高网站的性能和用户体验，特别是在处理大量动态内容时。
+
+## 绕过缓存
+
+**proxy_no_cache** 和 **proxy_cache_bypass**
+
+`proxy_no_cache` 和 `proxy_cache_bypass` 是 Nginx 中用于控制缓存行为的两个指令，它们允许你指定在什么情况下不使用缓存或者绕过缓存直接从后端服务器获取内容。
+
+### proxy_no_cache
+
+`proxy_no_cache` 指令用于定义一组条件，当这些条件满足时，Nginx 将不使用缓存中的内容，而是直接向后端服务器请求新的内容。这通常用于确保某些请求总是获取最新的数据，而不是缓存中的旧数据。
+
+例如：
+
+```nginx
+proxy_no_cache $http_pragma $http_authorization;
+```
+
+在这个例子中，如果请求头中包含 `Pragma` 或 `Authorization` 字段，Nginx 将不使用缓存。这通常用于处理需要认证或特定指令（如 `no-cache`）的请求。
+
+### proxy_cache_bypass
+
+`proxy_cache_bypass` 指令定义了一组条件，当这些条件满足时，Nginx 将绕过缓存，直接从后端服务器获取内容。与 `proxy_no_cache` 不同，`proxy_cache_bypass` 不仅意味着不使用缓存，而是完全忽略缓存的存在，直接发起新的请求。
+
+例如：
+
+```nginx
+proxy_cache_bypass $http_pragma $http_authorization;
+```
+
+在这个例子中，如果请求头中包含 `Pragma` 或 `Authorization` 字段，Nginx 将直接从后端服务器获取内容，不考虑缓存。
+
+区别和使用场景
+
+- `proxy_no_cache` 主要用于那些你希望总是检查缓存，但只有在特定条件下才使用缓存内容的场景。
+- `proxy_cache_bypass` 用于那些你希望完全忽略缓存，直接从后端获取最新内容的场景。
+
+这两个指令非常有用，特别是在处理需要实时数据的应用中，比如涉及用户认证、实时更新或个性化内容的网站。通过合理使用这些指令，你可以确保用户总是获取到正确和最新的数据，同时仍然利用缓存来提高性能和减少服务器负载。
+
+## 请求转换
+
+**proxy_cache_convert_head**
+
+`proxy_cache_convert_head` 是 Nginx 中的一个指令，用于控制是否将接收到的 HTTP HEAD 请求转换为 GET 请求，以便在代理缓存中处理。HTTP HEAD 请求是一种特殊的请求方法，它请求资源的头部信息，而不是资源本身。在某些情况下，服务器可能不支持 HEAD 请求，或者返回的头部信息不完整，这时使用 `proxy_cache_convert_head` 可以帮助解决这些问题。
+
+当 `proxy_cache_convert_head` 设置为 `on` 时，Nginx 会将接收到的 HEAD 请求转换为 GET 请求，然后向后端服务器发送 GET 请求。这样做可以确保从后端服务器获取完整的响应头信息，因为 GET 请求通常会返回更完整的头部信息。
+
+转换后的 GET 请求会正常地被缓存（如果启用了缓存），这样，当后续有相同的 HEAD 请求到来时，Nginx 可以直接从缓存中提供响应头信息，而无需每次都向后端服务器发起请求。
+
+默认 on
+
+如果关闭 需要在 `cache key` 中添加 $request_method 以便区分缓存内容
+
+使用场景
+
+- **后端服务器不支持 HEAD 请求**：某些服务器可能不支持 HEAD 请求，或者不返回完整的头部信息。在这种情况下，通过转换为 GET 请求，可以确保获取到完整的头部信息。
+- **提高缓存效率**：通过将 HEAD 请求转换为 GET 请求并缓存响应，可以减少对后端服务器的请求次数，提高整体的缓存效率。
+
+**示例配置**
+
+```nginx
+proxy_cache_path /path/to/cache levels=1:2 keys_zone=my_cache:10m max_size=10g use_temp_path=off;
+proxy_cache my_cache;
+
+proxy_cache_convert_head on;
+```
+
+在这个配置中，`proxy_cache_convert_head on;` 表示启用了将 HEAD 请求转换为 GET 请求的功能。`proxy_cache_path` 和 `proxy_cache` 指令用于定义缓存路径和缓存区域。
+
+注意事项
+
+- 启用 `proxy_cache_convert_head` 可能会增加后端服务器的负载，因为它会发送更多的 GET 请求。
+- 确保后端服务器对 GET 请求的处理与 HEAD 请求的预期一致，特别是在缓存使用方面。
+
+`proxy_cache_convert_head` 是 Nginx 提供的一个实用指令，用于优化对后端服务器的请求和提高缓存效率，特别是在处理 HEAD 请求时。根据你的具体需求和后端服务器的配置，合理使用这个指令可以带来性能上的提升。
+
+## 缓存更新锁
+
+**proxy_cache_lock**
+
+`proxy_cache_lock` 是 Nginx 中的一个指令，用于控制当多个请求需要从后端服务器获取相同的内容时的行为。这个指令主要用于确保缓存的效率和一致性，特别是在高并发的环境下。
+
+默认 off
+
+功能说明
+
+当 `proxy_cache_lock` 设置为 `on` 时，Nginx 会执行以下操作：
+
+1. **锁定机制**：如果多个请求同时到达 Nginx 代理服务器，并且这些请求需要从后端服务器获取相同的内容（即缓存未命中），Nginx 会锁定这些请求，只允许第一个请求去后端服务器获取内容。
+2. **缓存更新**：第一个请求获取到内容后，Nginx 会更新缓存，并将内容返回给所有等待的请求。这样，后续的请求就可以直接从缓存中获取内容，而无需再次向后端服务器发起请求。
+3. **减少后端负载**：通过这种方式，`proxy_cache_lock` 减少了对后端服务器的请求次数，特别是在缓存未命中的情况下，避免了多个请求同时发起导致的负载增加。
+
+使用场景
+
+- **高并发环境**：在高并发的环境下，当多个用户几乎同时请求同一资源时，`proxy_cache_lock` 可以有效减少后端服务器的负载。
+- **缓存未命中时的性能优化**：当缓存未命中时，通过锁定机制确保只有一个请求去后端服务器获取内容，然后更新缓存供其他请求使用，这可以提高整体的响应速度和效率。
+
+### 示例配置
+
+```nginx
+proxy_cache_path /path/to/cache levels=1:2 keys_zone=my_cache:10m max_size=10g use_temp_path=off;
+proxy_cache my_cache;
+
+proxy_cache_lock on;
+```
+
+在这个配置中，`proxy_cache_lock on;` 表示启用了缓存锁定机制。`proxy_cache_path` 和 `proxy_cache` 指令用于定义缓存路径和缓存区域。
+
+注意事项
+
+- 使用 `proxy_cache_lock` 可能会导致某些请求的响应时间略有增加，因为它们需要等待第一个请求完成。
+- 在某些情况下，如果第一个请求失败，后续的请求可能也会受到影响。因此，需要根据实际情况评估是否启用此指令。
+
+`proxy_cache_lock` 是 Nginx 提供的一个高级缓存管理功能，它有助于优化缓存的效率和一致性，特别是在处理高并发请求时。根据你的应用场景和服务器配置，合理使用这个指令可以带来性能上的提升。
+
+## 缓存锁超时时间
+
+**proxy_cache_lock_age**
+
+`proxy_cache_lock_age` 是 Nginx 中的一个指令，它用于设置一个时间窗口，在这个时间窗口内，即使缓存锁（由 `proxy_cache_lock` 指令启用）已经释放，后续的请求仍然会等待一段时间，以期望从后端服务器获取到新的内容并更新缓存。这个指令主要用于优化缓存更新的流程，减少不必要的后端请求，同时确保用户能够尽快获取到最新的内容。
+
+默认5s
+
+功能说明
+
+当 `proxy_cache_lock` 启用时，通常第一个请求会去后端服务器获取内容并更新缓存，而其他等待的请求会从缓存中获取内容。但是，如果第一个请求失败或者在获取内容时花费了很长时间，那么其他等待的请求可能需要等待较长时间才能获取到内容。
+
+`proxy_cache_lock_age` 指令允许你设置一个时间值（例如，`proxy_cache_lock_age 5s;`），在这个时间范围内，即使 `proxy_cache_lock` 已经释放，后续的请求仍然会等待，希望新的内容能够被缓存。如果在这个时间窗口内新的内容被成功缓存，那么等待的请求将直接从缓存中获取内容；如果时间到了内容仍未被缓存，请求将直接向后端服务器发起请求。
+
+### 使用场景
+
+- **提高缓存命中率**：通过设置 `proxy_cache_lock_age`，可以给后端服务器更多时间来响应第一个请求并更新缓存，从而提高后续请求的缓存命中率。
+- **减少后端负载**：在高负载情况下，通过等待一段时间，可以减少对后端服务器的请求次数，从而降低后端负载。
+- **优化用户体验**：通过等待一段时间，可以确保用户尽可能获取到最新的内容，同时减少等待时间。
+
+### 示例配置
+
+```nginx
+proxy_cache_path /path/to/cache levels=1:2 keys_zone=my_cache:10m max_size=10g use_temp_path=off;
+proxy_cache my_cache;
+
+proxy_cache_lock on;
+proxy_cache_lock_age 5s;
+```
+
+在这个配置中，`proxy_cache_lock_age 5s;` 表示设置了一个5秒的等待时间窗口。`proxy_cache_path` 和 `proxy_cache` 指令用于定义缓存路径和缓存区域。
+
+注意事项
+
+- 设置 `proxy_cache_lock_age` 时需要权衡缓存更新的及时性和减少后端负载的需求。如果设置的时间太长，可能会导致用户等待时间过长；如果设置得太短，则可能无法有效减少后端请求。
+- `proxy_cache_lock_age` 的效果依赖于 `proxy_cache_lock` 的启用。如果 `proxy_cache_lock` 未启用，`proxy_cache_lock_age` 将不会有任何作用。
+
+`proxy_cache_lock_age` 是 Nginx 提供的一个高级缓存管理功能，它有助于在保证用户体验和减少后端负载之间找到平衡点。根据你的具体需求和服务器配置，合理使用这个指令可以进一步优化你的缓存策略。
+
 
 
 
