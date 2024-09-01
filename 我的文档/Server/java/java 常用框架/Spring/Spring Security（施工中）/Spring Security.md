@@ -1229,7 +1229,8 @@ public class CSRFController {
 
 访问 toupdate 
 
-# 微服务环境下的权限认证
+
+# 微服务环境下的前后端分离权限认证
 
 微服务认证与授权实现通常有两种方案：基于 Session 实现和基于 token 实现。
 
@@ -1400,6 +1401,41 @@ token 有效期一般都建议设置的不太长，那么 token 过期后如何�
 https://blog.csdn.net/qq_42764468/article/details/107731844
 
 ## 示例
+
+上文大致说明了 Spring Security 的原理，在实现前后端分离项目时，需要更多的自定义信息
+
+### 自定义登录接口
+
+需要自定义登录接口，放弃原有表单登录逻辑
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 1. 用户根据用户名密码认证成功
 2. 根据用户名相关信息生成 token 返回给客户端，下面示例中客户端使用 cookie 存储，所以不要将涉密信息放在 token 中
@@ -1950,7 +1986,7 @@ Spring Security 采取过滤链实现认证与授权，只有当前过滤器通�
 
 ![image-20240311150239539](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403111502313.png)
 
-# 基于JWT的前后端分离实现
+
 
 
 
