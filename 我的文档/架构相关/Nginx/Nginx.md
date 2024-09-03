@@ -4970,11 +4970,11 @@ open_file_cache_errors on
 
 一般是一些高频次访问的数据类型，比如响应 JSON 文件，大文件一般不加载到内存中。
 
-
-
 # nginx 外置缓存
 
 在使用 Nginx 外置缓存时，比如 redis ，一般 Nginx 只负责使用，而缓存的更新维护等操作一般由应用程序负责，比如 Java 应用程序。一些简单的操作可以由 Nginx 独立完成，比如记录用户的访问频次，访问量等。
+
+连接 memcached 的工具，工具只能读取不能修改，所以更新缓存的操作需要在后端应用服务器去做
 
 http://nginx.org/en/docs/http/ngx_http_memcached_module.html
 
