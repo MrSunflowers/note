@@ -1338,35 +1338,96 @@ error_page 404＝302 http://www.baidu.com;
 
 这会将 404 错误重新赋值为302并重定向到指定的 URL http://www.baidu.com。
 
+error_page 格式非常严格，空格多一个也不行
 
 ## 匿名 location 和 return 
 
+### 匿名 location
 
+在 Nginx 配置中，"匿名 location" 指的是没有明确指定 URI 前缀的 `location` 块。这种 `location` 块通常用于处理默认情况或作为 `try_files` 指令的后备选项。匿名 `location` 块没有特定的 URI 模式，因此它们可以匹配任何请求。
 
+**匿名 location 表示从客户端无法直接访问的 location 配置**，主要用于内部使用，配置一些不想让客户端直接访问的页面，比如错误页面。
 
+匿名 `location` 块的定义如下：
 
+```nginx
+location / {
+    # 默认处理逻辑
+}
+```
 
+在这个例子中，当没有其他更具体的 `location` 匹配到请求时，这个匿名 `location` 将会处理请求。这通常意味着它会作为默认的处理程序，用于处理网站的根目录或当其他 `location` 块没有匹配到请求时。
 
+匿名 `location` 使用 ＠＋名称 来定义，匿名 `location` 常用于以下场景：
 
+1. **默认服务器配置**：当请求不匹配任何特定的 `location` 时，使用匿名 `location` 作为默认处理逻辑。
+2. **错误页面处理**：可以设置一个匿名 `location` 来处理所有类型的错误页面，例如：
 
+    ```nginx
+    error_page 404 =200 @handle_404;
 
+    location @handle_404 {
+        # 自定义 404 错误页面处理逻辑
+    }
+    ```
 
+3. **使用 `try_files`**：`try_files` 指令可以用来尝试按顺序提供文件，如果所有文件都不存在，则回退到一个匿名 `location`：
 
+    ```nginx
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+    ```
 
+    在这个例子中，如果请求的文件或目录不存在，`try_files` 会回退到匿名 `location`，通常用于单页应用（SPA）的前端路由。
 
+匿名 `location` 提供了一种灵活的方式来处理请求，特别是当它们不匹配任何其他已定义的 `location` 时。它们在配置中扮演着默认或后备的角色，确保所有请求都能得到适当的处理。
 
+### return
 
+在 Nginx 配置中，`location` 块内使用 `return` 指令可以用来直接向客户端返回一个特定的响应。这可以是重定向到另一个 URL，返回一个特定的状态码，或者直接返回一段文本。`return` 指令非常灵活，常用于错误处理、自定义重定向逻辑以及快速终止请求处理流程。
 
+以下是 `return` 指令的一些常见用法：
 
+1. **重定向到另一个 URL**：
+   ```nginx
+   location /old-page {
+       return 301 https://example.com/new-page;
+   }
+   ```
+   这里，任何访问 `/old-page` 的请求都会被永久重定向（HTTP 状态码 301）到 `https://example.com/new-page`。
 
+2. **返回特定的 HTTP 状态码**：
+   ```nginx
+   location /not-found {
+       return 404;
+   }
+   ```
+   这将返回一个 404 状态码，表示请求的资源未找到。
 
+3. **返回文本内容**：
+   ```nginx
+   location /custom-error {
+       return 400 "Bad Request: The request was malformed.";
+   }
+   ```
+   这会返回一个 400 状态码，并附带一段自定义的文本消息。
 
+4. **重定向到内部命名 location**：
+   ```nginx
+   location /go-here {
+       return 301 @otherlocation;
+   }
 
+   location @otherlocation {
+       rewrite ^ /there-you-go permanent;
+   }
+   ```
+   这里，访问 `/go-here` 的请求会被重定向到命名的 `location` 块 `@otherlocation`，然后该块将请求重定向到 `/there-you-go`。
 
+`return` 指令可以出现在 `server` 块、`location` 块，甚至是 `if` 块中。使用 `return` 指令时，一旦执行，当前的请求处理流程就会停止，不会继续执行后面的配置指令。
 
-
-
-
+请注意，虽然 `return` 指令非常强大，但应谨慎使用，以避免配置错误导致意外的重定向或错误响应。特别是在处理重定向时，确保使用正确的 HTTP 状态码，以符合 HTTP 协议的标准。
 
 # 7.动静分离（静态资源前置）
 
