@@ -1288,9 +1288,58 @@ location /somepath {
 
 ## error_page
 
+在 Nginx 中，`error_page` 指令用于定义当服务器遇到特定的 HTTP 错误代码时，应该显示给客户端的自定义页面。这允许管理员提供更加友好或者符合网站风格的错误提示页面，而不是使用 Nginx 默认的错误页面。
+
+`error_page` 指令的基本语法如下：
+
+```nginx
+error_page <error_code> ... [=response_code] <url>;
+```
+
+其中：
+
+- `<error_code>` 是你想要自定义的 HTTP 错误代码，比如 `404`（未找到页面）、`500`（服务器内部错误）等。
+- `...` 表示可以指定多个错误代码。
+- `=response_code` 是可选的，用于指定返回给客户端的 HTTP 响应代码。如果不指定，通常会返回与错误代码相同的响应代码。
+- `<url>` 是当指定的错误发生时，应该重定向到的 URL。
+
+例如，如果你想要为 404 错误提供一个自定义的错误页面，你可以在 Nginx 配置文件中这样设置：
+
+```nginx
+error_page 404 /404.html;
+```
+
+这表示当发生 404 错误时，用户会被重定向到服务器上名为 `/404.html` 的页面。
+
+你还可以使用重定向来显示不同的错误页面，或者在某些情况下，使用代理传递错误页面：
+
+```nginx
+error_page 500 502 503 504 /50x.html;
+location = /50x.html {
+    root /usr/share/nginx/html;
+}
+```
+
+在这个例子中，对于 500、502、503 和 504 错误，都会显示位于 `/usr/share/nginx/html/50x.html` 的页面。
+
+`error_page` 指令也可以配合内部重定向使用，例如：
+
+```nginx
+error_page 403 http://example.com/forbidden;
+```
+
+这会将 403 错误重定向到指定的 URL。
+
+**默认情况下 error_page 的 url 指向 location 配置**
+
+```nginx
+error_page 404＝302 http://www.baidu.com;
+```
+
+这会将 404 错误重新赋值为302并重定向到指定的 URL http://www.baidu.com。
 
 
-
+## 匿名 location 和 return 
 
 
 
