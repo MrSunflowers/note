@@ -1404,25 +1404,286 @@ https://blog.csdn.net/qq_42764468/article/details/107731844
 
 上文大致说明了 Spring Security 的原理，在实现前后端分离项目时，需要更多的自定义信息
 
+### 基本配置
+
+```xml
+<dependency>
+    <groupId>com.auth0</groupId>
+    <artifactId>java-jwt</artifactId>
+    <version>3.18.2</version>
+</dependency>
+```
+
+```java
+import org.example.user.domain.SysUserInfo;
+import org.example.user.mapper.SysUserInfoMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
+import org.springframework.stereotype.Component;
+
+@Component
+public class UserDetailsServiceImpl implements UserDetailsService {
+
+    @Autowired
+    private SysUserInfoMapper sysUserInfoMapper;
+
+    /**
+     * 实现加载用户方法
+     */
+    @Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        SysUserInfo info = sysUserInfoMapper.selectByUid(username);
+        return User.builder()
+                .username(info.getName())
+                .password(info.getPassword())
+                .authorities("SUPER_ADMIN")
+                .build();
+    }
+}
+```
+
+```java
+import org.example.filter.JwtAuthenticationTokenFilter;
+import org.example.security.service.impl.UserDetailsServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+@Configuration
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Autowired
+    private UserDetailsServiceImpl userDetailsService;
+    @Autowired
+    private JwtAuthenticationTokenFilter jwtAuthenticationTokenFilter;
+
+    @Override
+    public void configure(AuthenticationManagerBuilder auth) throws Exception {
+        auth.userDetailsService(userDetailsService).passwordEncoder(passwordEncoder());
+    }
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable()
+                .sessionManagement()
+                // 配置后台为无状态应用 不需要创建 session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+        ;
+        http.authorizeRequests()
+                // 配置登录注册接口放行
+                .antMatchers("/register","/login").anonymous()
+                .anyRequest().authenticated()
+        ;
+        // 将自定义的过滤器 jwtAuthenticationTokenFilter 放在 UsernamePasswordAuthenticationFilter 之前生效
+        http.addFilterBefore(jwtAuthenticationTokenFilter, UsernamePasswordAuthenticationFilter.class);
+    }
+
+    /**
+     * 配置密码加密及验证的类
+     */
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+
+    /**
+     * 暴露 AuthenticationManager 类用于自定义登录等接口的认证
+     */
+    @Bean
+    public AuthenticationManager authenticationManagerBean() throws Exception {
+        return super.authenticationManagerBean();
+    }
+
+}
+```
+
 ### 自定义登录接口
 
 需要自定义登录接口，放弃原有表单登录逻辑
 
+```java
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import org.example.core.response.RestResult;
+import org.example.user.domain.SysUserInfo;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * 登录 Controller
+ */
+@RestController
+@RequestMapping
+public class LoginController {
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+
+    /**
+     * 自定义登录接口，绕过 security 默认登录流程
+     */
+    @PostMapping("login")
+    public RestResult<?> login(@RequestBody SysUserInfo sysUserInfo){
+        // 设置 token 签名的密钥
+        String secret = "your_secret_key";
+        // 创建 认证包装对象 未认证状态存储 用户名和密码
+        UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken
+                = new UsernamePasswordAuthenticationToken(sysUserInfo.getUid(),sysUserInfo.getPassword());
+        // 执行认证
+        Authentication authenticate =
+                authenticationManager.authenticate(usernamePasswordAuthenticationToken);
+
+        boolean isAuthenticated = !Objects.isNull(authenticate) && authenticate.isAuthenticated();
+        // 认证成功
+        if (isAuthenticated) {
+            String token = JWT.create()
+                    .withIssuer("demo-jichu") // 设置发行者
+                    .withExpiresAt(new Date(System.currentTimeMillis() + 3600000)) // 设置过期时间
+                    .withClaim("uid", sysUserInfo.getName()) // 添加声明
+                    .sign(Algorithm.HMAC256(secret));// 使用HMAC256算法进行签名
+
+            Map<String,String> data =  new HashMap<>();
+            data.put("token",token);
+            return RestResult.success(data);
+        }
+        return RestResult.error("用户名或密码错误");
+    }
+
+
+}
+```
+
+### 自定义注册接口
+
+```java
+import org.example.core.response.RestResult;
+import org.example.user.domain.SysUserInfo;
+import org.example.user.service.SysUserInfoService;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
+
+
+/**
+ * 注册 Controller
+ */
+@RestController
+@RequestMapping
+public class RegisterController {
+
+    @Autowired
+    private SysUserInfoService sysUserInfoService;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    /**
+     * 注册
+     */
+    @PostMapping("register")
+    public RestResult<SysUserInfo> register(@RequestBody SysUserInfo sysUserInfo){
+        sysUserInfo.setPassword(passwordEncoder.encode(sysUserInfo.getPassword()));
+        sysUserInfoService.save(sysUserInfo);
+        return RestResult.success(sysUserInfo);
+    }
+}
+```
+
+### 用于校验请求是否合法的过滤器
+
+```java
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.interfaces.DecodedJWT;
+import org.apache.commons.lang3.StringUtils;
+import org.example.user.domain.SysUserInfo;
+import org.example.user.mapper.SysUserInfoMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import javax.servlet.FilterChain;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+/**
+ * 用于校验请求是否合法的过滤器
+ */
+@Component
+public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
+
+    @Autowired
+    private SysUserInfoMapper sysUserInfoMapper;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        // 从请求中获取 token
+        String authorization = request.getHeader("Authorization");
+        if (StringUtils.isNotBlank(authorization) && authorization.startsWith("Bearer ")) {
+            String token = authorization.substring(7);
+            String secret = "your_secret_key";
+            String uid = null;
+            try {
+                // 验证JWT
+                DecodedJWT jwt = JWT.require(Algorithm.HMAC256(secret))
+                        .withIssuer("demo-jichu") // 设置预期的发行者
+                        .build() // 创建JWTVerifier实例
+                        .verify(token); // 验证并解析JWT
+                // 获取 JWT 中的声明
+                uid = jwt.getClaim("uid").asString();
+            } catch (Exception exception) {
+                // 处理验证失败的情况
+                throw new RuntimeException("非法的 token");
+            }
+            SysUserInfo sysUserInfo = sysUserInfoMapper.selectByUid(uid);
+            // 将已经认证过的消息传递给后续过滤器，通知后续过滤器放行
+            // 创建 认证包装对象 未认证状态存储 用户名和密码 已认证状态存放用户信息
+            // 这里必须使用三个参数的构造方法，因为三个参数的构造方法会自动设置认证状态为 true
+            UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken
+                    = new UsernamePasswordAuthenticationToken(sysUserInfo, null, null);
+            // 将已认证的信息放入当前的认证上下文中传递给后续过滤器
+            SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
+        }
+        // 没有 token 信息的情况，也直接放行
+        // 由于自定义的过滤器配置在过滤器链的最前方
+        // 放行后后续过滤器检测到没有认证的请求时会自动拦截
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+对于单体的无状态前后端分离服务已经实现
+
+### 退出登录实现
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
+### token 续期
 
 
 
