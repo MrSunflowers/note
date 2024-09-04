@@ -4974,16 +4974,262 @@ open_file_cache_errors on
 
 在使用 Nginx 外置缓存时，比如 redis ，一般 Nginx 只负责使用，而缓存的更新维护等操作一般由应用程序负责，比如 Java 应用程序。一些简单的操作可以由 Nginx 独立完成，比如记录用户的访问频次，访问量等。
 
+## memcached
+
 连接 memcached 的工具，工具只能读取不能修改，所以更新缓存的操作需要在后端应用服务器去做
 
 http://nginx.org/en/docs/http/ngx_http_memcached_module.html
 
+## redis
+
+**redis2-nginx-module** 
+
+redis2-nginx-module 是一个支持 Redis 2.0 协议的 Nginx upstream 模块，它可以让 Nginx 以非阻塞方式直接防问远方的 Redis 服务，同时支持 TCP 协议和 Unix Domain Socket 模式，并且可以启用强大的 Redis 连接池功能。
+
+https://www.nginx.com/resources/wiki/modules/redis2/
+
+https://github.com/openresty/redis2-nginx-module
+
+redis2-nginx-module 安装
+
+略
+
+### 配置示例
+
+这个配置块使用了 `redis2-nginx-module` 来与 Redis 数据库进行交互。下面是对该配置的详细解释：
+
+```nginx
+location = /foo {
+    ＃ 设置默认响应类型
+    default_type text/html;
+
+    # 如果 redis 有密码，配置密码，没有不用配置
+    redis2_query auth 123123;
+
+    # 定义一个变量 $value 值为 first
+    set $value 'first';
+
+    # 将变量 $value 的值存储到 Redis 的键 'one' 中
+    redis2_query set one $value;
+
+    # 将请求转发到 Redis 服务器
+    redis2_pass 192.168.199.161:6379;
+}
+```
+
+**配置解释**
+
+1. **精确匹配 `/foo`**:
+    `location = /foo` 表示这个配置块仅适用于对 `/foo` 的精确匹配请求。这意味着只有当请求的 URI 完全等于 `/foo` 时，才会应用这个配置。
+
+2. **设置默认响应类型**:
+    `default_type text/html;` 指定了响应的 MIME 类型为 `text/html`。
+
+3. **Redis 认证**:
+    `redis2_query auth 123123;` 这条指令用于向 Redis 服务器发送 `AUTH` 命令，其中 `123123` 是密码。这一步骤是可选的，取决于你的 Redis 服务器是否启用了密码保护。
+
+4. **设置变量**:
+    `set $value 'first';` 这条指令在 Nginx 中设置了一个变量 `$value`，其值为字符串 `'first'`。
+
+5. **存储数据到 Redis**:
+    `redis2_query set one $value;` 这条指令将之前设置的变量 `$value` 的值存储到 Redis 的键 `one` 中。这里使用了 Redis 的 `SET` 命令。
+
+6. **转发请求到 Redis**:
+    `redis2_pass 192.168.199.161:6379;` 这条指令将请求转发到指定的 Redis 服务器。在这个例子中，Redis 服务器的地址是 `192.168.199.161`，端口是 `6379`。
+
+**get**
+
+```nginx
+location = /get {
+     default_type text/html;
+
+     # 将请求转发到 Redis 服务器
+     redis2_pass 192.168.199.161:6379;
+
+     # 连接到 Redis 并进行认证
+     redis2_query auth 123123;
+
+     # 解码 URI 参数中的 key 值，主要是解析一些 url 中已编码的参数 $arg_key 是指从 url 中获取请求中参数名为 key 的参数 ?key=123
+     set_unescape_uri $key $arg_key; # this requires ngx_set_misc 需要安装 ngx_set_misc 模块
+
+     # 从 Redis 中获取 key 对应的值
+     redis2_query get $key;
+}
+```
+
+配置解释
+
+1. **精确匹配 `/get`**:
+    `location = /get` 表示这个配置块仅适用于对 `/get` 的精确匹配请求。这意味着只有当请求的 URI 完全等于 `/get` 时，才会应用这个配置。
+
+2. **设置默认响应类型**:
+    `default_type text/html;` 指定了响应的 MIME 类型为 `text/html`。
+
+3. **转发请求到 Redis**:
+    `redis2_pass 192.168.199.161:6379;` 这条指令将请求转发到指定的 Redis 服务器。在这个例子中，Redis 服务器的地址是 `192.168.199.161`，端口是 `6379`。
+
+4. **Redis 认证**:
+    `redis2_query auth 123123;` 这条指令用于向 Redis 服务器发送 `AUTH` 命令，其中 `123123` 是密码。这一步骤是可选的，取决于你的 Redis 服务器是否启用了密码保护。
+
+5. **解码 URI 参数**:
+    `set_unescape_uri $key $arg_key;` 这条指令使用 `ngx_set_misc` 模块的功能来解码 URI 参数中的 `key` 值。`$arg_key` 是一个变量，它包含了名为 `key` 的查询参数的值。`set_unescape_uri` 指令确保任何 URL 编码的字符都被正确解码。
+
+6. **从 Redis 获取数据**:
+    `redis2_query get $key;` 这条指令将请求 Redis 服务器执行 `GET` 命令，获取之前解码的 `$key` 对应的值。
+
+这个配置片段展示了如何在 Nginx 中使用 `redis2-nginx-module` 和 `ngx_set_misc` 来处理带有查询参数的请求，并从 Redis 中获取数据。根据您的具体需求，您可能需要进一步定制和扩展这个配置。
+
+**set**
+
+```nginx
+location = /set {
+      default_type text/html;
+
+      redis2_pass 192.168.199.161:6379;
+
+      redis2_query auth 123123;
+
+      set_unescape_uri $key $arg_key;   # this requires ngx_set_misc
+      set_unescape_uri $val $arg_val;   # this requires ngx_set_misc
+
+      redis2_query set $key $val;
+}
+```
+
+### 配置解释
+
+1. **精确匹配 `/set`**:
+   `location = /set` 表示这个配置块仅适用于对 `/set` 的精确匹配请求。这意味着只有当请求的 URI 完全等于 `/set` 时，才会应用这个配置。
+
+2. **设置默认响应类型**:
+   `default_type text/html;` 指定了响应的 MIME 类型为 `text/html`。
+
+3. **转发请求到 Redis**:
+   `redis2_pass 192.168.199.161:6379;` 这条指令将请求转发到指定的 Redis 服务器。在这个例子中，Redis 服务器的地址是 `192.168.199.161`，端口是 `6379`。
+
+4. **Redis 认证**:
+   `redis2_query auth 123123;` 这条指令用于向 Redis 服务器发送 `AUTH` 命令，其中 `123123` 是密码。这一步骤是可选的，取决于你的 Redis 服务器是否启用了密码保护。
+
+5. **解码 URI 参数**:
+   `set_unescape_uri $key $arg_key;` 和 `set_unescape_uri $val $arg_val;` 这两条指令使用 `ngx_set_misc` 模块的功能来解码 URI 参数中的 `key` 和 `val` 值。`$arg_key` 和 `$arg_val` 是变量，它们分别包含了名为 `key` 和 `val` 的查询参数的值。`set_unescape_uri` 指令确保任何 URL 编码的字符都被正确解码。
+
+6. **向 Redis 设置数据**:
+   `redis2_query set $key $val;` 这条指令将请求 Redis 服务器执行 `SET` 命令，使用解码后的 `$key` 和 `$val` 设置键值对。
+
+这个配置片段展示了如何在 Nginx 中使用 `redis2-nginx-module` 和 `ngx_set_misc` 来处理带有查询参数的请求，并将数据存储到 Redis 中。
+
+**批量执行**
+
+```nginx
+     set $value 'first';
+
+     redis2_query set one $value;
+
+     redis2_query get one;
+
+     redis2_query set one two;
+
+     redis2_query get one;
+
+     redis2_query del key1;
+```
+
+**list 操作**
+
+```lua
+    redis2_query lpush key1 C;
+
+    redis2_query lpush key1 B;
+
+    redis2_query lpush key1 A;
+
+    redis2_query lrange key1 0 -1;
+```
+
+**集群**
+
+```nginx
+upstream redis_cluster {
+
+     server 192.168.199.161:6379;
+
+     server 192.168.199.161:6379;
+
+ }
+
+location = /redis {
+
+default_type text/html;
+
+         redis2_next_upstream error timeout invalid_response;
+
+         redis2_query get foo;
+
+         redis2_pass redis_cluster;
+   }
+```
 
 
+# Stream模块
 
+Nginx 的 Stream 模块是 Nginx Plus 和 Nginx Open Source 的一部分，它允许 Nginx 作为 TCP/UDP 流量的代理服务器。这使得 Nginx 可以处理非 HTTP 流量，例如数据库连接、远程过程调用（RPC）等。使用 Stream 模块，可以实现负载均衡、访问控制、日志记录等功能，类似于 HTTP 流量的处理。
 
+**Stream 模块的基本用法**
 
-# linux 内核追踪工具 strace
+1. **启用 Stream 模块**:
+   如果你使用的是 Nginx Open Source，需要确保在编译 Nginx 时加入了 `--with-stream` 参数来启用 Stream 模块。对于 Nginx Plus 用户，Stream 模块默认可用。
+
+2. **配置 Stream 块**:
+   在 Nginx 配置文件中（通常是 `nginx.conf`），你可以定义一个或多个 `stream` 块，用于配置 TCP/UDP 流量的处理规则。
+
+   ```nginx
+   stream {
+       # 配置示例
+       server {
+           listen 12345; # 监听的端口
+           proxy_pass backend.example.com:12345; # 转发到后端服务器
+       }
+   }
+   ```
+
+**Stream 模块的关键特性**
+
+- **负载均衡**: 可以在 `stream` 块内配置多个 `server` 块，并使用 `upstream` 指令定义后端服务器组，实现负载均衡。
+- **访问控制**: 可以使用 `allow` 和 `deny` 指令控制哪些客户端可以连接到 Nginx。
+- **日志记录**: 可以配置日志格式和路径，记录 TCP/UDP 流量的相关信息。
+- **SSL/TLS 终端**: 可以在 Stream 模块中处理 SSL/TLS 加密的流量，实现安全连接。
+
+**示例配置**
+
+下面是一个简单的 Stream 模块配置示例，它监听本地的 12345 端口，并将所有流量转发到后端服务器：
+
+```nginx
+stream {
+    server {
+        listen 12345; # 监听本地的 12345 端口
+
+        # 转发到后端服务器
+        proxy_pass backend.example.com:12345;
+        
+        # 其他配置，例如负载均衡、SSL 终端等
+    }
+}
+```
+
+**注意事项**
+
+- 确保 Nginx 版本支持 Stream 模块。
+- 根据你的网络架构和安全需求，适当配置访问控制和日志记录。
+- 对于 Nginx Plus 用户，可能有额外的高级功能可用。
+
+Stream 模块为处理非 HTTP 流量提供了一个强大而灵活的平台，可以有效地扩展 Nginx 的用途。在实际部署前，请确保充分测试配置以满足你的业务需求。
+
+## 安装
+
+Stream 模块并没有自动集成在 Nginx 里需要额外安装，且需要 1.9 版本以上
+
+http://nginx.org/en/docs/stream/ngx_stream_core_module.html
+
 
 
 
