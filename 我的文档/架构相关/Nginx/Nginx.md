@@ -5230,7 +5230,53 @@ Stream 模块并没有自动集成在 Nginx 里需要额外安装，且需要 1.
 
 http://nginx.org/en/docs/stream/ngx_stream_core_module.html
 
+## 作为 MySQL 集群的流量代理服务器
 
+要使用 Nginx 的 Stream 模块代理 MySQL 集群，您需要配置 Nginx 以监听 MySQL 默认端口（通常是 3306），然后将流量转发到您的 MySQL 服务器集群。以下是一个简单的配置示例，展示了如何设置 Nginx 以代理 MySQL 流量。请注意，这个配置假设您已经有了一个配置好的 MySQL 集群，并且 Nginx 服务器可以访问这些集群节点。
+
+Nginx 配置示例
+
+编辑您的 Nginx 配置文件（通常是 `/etc/nginx/nginx.conf`），添加以下内容：
+
+```nginx
+stream {
+    upstream mysql_backend {
+        server mysql-node1.example.com:3306; # MySQL 节点1
+        server mysql-node2.example.com:3306; # MySQL 节点2
+        # 可以继续添加更多节点
+    }
+
+    server {
+        listen 3306; # 监听本地的 MySQL 端口
+        proxy_pass mysql_backend; # 转发到 MySQL 后端服务器组
+
+        # 连接超时设置
+        proxy_connect_timeout 1s;
+        proxy_timeout 3s;
+
+        # 其他可选配置
+        # proxy_next_upstream on; # 如果当前节点失败，尝试下一个节点
+    }
+}
+```
+
+配置解释
+
+- **stream 块**: 这是定义 TCP/UDP 流量处理规则的地方。
+- **upstream mysql_backend**: 定义了一个名为 `mysql_backend` 的上游服务器组，这里列出了您的 MySQL 集群中的节点。Nginx 将在这些节点之间进行负载均衡。
+- **server 块**: 监听本地的 3306 端口，并将所有 MySQL 流量转发到 `mysql_backend` 上游服务器组。
+- **proxy_pass**: 指定流量转发的目标，即之前定义的上游服务器组。
+- **proxy_connect_timeout 和 proxy_timeout**: 这些是连接和超时的设置，可以根据您的网络环境和需求进行调整。
+
+注意事项
+
+- 确保 Nginx 版本支持 Stream 模块。
+- 替换 `mysql-node1.example.com` 和 `mysql-node2.example.com` 为您的实际 MySQL 节点地址。
+- 根据您的集群配置，可能需要调整负载均衡策略和其他高级设置。
+- 请确保 Nginx 服务器可以访问 MySQL 集群节点，并且没有网络防火墙阻止端口 3306。
+- 在生产环境中部署前，务必进行充分的测试，以确保配置按预期工作。
+
+这个配置提供了一个基础的 Nginx Stream 模块代理 MySQL 集群的示例。根据您的具体需求，您可能需要进一步定制和扩展这个配置。
 
 
 
