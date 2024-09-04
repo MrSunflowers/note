@@ -5505,9 +5505,52 @@ server {
 
 通过合理配置 `limit_conn`，你可以有效地控制并发连接数，防止服务器资源被过度消耗，从而提高服务的稳定性和可用性。
 
+# nginx 日志
 
+## ngx_http_log_module
 
+http://nginx.org/en/docs/http/ngx_http_log_module.html
 
+## ngx_http_empty_gif_module
+
+http://nginx.org/en/docs/http/ngx_http_empty_gif_module.html
+
+## json
+
+```json
+log_format  ngxlog json '{"timestamp":"$time_iso8601",'
+                    '"source":"$server_addr",'
+                    '"hostname":"$hostname",'
+                    '"remote_user":"$remote_user",'
+                    '"ip":"$http_x_forwarded_for",'
+                    '"client":"$remote_addr",'
+                    '"request_method":"$request_method",'
+                    '"scheme":"$scheme",'
+                    '"domain":"$server_name",'
+                    '"referer":"$http_referer",'
+                    '"request":"$request_uri",'
+                    '"requesturl":"$request",'
+                    '"args":"$args",'
+                    '"size":$body_bytes_sent,'
+                    '"status": $status,'
+                    '"responsetime":$request_time,'
+                    '"upstreamtime":"$upstream_response_time",'
+                    '"upstreamaddr":"$upstream_addr",'
+                    '"http_user_agent":"$http_user_agent",'
+                    '"http_cookie":"$http_cookie",'
+                    '"https":"$https"'
+                    '}';
+```
+
+## errorlog
+
+http://nginx.org/en/docs/ngx_core_module.html#error_log
+
+## 日志分割
+
+1.脚本
+
+2.Logrotate 
 
 
 
