@@ -1482,7 +1482,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
         ;
         http.authorizeRequests()
                 // 配置登录注册接口放行
-                .antMatchers("/register","/login").anonymous()
+                .antMatchers("/register","/login").anonymous() // anonymous 代表未登录状态可以访问，已登录状态不可访问
                 .anyRequest().authenticated()
         ;
         // 将自定义的过滤器 jwtAuthenticationTokenFilter 放在 UsernamePasswordAuthenticationFilter 之前生效
@@ -1664,6 +1664,7 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
             // 将已经认证过的消息传递给后续过滤器，通知后续过滤器放行
             // 创建 认证包装对象 未认证状态存储 用户名和密码 已认证状态存放用户信息
             // 这里必须使用三个参数的构造方法，因为三个参数的构造方法会自动设置认证状态为 true
+			// 第三个参数用于设置权限集合
             UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken
                     = new UsernamePasswordAuthenticationToken(sysUserInfo, null, null);
             // 将已认证的信息放入当前的认证上下文中传递给后续过滤器
@@ -1681,7 +1682,7 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
 ### 退出登录实现
 
-
+可以在登录时将用户信息存入 Redis，鉴权时也校验 Redis 状态，自定义退出登录接口将 Redis 的信息删除即可
 
 ### token 续期
 
