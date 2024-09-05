@@ -5661,9 +5661,11 @@ error_log /path/to/log_file [level];
 
 ## 日志分割
 
-1.脚本
+1.通过脚本来分割日志
 
-2.Logrotate 
+2.Linux 的 Logrotate 日志工具，系统自带，不需要安装
+
+
 
 
 
