@@ -1686,7 +1686,7 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
 ### token 续期
 
-
+需要前后端协助完成，后端提供一个接口，利用原有的 token 生成一个新的 token ，前端获取到 token 后监测 token 过期时间，快要过期时向后台自动发起请求，替换旧 token
 
 
 
