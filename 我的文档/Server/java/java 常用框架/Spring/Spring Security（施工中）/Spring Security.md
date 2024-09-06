@@ -881,6 +881,113 @@ public List<MyUser> getTestPreFilter(@RequestBody List<MyUser> list) {
 
 [权限表达式](https://docs.spring.io/spring-security/site/docs/5.3.4.RELEASE/reference/html5/#el-access)
 
+## 自定义权限校验方法
+
+在 has* 方法中利用 spel 表达式调用自己的类的方法
+
+# 自定义认证、鉴权失败处理
+
+Spring Security 是一个强大的、可高度定制的身份验证和访问控制框架。在自定义认证和鉴权失败的处理时，你可以通过实现特定的接口或继承特定的类来达到目的。下面是一些基本的步骤和代码示例，帮助你理解如何自定义认证和鉴权失败后的处理逻辑。
+
+### 自定义认证失败处理
+
+1. **实现 `AuthenticationFailureHandler` 接口**
+
+   创建一个类实现 `AuthenticationFailureHandler` 接口，重写 `onAuthenticationFailure` 方法，该方法会在认证失败时被调用。
+
+   ```java
+   import org.springframework.security.core.AuthenticationException;
+   import org.springframework.security.web.authentication.AuthenticationFailureHandler;
+
+   import javax.servlet.ServletException;
+   import javax.servlet.http.HttpServletRequest;
+   import javax.servlet.http.HttpServletResponse;
+   import java.io.IOException;
+
+   public class CustomAuthenticationFailureHandler implements AuthenticationFailureHandler {
+       @Override
+       public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+           // 自定义失败处理逻辑，比如记录日志、返回特定的错误信息等
+           response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+           response.getWriter().write("认证失败: " + exception.getMessage());
+       }
+   }
+   ```
+
+2. **配置 `AuthenticationFailureHandler`**
+
+   在 Spring Security 配置中，将你的自定义失败处理器应用到相应的认证入口点。
+
+   ```java
+   import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+   import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+   import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+   @EnableWebSecurity
+   public class SecurityConfig extends WebSecurityConfigurerAdapter {
+       @Override
+       protected void configure(HttpSecurity http) throws Exception {
+           http
+               // ... 其他配置 ...
+               .formLogin()
+               .loginPage("/login")
+               .failureHandler(new CustomAuthenticationFailureHandler());
+       }
+   }
+   ```
+
+### 自定义鉴权失败处理
+
+1. **实现 `AccessDeniedHandler` 接口**
+
+   创建一个类实现 `AccessDeniedHandler` 接口，重写 `handle` 方法，该方法会在鉴权失败时被调用。
+
+   ```java
+   import org.springframework.security.access.AccessDeniedException;
+   import org.springframework.security.web.access.AccessDeniedHandler;
+
+   import javax.servlet.ServletException;
+   import javax.servlet.http.HttpServletRequest;
+   import javax.servlet.http.HttpServletResponse;
+   import java.io.IOException;
+
+   public class CustomAccessDeniedHandler implements AccessDeniedHandler {
+       @Override
+       public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
+           // 自定义鉴权失败处理逻辑
+           response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+           response.setContentType("application/json;charset=UTF-8");
+           response.getWriter().write("{\"error\": \"访问被拒绝\"}");
+       }
+   }
+   ```
+
+2. **配置 `AccessDeniedHandler`**
+
+   在 Spring Security 配置中，将你的自定义鉴权失败处理器应用到相应的配置中。
+
+   ```java
+   import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+   import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+   import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+   @EnableWebSecurity
+   public class SecurityConfig extends WebSecurityConfigurerAdapter {
+       @Override
+       protected void configure(HttpSecurity http) throws Exception {
+           http
+               // ... 其他配置 ...
+               .authorizeRequests()
+               .anyRequest().authenticated()
+               .and()
+               .exceptionHandling()
+               .accessDeniedHandler(new CustomAccessDeniedHandler());
+       }
+   }
+   ```
+
+通过上述步骤，你可以根据自己的需求定制认证和鉴权失败后的处理逻辑。记得在实际部署时，要考虑到安全性和用户体验的平衡。
+
 # 用户注销
 
 添加配置
@@ -1688,7 +1795,9 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter {
 
 需要前后端协助完成，后端提供一个接口，利用原有的 token 生成一个新的 token ，前端获取到 token 后监测 token 过期时间，快要过期时向后台自动发起请求，替换旧 token
 
+### csrf
 
+在前后端分离的项目中不需要 csrf ，前后端分离的项目没有 cookie 所以不会有 csrf 风险
 
 
 
