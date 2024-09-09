@@ -3009,7 +3009,7 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 .withClient("client1") // 客户唯一标识 Client_ID
                 .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret，默认 passwordEncoder 加密
                 .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
-                .authorizedGrantTypes("authorization_code", "password", "client credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
+                .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
                 .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
                 .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
@@ -3109,7 +3109,7 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 .withClient("client1") // 客户唯一标识 Client_ID
                 .secret("secret") // 秘钥 Client_secret
                 .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
-                .authorizedGrantTypes("authorization_code", "password", "client credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
+                .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
                 .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
                 .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
@@ -3214,7 +3214,7 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 .withClient("client1") // 客户唯一标识 Client_ID
                 .secret("secret") // 秘钥 Client_secret
                 .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
-                .authorizedGrantTypes("authorization_code", "password", "client credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
+                .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
                 .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
                 .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
@@ -3301,7 +3301,7 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
                 .withClient("client1") // 客户唯一标识 Client_ID
                 .secret("secret") // 秘钥 Client_secret
                 .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
-                .authorizedGrantTypes("authorization_code", "password", "client credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
+                .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
                 .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
                 .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
@@ -3375,32 +3375,15 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 
 - **客户端认证方式**：表单认证是一种简单的方式，但可能不是最安全的。在生产环境中，可能需要考虑使用更安全的认证方式，如HTTP基本认证或OAuth2客户端认证。
 
-## 资源服务器（Resource Server）
+## 授权流程测试
 
-资源服务 (Resource server),应包含对资源的保护功能,对非法请求进行拦截,对请求中token进行解析鉴权等，下面的过滤器用于实现 OAuth 2.0 资源服务:
-
-- `OAuth2AuthenticationProcessingFilter` 用来对请求给出的身份令牌解析鉴权。
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## 授权流程
+### 授权码模式
 
 1.申请授权码
 
 资源拥有者打开客户端，客户端要求资源拥有者给予授权，它将浏览器被重定向到授权服务器，重定向时会附加客户端的身份信息。如:
+
+浏览器访问
 
 ```
 /oauth/authorize?client_id=client1&response_type=code&scope=read&redirect_uri=http://www.baidu.com
@@ -3420,6 +3403,8 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 2.申请令牌
 
 客户端拿着授权码向授权服务器索要访问 access_token ,请求如下:
+
+post 访问
 
 ```
 /oauth/token?client_id=client1&client_secret=secret&grant_type=authorization_code&code=5PgfcD&redirect_uri=http://www.baidu.com
@@ -3450,6 +3435,119 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 ```
 
 其中 refresh_token 为刷新令牌，在原有令牌失效后可以使用刷新令牌再次获取一个令牌
+
+### 简化模式
+
+简化模式相比授权码模式减少了申请授权码的步骤
+
+资源拥有者打开客户端，客户端要求资源拥有者给予授权，它将浏览器被重定向到授权服务器，重定向时会附加客户端的身份信息。如:
+
+浏览器访问
+
+```
+/oauth/authorize?client_id=client1&response_type=token&scope=read&redirect_uri=http://www.baidu.com
+```
+
+参数描述同授权码模式，注意response_type=token，说明是简化模式
+
+1. 浏览器出现向授权服务器授权页面，之后将用户同意授权。
+2. 授权服务器将授权码将令牌(access_token)以Hash的形式存放在重定向uri的fargment中发送给浏览器
+
+注:fragment 主要是用来标识 URI所标识资源里的某个资源,在 URI的末尾通过(#)作为 fragment 的开头，其中#不属于 fragment的值。如https://domain/index#L18这个 URI中 L18 就是 fragment 的值。大家只需要知道js通过响应浏览器地址栏变化的方式能获取到fragment 就行了。
+
+授权后的 url 中已经包含了 access_token 
+
+```
+https://www.baidu.com/#access_token=964ecd64-116f-4421-8baf-6da4c0dfe308&token_type=bearer&expires_in=59
+```
+
+一般来说，简化模式用于没有服务器端的第三方单页面应用，即纯前端应用，因为没有服务器端就无法接收授权码。
+
+### 密码模式
+
+1. 资源拥有者将用户名、密码发送给客户端
+2. 客户端拿着资源拥有者的用户名、密码向授权服务器请求令牌(access token)，请求如下
+
+post 访问
+
+```
+/oauth/token?client_id=client1&client_secret=secret&grant_type=password&username=w41817&password=$2a$10$emyuuwpvkcwmrkytimkvmeRSAkCPIRqIX/9hTVQum90T3XeYw9DP2
+```
+
+参数列表如下:
+
+- client_id:客户端准入标识
+- client_secret:客户端秘钥
+- grant_type:授权类型，填写password表示密码模式
+- username:资源拥有者用户名
+- password:资源拥有者密码
+
+授权服务器将令牌(access token)发送给client
+
+这种模式十分简单，但是却意味着直接将用户敏感信息泄漏给了client,因此这就说明这种模式只能用于client是我们自己开发的情况下。因此密码模式一般用于我们自己开发的,第一方原生App或第一方单页面应用。
+
+### 客户端模式
+
+客户端模式只需要提供自己的 client_id 和 client_secret 即可获取令牌
+
+客户端向授权服务器发送自己的身份信息，并请求令牌(access_token)
+确认客户端身份无误后，将令牌(access_token)发送给client,请求如下:
+
+```
+/oauth/token?client_id=client1&client_secret=secret&grant_type=client_credentials
+```
+
+参数列表如下
+
+- client_id:客户端准入标识
+- client_secret:客户端秘钥
+- grant_type:授权类型，填写client_credentials表示客户端模式
+
+这种模式是最方便但最不安全的模式。因此这就要求我们对 client 完全的信任，而 client 本身也是安全的。因此这种模式一般用来提供给我们完全信任的服务器端服务。比如，合作方系统对接，拉取一组用户信息。
+
+## 资源服务器（Resource Server）
+
+`@EnableResourceserver` 注解到一个 `@Configuration` 配置类上,并且必须使用 `ResourceServerConfigurer` 这个配置对象来进行配置(可以选择继承自 `ResourceServerConfigurerAdapter` 然后覆写其中的方法，参数就是这个对象的实例)，下面是一些可以配置的属性:
+
+ResourceServerSecurityConfigurer 中主要包括
+
+- tokenServices:ResourceServerTokenServices类的实例，用来实现令牌服务
+- tokenStore:TokenStore类的实例，指定令牌如何访问，与tokenServices配置可选
+- resourceld:这个资源服务的ID，这个属性是可选的,但是推荐设置并在授权服务中进行验证
+- 其他的拓展属性例如 tokenExtractor 令牌提取器用来提取请求中的令牌。
+
+HttpSecurity配置这个与Spring Security类似:
+
+- 请求匹配器，用来设置需要进行保护的资源路径，默认的情况下是保护资源服务的全部路径。
+- 通过http.authorizeReguests()来设置受保护资源的访问规则
+- 其他的自定义权限保护规则通过 HttpSecurity 来进行配置。
+
+`@EnableResourceServer` 注解自动增加了一个类型为 `OAuth2AuthenticationProcessingfilter` 的过滤器链
+
+
+
+
+
+### 验证token
+
+ResourceServerTokenServices 是组成授权服务的另一半,如果你的授权服务和资源服务在同一个应用程序上的话，你可以使用 DefaultTokenservices，这样的话，你就不用考虑关于实现所有必要的接口的一致性问题。如果你的资源服务器是分离开的，那么你就必须要确保能够有匹配授权服务提供的 ResourceServerTokenServices，它知道如何对令牌进行解码
+
+令牌解析方法:
+
+- 当资源服务与授权服务在一个项目中时，使用 DefaultTokenServices 在资源服务器本地配置令牌存储、解码、解析方式
+- 当资源服务与授权服务在不一个项目中时，使用 RemoteTokenServices 资源服务器通过 HTTP 请求来解码令牌,每次都请求授权服务器端点 /oauth/check_token
+
+使用授权服务的 /oauth/check_token 端点你需要在授权服务将这个端点暴露出去,以便资源服务可以进行访问，这在咱们授权服务配置中已经提到了，下面是一个例子,在这个例子中，我们在授权服务中配置了/oauth/check_token 和/oauth/token_key 这两个端点 :
+
+在资源服务配置 RemoteTokenServices，在 ResouceServerConfig 中配置
+
+
+
+
+
+
+
+
 
 # 基于 spring-boot 3 + Spring Authorization Server OAuth2 的认证服务器的搭建
 
