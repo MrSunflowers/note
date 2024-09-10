@@ -493,6 +493,205 @@ Netty 基于 Java NIO 开发
 
 这里看名字就可以猜出个所以然来：分别可以对应文件IO、UDP和TCP（Server和Client）。
 
+### FileChannel
+
+`FileChannel` 是 Java NIO 中用于文件读写操作的一个类。它提供了对文件的访问和操作能力，允许你以更灵活的方式读取和写入数据。`FileChannel` 与传统的 `FileInputStream` 和 `FileOutputStream` 不同，它支持直接与文件系统交互，而不需要通过中间的缓冲区。
+
+**主要特点**
+
+1. **文件读写**：`FileChannel` 可以直接从文件中读取数据到内存中的 `ByteBuffer`，或者将 `ByteBuffer` 中的数据写入到文件中。
+
+2. **内存映射文件**：`FileChannel` 支持内存映射文件（memory-mapped files），这允许将文件的一部分或全部映射到内存地址空间，从而实现对文件的快速访问和修改。
+
+3. **文件锁定**：`FileChannel` 提供了文件锁定机制，可以用来同步访问共享文件，防止多个进程或线程同时修改文件导致的数据不一致问题。
+
+4. **高效传输**：与基于缓冲区的 I/O 相比，`FileChannel` 可以实现更高效的文件传输，尤其是在处理大文件时。
+
+**使用示例**
+
+下面是一个简单的 `FileChannel` 使用示例，演示如何读取和写入文件：
+
+```java
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.ByteBuffer;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+
+public class FileChannelExample {
+    public static void main(String[] args) throws Exception {
+        // 创建 RandomAccessFile 对象
+        RandomAccessFile aFile = new RandomAccessFile("example.txt", "rw");
+
+        // 获取 FileChannel
+        FileChannel inChannel = aFile.getChannel();
+
+        // 创建一个 Buffer
+        ByteBuffer buf = ByteBuffer.allocate(48);
+
+        // 从 FileChannel 读取数据到 Buffer
+        int bytesRead = inChannel.read(buf);
+        while (bytesRead != -1) {
+            buf.flip();
+            while(buf.hasRemaining()){
+                System.out.print((char) buf.get());
+            }
+            buf.clear();
+            bytesRead = inChannel.read(buf);
+        }
+
+        // 关闭 FileChannel
+        inChannel.close();
+
+        // 写入数据到文件
+        RandomAccessFile anotherFile = new RandomAccessFile("example.txt", "rw");
+        FileChannel outChannel = anotherFile.getChannel();
+
+        // 准备要写入的数据
+        String newData = "New String to write to file..." + System.currentTimeMillis();
+        buf = ByteBuffer.allocate(newData.getBytes().length);
+        buf.put(newData.getBytes());
+        buf.flip();
+
+        // 将 Buffer 中的数据写入 FileChannel
+        outChannel.write(buf);
+        outChannel.force(true); // 强制将更改写入文件
+
+        // 关闭 FileChannel
+        outChannel.close();
+    }
+}
+```
+
+在这个例子中，我们首先使用 `RandomAccessFile` 打开一个文件，并获取其 `FileChannel`。然后，我们从该文件读取数据到 `ByteBuffer` 中，并打印出来。之后，我们创建另一个 `RandomAccessFile` 对象，获取其 `FileChannel`，并写入新的字符串数据到文件中。
+
+**总结**
+
+`FileChannel` 是 Java NIO 中用于文件操作的一个强大工具，它提供了直接与文件系统交互的能力，特别适合于处理大文件和需要高效数据传输的场景。通过使用 `FileChannel`，可以实现更高效的文件读写操作，同时支持内存映射和文件锁定等高级功能。
+
+### DatagramChannel
+
+`DatagramChannel` 是 Java NIO 中的一个类，用于实现基于数据报（datagram）的无连接网络通信。与基于流的 `SocketChannel` 和 `ServerSocketChannel` 不同，`DatagramChannel` 提供了一种使用 UDP 协议进行数据传输的方式。
+
+**UDP 协议和 `DatagramChannel`**
+
+UDP（User Datagram Protocol）是一种无连接的网络协议，它允许数据包在网络中独立传输。与 TCP（传输控制协议）不同，UDP 不保证数据包的顺序、可靠性或完整性。然而，由于其无连接的特性，UDP 在某些情况下可以提供比 TCP 更高的性能和更低的延迟。
+
+**`DatagramChannel` 的作用**
+
+1. **发送和接收数据报**：`DatagramChannel` 可以发送和接收数据报，数据报是独立的、自包含的消息，不需要建立连接即可发送。
+
+2. **非阻塞模式**：`DatagramChannel` 支持非阻塞模式，这意味着读写操作不会阻塞线程，而是根据可用数据或通道状态立即返回。
+
+3. **多播支持**：`DatagramChannel` 支持多播（multicast），允许将数据报发送给一组特定的主机（多播组），这在某些网络应用（如视频会议、在线游戏）中非常有用。
+
+**使用示例**
+
+下面是一个简单的 `DatagramChannel` 使用示例，演示如何发送和接收数据报：
+
+```java
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.DatagramChannel;
+
+public class DatagramChannelExample {
+    public static void main(String[] args) throws Exception {
+        // 创建 DatagramChannel
+        DatagramChannel datagramChannel = DatagramChannel.open();
+        datagramChannel.bind(null); // 绑定到任意可用端口
+
+        // 准备要发送的数据
+        String message = "Hello, UDP!";
+        ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
+
+        // 发送数据报
+        InetAddress address = InetAddress.getByName("localhost");
+        int port = 9876;
+        datagramChannel.send(buffer, new InetSocketAddress(address, port));
+
+        // 接收数据报
+        buffer.clear();
+        datagramChannel.receive(buffer);
+        buffer.flip();
+        while (buffer.hasRemaining()) {
+            System.out.print((char) buffer.get());
+        }
+
+        // 关闭 DatagramChannel
+        datagramChannel.close();
+    }
+}
+```
+
+在这个例子中，我们创建了一个 `DatagramChannel`，向本地主机的 9876 端口发送了一个简单的消息，然后接收返回的数据报。
+
+**总结**
+
+`DatagramChannel` 提供了一种使用 UDP 协议进行网络通信的方式，适用于对性能和延迟要求较高，且可以容忍数据丢失的应用场景。由于 UDP 的无连接特性，`DatagramChannel` 在实现某些类型的网络应用时可以提供比 TCP 更灵活的选择。
+
+### ServerSocketChannel 和 SocketChannel
+
+`SocketChannel` 和 `ServerSocketChannel` 是 Java NIO 中用于网络通信的两个核心类，它们分别代表了客户端和服务器端的网络连接。它们之间的关系类似于传统阻塞式 I/O 中的 `Socket` 和 `ServerSocket`，但提供了非阻塞模式和更灵活的 I/O 操作。
+
+**ServerSocketChannel**
+
+`ServerSocketChannel` 是一个可以监听传入连接请求的通道。它类似于传统的 `ServerSocket`，但提供了非阻塞模式的能力。
+
+- **监听端口**：通过调用 `bind()` 方法，`ServerSocketChannel` 可以绑定到一个端口上，开始监听连接请求。
+- **接受连接**：使用 `accept()` 方法接受新的连接请求。在非阻塞模式下，如果没有新的连接请求，`accept()` 方法会立即返回 `null`。
+- **读写数据**：一旦连接被接受，就可以通过返回的 `SocketChannel` 对象进行读写操作。
+
+**SocketChannel**
+
+`SocketChannel` 代表了一个到远程服务器的连接。它类似于传统的 `Socket`，但同样提供了非阻塞模式的能力。
+
+- **建立连接**：通过 `connect()` 方法连接到远程服务器。在非阻塞模式下，如果立即连接不上，`connect()` 方法会返回 `false`，之后需要检查连接是否完成。
+- **读写数据**：连接建立后，可以使用 `read()` 和 `write()` 方法从通道读取数据或向通道写入数据。
+- **非阻塞模式**：`SocketChannel` 可以设置为非阻塞模式，在这种模式下，读写操作不会阻塞线程，而是根据可用数据或通道状态立即返回。
+
+关系和区别
+
+- **连接与监听**：`ServerSocketChannel` 用于监听端口并接受新的连接请求，而 `SocketChannel` 用于建立到远程服务器的连接。
+- **非阻塞模式**：两者都支持非阻塞模式，这使得它们可以用于构建高性能的网络应用，特别是在需要处理大量连接时。
+- **读写操作**：一旦 `ServerSocketChannel` 接受了一个连接，它会返回一个 `SocketChannel` 对象，之后就可以使用这个对象进行数据的读写操作。
+
+**示例**
+
+下面是一个简单的示例，展示如何使用 `ServerSocketChannel` 和 `SocketChannel`：
+
+```java
+import java.net.InetSocketAddress;
+import java.nio.channels.ServerSocketChannel;
+import java.nio.channels.SocketChannel;
+import java.nio.ByteBuffer;
+
+public class NioServer {
+    public static void main(String[] args) throws Exception {
+        // 创建 ServerSocketChannel
+        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+        serverSocketChannel.bind(new InetSocketAddress(8080));
+
+        while (true) {
+            // 接受连接
+            SocketChannel socketChannel = serverSocketChannel.accept();
+            if (socketChannel != null) {
+                // 读写数据
+                ByteBuffer buffer = ByteBuffer.allocate(1024);
+                int bytesRead = socketChannel.read(buffer);
+                if (bytesRead > 0) {
+                    buffer.flip();
+                    socketChannel.write(buffer);
+                    buffer.clear();
+                }
+            }
+        }
+    }
+}
+```
+
+在这个例子中，服务器监听8080端口，接受连接，并读取数据后立即回写。注意，实际应用中可能需要处理非阻塞模式下的各种状态和异常情况。
+
 ## Buffer
 
 Buffer，故名思意，缓冲区，实际上是一个容器，是一个连续数组。 Channel 提供从文件、网络读取数据的渠道，但是读取或写入的数据都必须经由 Buffer
