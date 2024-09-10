@@ -16,7 +16,7 @@ Netty 是用 Java 编写的，但它的设计哲学和性能优势使其成为�
 
 # IO
 
-Netty 基于 NIO 开发，要学习 Netty 必须了解 IO 相关知识。
+Netty 基于 Java NIO 开发，要学习 Netty 必须了解 IO 相关知识。
 
 计算机中的 "IO" 是 "输入/输出"（Input/Output）的缩写，指的是计算机系统与外部环境（如用户、外部设备或网络）之间交换数据的过程。IO 操作是计算机系统中非常基础且关键的功能，它涉及到数据的读取和写入。
 
@@ -478,9 +478,11 @@ AIO是Java 7引入的异步非阻塞I/O模型。AIO在NIO的基础上进一步�
 
 需要注意的是，零拷贝技术的实现和效果依赖于底层操作系统和硬件的支持。在某些情况下，零拷贝技术可能无法完全避免数据复制，但仍然可以显著减少数据复制的次数和CPU的参与，从而提高数据传输的效率。
 
-## Java NIO
+# Java NIO
 
-### Channel
+Netty 基于 Java NIO 开发
+
+## Channel
 
 首先说一下Channel，国内大多翻译成“通道”。Channel和IO中的Stream（流）是差不多一个等级的。只不过Stream是单向的，譬如：InputStream， OutputStream，而Channel是双向的，既可以用来进行读操作，又可以用来进行写操作。NIO中的Channel的主要实现有：
 
@@ -491,7 +493,7 @@ AIO是Java 7引入的异步非阻塞I/O模型。AIO在NIO的基础上进一步�
 
 这里看名字就可以猜出个所以然来：分别可以对应文件IO、UDP和TCP（Server和Client）。
 
-### Buffer
+## Buffer
 
 Buffer，故名思意，缓冲区，实际上是一个容器，是一个连续数组。 Channel 提供从文件、网络读取数据的渠道，但是读取或写入的数据
 都必须经由 Buffer
@@ -502,7 +504,59 @@ Buffer 中的内容写入通道。服务端这边接收数据必须通过 Channe
 在 NIO 中， Buffer 是一个顶层父类，它是一个抽象类，常用的 Buffer 的子类有：ByteBuffer、 IntBuffer、 CharBuffer、 LongBuffer、
 DoubleBuffer、 FloatBuffer、ShortBuffer 
 
-### Selector
+Java NIO 中的 Buffer 是一个容器对象，用于包含特定类型的数据。在进行读写操作时，数据会被读入或写入 Buffer。下面是一个简单的示例，演示如何使用 Java NIO 中的 `ByteBuffer` 来进行基本的读写操作：
+
+```java
+import java.nio.ByteBuffer;
+
+public class BufferDemo {
+    public static void main(String[] args) {
+        // 创建一个容量为 5 的 ByteBuffer
+        ByteBuffer buffer = ByteBuffer.allocate(5);
+
+        // 向 Buffer 写入数据
+        String str = "Hello";
+        buffer.put(str.getBytes());
+
+        // 重置 Buffer，准备读取数据
+        buffer.flip();
+
+        // 读取 Buffer 中的数据
+        while (buffer.hasRemaining()) {
+            // 获取一个字节的数据
+            byte b = buffer.get();
+            System.out.print((char) b);
+        }
+
+        // 输出结果应该是 "Hello"
+    }
+}
+```
+
+解释步骤：
+
+1. **创建 Buffer**：使用 `ByteBuffer.allocate(5)` 创建一个容量为 5 的 `ByteBuffer`。这个容量指的是 Buffer 可以存储的字节数。
+
+2. **写入数据**：通过 `put` 方法将字符串 "Hello" 的字节数据写入 Buffer。`getBytes()` 方法将字符串转换为字节数组。
+
+3. **准备读取**：调用 `flip()` 方法将 Buffer 从写模式切换到读模式。`flip()` 方法会重置位置（position）到 0，并设置限制（limit）到当前位置。
+
+4. **读取数据**：使用 `hasRemaining()` 检查 Buffer 是否还有剩余数据可读。通过循环调用 `get()` 方法逐个读取字节，并将其转换为字符打印出来。
+
+5. **输出结果**：上述代码执行后，控制台输出 "Hello"。
+
+注意事项：
+
+- **容量（Capacity）**：Buffer 的最大容量，一旦创建不能改变。
+- **位置（Position）**：下一个要读或写的元素的索引，初始为 0。
+- **限制（Limit）**：在写模式下，表示 Buffer 中最多可以写入的元素数量；在读模式下，表示最多可以读取的元素数量。
+- **flip()**：用于从写模式切换到读模式，重置位置到 0，并将限制设置为之前的写入位置。
+- **rewind()**：重置位置到 0，但不改变限制，常用于重新读取数据。
+- **clear()** 和 **compact()**：用于准备 Buffer 进行下一轮写入。`clear()` 会重置位置到 0，限制到容量；`compact()` 会保留未读取的数据，将未读取的数据移动到 Buffer 的开始位置，然后重置位置。
+
+这个例子展示了 Buffer 的基本使用方法，实际应用中可能涉及更复杂的操作，如直接和间接 Buffer、分散和聚集 I/O 等。
+
+## Selector
 
 Selector 类是 NIO 的核心类， Selector 能够检测多个注册的通道上是否有事件发生，如果有事件发生，便获取事件然后针对每个事件进行
 相应的响应处理。这样一来，只是用一个单线程就可以管理多个通道，也就是管理多个连接。这样使得只有在连接真正有读写事件发生时，
