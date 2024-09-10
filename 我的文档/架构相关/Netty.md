@@ -842,7 +842,7 @@ Buffer 的内部结构和操作机制设计得非常灵活，允许高效地在�
 
 `DirectByteBuffer`提供了一种高效的数据传输方式，特别适合于需要大量数据传输和高性能I/O操作的应用场景。然而，它也要求开发者对内存管理有更深入的理解和控制。
 
-## MappedByteBuffer
+### MappedByteBuffer
 
 `MappedByteBuffer` 是 Java NIO 中 `FileChannel` 类的一个特殊类型的 `ByteBuffer`，它允许将文件的一部分或全部映射到内存地址空间。通过内存映射文件，可以实现对文件内容的快速访问和修改，而无需使用传统的读写方法。这种方式特别适合于处理大型文件或需要频繁访问文件数据的应用程序。MappedByteBuffer 是一个接口，实际的实现类就是上文的 DirectByteBuffer。
 
@@ -1040,6 +1040,125 @@ public class NioSelectorServer {
 这个例子中，我们创建了一个服务器端的程序，它监听8080端口。当有新的连接请求时，它接受连接并注册到`Selector`上。当有数据可读时，它读取数据并回送一条消息给客户端。
 
 注意，这个例子仅用于演示目的，实际应用中可能需要更复杂的错误处理和资源管理。此外，为了保持非阻塞特性，所有的操作都应当是非阻塞的，例如，`read`和`write`操作应当在循环中调用，直到所有数据都被读取或写入。
+
+### 常用 API
+
+#### 创建 Selector
+
+要使用 Selector，首先需要创建一个 Selector 实例：
+
+```java
+Selector selector = Selector.open();
+```
+
+#### 注册 SelectableChannel
+
+要监控一个通道，需要将其注册到 Selector 上。注册时，你需要指定你想要在此通道上做的 I/O 操作类型（如 `SelectionKey.OP_READ`、`SelectionKey.OP_WRITE` 等）：
+
+```java
+SelectableChannel channel = ...; // 通道实例
+int interestOps = SelectionKey.OP_READ; // 关注的操作类型
+channel.register(selector, interestOps);
+```
+
+#### 选择操作
+
+通过 `select()` 方法，Selector 会阻塞，直到至少有一个注册的通道处于就绪状态：
+
+```java
+int readyChannels = selector.select();
+```
+
+如果需要非阻塞地检查通道状态，可以使用 `selectNow()` 方法：
+
+```java
+int readyChannels = selector.selectNow();
+```
+
+#### 获取就绪的 SelectionKey
+
+一旦 `select()` 方法返回，你可以通过 `selectedKeys()` 方法获取所有就绪的通道对应的 `SelectionKey` 集合：
+
+```java
+Set<SelectionKey> selectedKeys = selector.selectedKeys();
+```
+
+#### 处理 SelectionKey
+
+遍历 `selectedKeys` 集合，检查每个 `SelectionKey` 的状态，并执行相应的操作：
+
+```java
+for (SelectionKey key : selectedKeys) {
+    if (key.isReadable()) {
+        // 处理可读事件
+    } else if (key.isWritable()) {
+        // 处理可写事件
+    }
+    // ... 其他操作
+}
+```
+
+#### 获取 Channel
+
+在 Java NIO 中，`SelectionKey` 对象代表了一个特定的 `SelectableChannel` 和一个 `Selector` 之间的注册关系。当你将一个 `SelectableChannel` 注册到 `Selector` 上时，注册操作会返回一个 `SelectionKey` 对象。通过这个 `SelectionKey` 对象，你可以获取到与之关联的 `SelectableChannel`。
+
+要从 `SelectionKey` 获取对应的 `SelectableChannel`，可以使用 `channel()` 方法：
+
+```java
+SelectionKey key = ...; // SelectionKey 实例
+SelectableChannel channel = key.channel();
+```
+
+#### 取消注册和清理
+
+当不再需要监控某个通道时，应该取消注册：
+
+```java
+key.cancel();
+```
+
+在处理完 `SelectionKey` 后，应该从集合中移除它，以避免重复处理：
+
+```java
+selectedKeys.remove(key);
+```
+
+#### 完整示例
+
+下面是一个简单的使用 Selector 的示例：
+
+```java
+import java.io.IOException;
+import java.nio.channels.*;
+import java.util.Iterator;
+
+public class SelectorExample {
+    public static void main(String[] args) throws IOException {
+        Selector selector = Selector.open();
+        ServerSocketChannel serverSocketChannel = ServerSocketChannel.open();
+        serverSocketChannel.bind(new InetSocketAddress(8080));
+        serverSocketChannel.configureBlocking(false);
+        serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT);
+
+        while (true) {
+            if (selector.select() > 0) {
+                Iterator<SelectionKey> keyIterator = selector.selectedKeys().iterator();
+                while (keyIterator.hasNext()) {
+                    SelectionKey key = keyIterator.next();
+                    if (key.isAcceptable()) {
+                        // 接受新的连接
+                    } else if (key.isReadable()) {
+                        // 处理读取事件
+                    }
+                    keyIterator.remove();
+                }
+            }
+        }
+    }
+}
+```
+
+在这个例子中，我们创建了一个 `Selector` 和一个非阻塞的 `ServerSocketChannel`，并将其注册到 Selector 上。程序会持续监控是否有新的连接请求或可读事件发生，并进行相应的处理。
 
 ## 三大组件的关系
 
