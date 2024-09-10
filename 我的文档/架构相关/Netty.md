@@ -842,6 +842,59 @@ Buffer 的内部结构和操作机制设计得非常灵活，允许高效地在�
 
 `DirectByteBuffer`提供了一种高效的数据传输方式，特别适合于需要大量数据传输和高性能I/O操作的应用场景。然而，它也要求开发者对内存管理有更深入的理解和控制。
 
+## MappedByteBuffer
+
+`MappedByteBuffer` 是 Java NIO 中 `FileChannel` 类的一个特殊类型的 `ByteBuffer`，它允许将文件的一部分或全部映射到内存地址空间。通过内存映射文件，可以实现对文件内容的快速访问和修改，而无需使用传统的读写方法。这种方式特别适合于处理大型文件或需要频繁访问文件数据的应用程序。
+
+**特点**
+
+1. **内存映射**：`MappedByteBuffer` 通过内存映射的方式，将文件的一部分或全部映射到内存中。这意味着对 `MappedByteBuffer` 的操作实际上是对内存的直接操作，而这些更改会反映到映射的文件上。
+
+2. **直接内存访问**：由于文件内容直接映射到内存，因此可以实现非常快速的数据访问，无需通过中间缓冲区。
+
+3. **垃圾回收管理**：`MappedByteBuffer` 由垃圾回收器管理，不需要手动释放资源，当映射的 `ByteBuffer` 不再被使用时，它所占用的资源会自动被回收。
+
+**创建 MappedByteBuffer**
+
+要创建一个 `MappedByteBuffer`，你需要先通过 `FileChannel` 映射文件的一部分或全部到内存中。下面是一个简单的示例：
+
+```java
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+
+public class MappedByteBufferExample {
+    public static void main(String[] args) throws Exception {
+        // 打开文件并获取 FileChannel
+        RandomAccessFile aFile = new RandomAccessFile("example.txt", "rw");
+        FileChannel channel = aFile.getChannel();
+
+        // 将文件的一部分映射到内存中
+        long start = 0;
+        long size = channel.size();
+        MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, start, size);
+
+        // 现在可以对 mbb 进行读写操作，这些操作会直接反映到文件上
+        mbb.putChar(0, 'A'); // 修改文件的第一个字符
+
+        // 关闭 FileChannel
+        channel.close();
+    }
+}
+```
+
+在这个例子中，我们首先通过 `RandomAccessFile` 获取 `FileChannel`，然后使用 `map` 方法将整个文件映射到内存中。之后，我们直接对 `MappedByteBuffer` 进行操作，修改文件的第一个字符。
+
+**注意事项**
+
+- **文件大小限制**：映射的文件大小受限于操作系统的限制。在某些系统上，映射的文件大小不能超过 2GB。
+- **资源管理**：虽然 `MappedByteBuffer` 由垃圾回收器管理，但映射的文件资源在不再需要时应通过关闭 `FileChannel` 来释放。
+- **异常处理**：在处理文件映射时，应妥善处理可能发生的异常，如 `IOException`。
+
+`MappedByteBuffer` 提供了一种高效处理文件数据的方式，尤其适用于需要频繁读写大文件的应用程序。通过内存映射，可以显著提高文件操作的性能。
+
 ## Selector
 
 Selector 类是 NIO 的核心类， Selector 能够检测多个注册的通道上是否有事件发生，如果有事件发生，便获取事件然后针对每个事件进行
