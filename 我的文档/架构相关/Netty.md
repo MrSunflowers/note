@@ -844,7 +844,7 @@ Buffer 的内部结构和操作机制设计得非常灵活，允许高效地在�
 
 ## MappedByteBuffer
 
-`MappedByteBuffer` 是 Java NIO 中 `FileChannel` 类的一个特殊类型的 `ByteBuffer`，它允许将文件的一部分或全部映射到内存地址空间。通过内存映射文件，可以实现对文件内容的快速访问和修改，而无需使用传统的读写方法。这种方式特别适合于处理大型文件或需要频繁访问文件数据的应用程序。
+`MappedByteBuffer` 是 Java NIO 中 `FileChannel` 类的一个特殊类型的 `ByteBuffer`，它允许将文件的一部分或全部映射到内存地址空间。通过内存映射文件，可以实现对文件内容的快速访问和修改，而无需使用传统的读写方法。这种方式特别适合于处理大型文件或需要频繁访问文件数据的应用程序。MappedByteBuffer 是一个接口，实际的实现类就是上文的 DirectByteBuffer。
 
 **特点**
 
@@ -872,8 +872,8 @@ public class MappedByteBufferExample {
         FileChannel channel = aFile.getChannel();
 
         // 将文件的一部分映射到内存中
-        long start = 0;
-        long size = channel.size();
+        long start = 0; //开始位置
+        long size = channel.size(); // 映射的文件大小，不是索引位置
         MappedByteBuffer mbb = channel.map(FileChannel.MapMode.READ_WRITE, start, size);
 
         // 现在可以对 mbb 进行读写操作，这些操作会直接反映到文件上
@@ -894,6 +894,60 @@ public class MappedByteBufferExample {
 - **异常处理**：在处理文件映射时，应妥善处理可能发生的异常，如 `IOException`。
 
 `MappedByteBuffer` 提供了一种高效处理文件数据的方式，尤其适用于需要频繁读写大文件的应用程序。通过内存映射，可以显著提高文件操作的性能。
+
+### 缓冲区批量操作
+
+在 Java NIO 中，"Scattering" 和 "Gathering" 是两个与数据传输相关的重要概念，它们描述了如何高效地处理多个数据缓冲区（`ByteBuffer`）的读写操作。这两个术语通常用于描述 `SocketChannel` 和 `DatagramChannel` 的操作，但也可以适用于其他类型的通道。
+
+**Scattering**
+
+Scattering 读取操作指的是将通道中的数据读入多个缓冲区。这在处理不同类型的数据时非常有用，比如从网络连接中读取一个包含头部信息和数据体的完整消息。使用 Scattering 读取，可以将消息的不同部分分别读入不同的缓冲区。
+
+**示例**
+
+```java
+ByteBuffer header = ByteBuffer.allocate(128);
+ByteBuffer body = ByteBuffer.allocate(1024);
+
+// 创建一个缓冲区数组
+ByteBuffer[] buffers = { header, body };
+
+// 从通道读取数据到缓冲区数组
+channel.read(buffers);
+```
+
+在这个例子中，数据首先被读入 `header` 缓冲区，当 `header` 满了之后，剩余的数据会被读入 `body` 缓冲区。
+
+**Gathering**
+
+Gathering 写入操作与 Scattering 相反，指的是将多个缓冲区中的数据写入到一个通道中。这在需要将不同类型的数据组合成一个单一消息并发送时非常有用。
+
+**示例**
+
+```java
+ByteBuffer header = ByteBuffer.wrap("Header ".getBytes());
+ByteBuffer body = ByteBuffer.wrap("Body data".getBytes());
+
+// 创建一个缓冲区数组
+ByteBuffer[] buffers = { header, body };
+
+// 将缓冲区数组中的数据写入通道
+channel.write(buffers);
+```
+
+在这个例子中，`header` 和 `body` 缓冲区中的数据将被连续写入通道，形成一个包含头部和数据体的完整消息。
+
+**优势**
+
+- **效率**：Scattering 和 Gathering 允许你一次性地读取或写入多个缓冲区，这比单独处理每个缓冲区更高效。
+- **灵活性**：对于复杂的数据结构，可以使用多个缓冲区来分别处理不同类型的数据，使得数据处理更加模块化和清晰。
+
+**注意事项**
+
+- **顺序**：在使用 Scattering 读取时，通道中的数据将按照缓冲区数组中的顺序被读入各个缓冲区。同样，在使用 Gathering 写入时，缓冲区数组中的顺序决定了数据的写入顺序。
+- **限制**：并非所有的操作系统和通道都支持 Scattering 和 Gathering 操作。在使用这些操作之前，最好检查你的环境是否支持。
+
+Scattering 和 Gathering 是 Java NIO 中非常强大的特性，它们使得对复杂数据结构的处理变得更加高效和灵活。
 
 ## Selector
 
