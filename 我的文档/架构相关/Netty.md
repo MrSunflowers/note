@@ -1123,7 +1123,7 @@ key.cancel();
 selectedKeys.remove(key);
 ```
 
-#### 完整示例
+#### 示例
 
 下面是一个简单的使用 Selector 的示例：
 
@@ -1166,10 +1166,169 @@ Channel 相当于连接，并不直接连接向资源，而是连接向 Buffer�
 Selector 相当于连接管理器，管理多个已注册在当前 Selector 中的 Channel，一个线程一般对应一个 Selector。程序切换到哪个 Channel，是操作系统内核事件通知的。
 对数据的读写都需要经过 Buffer，即应用程序数据缓冲区，是 Java 程序与操作系统内核之间交换数据的桥梁。
 
-## 
+## 一个包含客户端和服务端的无阻塞 NIO 示例
 
+非阻塞模式下，`SocketChannel`和`ServerSocketChannel`需要设置为非阻塞模式，并且通常会使用`Selector`来管理多个通道的IO事件。
 
+### 服务端代码
 
+```java
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.*;
+import java.io.IOException;
+
+public class NonBlockingServerExample {
+    public static void main(String[] args) {
+        int port = 12345;
+        try (ServerSocketChannel serverSocketChannel = ServerSocketChannel.open()) {
+            serverSocketChannel.bind(new InetSocketAddress(port));
+            serverSocketChannel.configureBlocking(false); // 设置为非阻塞模式
+
+            Selector selector = Selector.open();
+            serverSocketChannel.register(selector, SelectionKey.OP_ACCEPT); // 注册到选择器
+
+            System.out.println("Server listening on port " + port);
+
+            while (true) {
+                if (selector.select() > 0) { // 检查是否有事件发生
+                    Set<SelectionKey> selectedKeys = selector.selectedKeys();
+                    Iterator<SelectionKey> keyIterator = selectedKeys.iterator();
+                    while (keyIterator.hasNext()) {
+                        SelectionKey key = keyIterator.next();
+                        if (key.isAcceptable()) {
+                            SocketChannel socketChannel = serverSocketChannel.accept();
+                            socketChannel.configureBlocking(false);
+                            socketChannel.register(selector, SelectionKey.OP_READ);
+                            System.out.println("Client connected");
+                        } else if (key.isReadable()) {
+                            SocketChannel socketChannel = (SocketChannel) key.channel();
+                            ByteBuffer buffer = ByteBuffer.allocate(1024);
+                            int bytesRead = socketChannel.read(buffer);
+                            if (bytesRead > 0) {
+                                buffer.flip();
+                                String message = new String(buffer.array(), 0, bytesRead).trim();
+                                System.out.println("Received from client: " + message);
+
+                                // 向客户端发送响应
+                                String response = "Server response: " + message;
+                                buffer.clear();
+                                buffer.put(response.getBytes());
+                                buffer.flip();
+                                socketChannel.write(buffer);
+                            } else if (bytesRead == -1) {
+                                socketChannel.close();
+                            }
+                        }
+                        keyIterator.remove();
+                    }
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 客户端代码
+
+```java
+import java.net.InetSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
+import java.io.IOException;
+
+public class NonBlockingClientExample {
+    public static void main(String[] args) {
+        String host = "127.0.0.1";
+        int port = 12345;
+
+        try (SocketChannel socketChannel = SocketChannel.open()) {
+            socketChannel.configureBlocking(false); // 设置为非阻塞模式
+            socketChannel.connect(new InetSocketAddress(host, port));
+
+            // 发送消息到服务器
+            String message = "Hello, Server!";
+            ByteBuffer buffer = ByteBuffer.wrap(message.getBytes());
+            while (buffer.hasRemaining()) {
+                socketChannel.write(buffer);
+            }
+
+            // 接收服务器的响应
+            buffer.clear();
+            int bytesRead = socketChannel.read(buffer);
+            if (bytesRead > 0) {
+                buffer.flip();
+                byte[] responseBytes = new byte[bytesRead];
+                buffer.get(responseBytes);
+                String response = new String(responseBytes);
+                System.out.println("Server response: " + response);
+            } else if (bytesRead == -1) {
+                System.out.println("Connection closed by server.");
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+**运行说明**
+
+1. **服务端**：首先，服务端的`ServerSocketChannel`和`SocketChannel`都被设置为非阻塞模式。然后，服务端使用`Selector`来监听`OP_ACCEPT`和`OP_READ`事件。当有新的连接或读事件发生时，服务端会处理这些事件。
+
+2. **客户端**：客户端的`SocketChannel`同样设置为非阻塞模式。发送消息时，客户端会循环调用`write`方法直到所有数据都被发送。接收响应时，客户端会尝试读取数据，如果读取到-1，则表示连接已关闭。
+
+**注意事项**
+
+- 在非阻塞模式下，`read`和`write`方法可能不会立即完成，它们可能返回0或-1，表示没有数据可读或连接已关闭。
+- 使用`Selector`可以有效地管理多个非阻塞通道，提高服务器的并发处理能力。
+- 在实际应用中，可能需要处理更多的异常情况和边缘情况，例如处理`SocketChannel`的`OP_WRITE`事件，以及在客户端和服务器之间进行更复杂的交互。
+
+这个示例展示了如何使用Java NIO的非阻塞模式来实现客户端和服务器之间的通信。在构建高性能的网络应用时，非阻塞模式和选择器的使用是关键。
+
+## SelectionKey
+
+`SelectionKey`是Java NIO中`Selector`和`Channel`之间的桥梁，它代表了一个特定的`Channel`在特定的`Selector`上的注册。当一个`Channel`注册到一个`Selector`时，它会返回一个`SelectionKey`对象，该对象包含了关于该`Channel`注册状态和选择操作的信息。下面是`SelectionKey`类中一些重要的API和属性：
+
+1. Channel
+
+- `public final Channel channel()`: 返回与该`SelectionKey`关联的`Channel`对象。
+
+2. Selector
+
+- `public final Selector selector()`: 返回注册该`SelectionKey`的`Selector`对象。
+
+3. Interest Sets
+
+- `public final int interestOps()`: 返回当前的感兴趣的操作集合，表示该`Channel`对哪些操作感兴趣。
+- `public final SelectionKey interestOps(int ops)`: 设置感兴趣的操作集合。参数`ops`是一个位掩码，可以是`OP_READ`、`OP_WRITE`、`OP_CONNECT`或`OP_ACCEPT`的组合。
+
+4. Ready Sets
+
+- `public final int readyOps()`: 返回当前就绪的操作集合，表示`Channel`已经准备就绪的操作。
+- `public final boolean isReadable()`: 检查`Channel`是否准备好进行读操作。
+- `public final boolean isWritable()`: 检查`Channel`是否准备好进行写操作。
+- `public final boolean isConnectable()`: 检查`Channel`是否完成连接操作。
+- `public final boolean isAcceptable()`: 检查`Channel`是否准备好接受新的连接。
+
+5. Attachment
+
+- `public final Object attachment()`: 返回与该`SelectionKey`关联的对象，可以是任意类型，用于在选择操作中附加额外的信息。
+- `public final SelectionKey attach(Object ob)`: 将指定的对象`ob`附加到该`SelectionKey`上。
+
+6. Canceling
+
+- `public final void cancel()`: 取消该`SelectionKey`。当`SelectionKey`被取消时，它将不再被`Selector`所选择，并且其关联的`Channel`将被注销。
+
+7. Other Methods
+
+- `public final boolean isValid()`: 检查该`SelectionKey`是否有效。如果`SelectionKey`被取消，或者其关联的`Channel`被关闭，则返回`false`。
+
+使用场景
+
+`SelectionKey`通常在使用`Selector`进行非阻塞IO操作时使用。当通过`Selector`选择操作时，可以检查每个`SelectionKey`的`readyOps()`来确定哪些操作是就绪的，然后根据`isReadable()`, `isWritable()`, `isConnectable()`, `isAcceptable()`等方法来执行相应的操作。
 
 
 
