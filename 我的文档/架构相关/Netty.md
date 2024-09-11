@@ -1529,7 +1529,7 @@ public class NonBlockingClientExample {
 
 目前 netty 5.x 已经被官方废弃，所以本文以 netty 4.1 为示例版本。
 
-# Netty 线程模型
+# IO 线程模型
 
 ## Reactor 线程模型
 
@@ -1557,9 +1557,9 @@ Reactor模型主要有以下几种类型：
 
 Netty 线程模型就是从主从Reactor多线程模型发展而来。
 
+## Netty 线程模型
 
-
-
+一个简单的 Netty 模型说明就是： Netty 引入一个 BossGroup 角色来接收客户端连接请求，将请求通过 Selecter.accept() 获取到 SocketChannel，再将 SocketChannel 转化为 NIOSocketChannel 交给 WorkerGroup 通过 Selecter 来监听并交由 Handler 处理。
 
 
 
