@@ -478,6 +478,135 @@ AIO是Java 7引入的异步非阻塞I/O模型。AIO在NIO的基础上进一步�
 
 需要注意的是，零拷贝技术的实现和效果依赖于底层操作系统和硬件的支持。在某些情况下，零拷贝技术可能无法完全避免数据复制，但仍然可以显著减少数据复制的次数和CPU的参与，从而提高数据传输的效率。
 
+示例代码
+
+### 示例 1: 使用 FileChannel.transferTo()
+
+这个例子演示了如何使用`transferTo()`方法将数据从一个文件传输到另一个文件。
+
+```java
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.nio.channels.FileChannel;
+
+public class TransferExample {
+    public static void main(String[] args) {
+        try (FileInputStream fis = new FileInputStream("source.txt");
+             FileOutputStream fos = new FileOutputStream("destination.txt");
+             FileChannel sourceChannel = fis.getChannel();
+             FileChannel destinationChannel = fos.getChannel()) {
+            
+            long position = 0;
+            long count = sourceChannel.size();
+            
+            sourceChannel.transferTo(position, count, destinationChannel);
+            System.out.println("Data transfer completed.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 示例 2: 使用 ByteBuffer.allocateDirect()
+
+这个例子演示了如何使用直接缓冲区来读取文件内容。
+
+```java
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+
+public class DirectBufferExample {
+    public static void main(String[] args) {
+        try (FileInputStream fis = new FileInputStream("example.txt");
+             FileChannel channel = fis.getChannel()) {
+            
+            ByteBuffer buffer = ByteBuffer.allocateDirect(1024);
+            int bytesRead;
+            
+            while ((bytesRead = channel.read(buffer)) != -1) {
+                buffer.flip();
+                while (buffer.hasRemaining()) {
+                    System.out.print((char) buffer.get());
+                }
+                buffer.clear();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 示例 3: 使用 FileChannel.map()
+
+这个例子演示了如何使用`map()`方法将文件内容映射到内存中。
+
+```java
+import java.io.RandomAccessFile;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+
+public class MemoryMappedFileExample {
+    public static void main(String[] args) {
+        try (RandomAccessFile aFile = new RandomAccessFile("largefile.bin", "rw")) {
+            FileChannel inChannel = aFile.getChannel();
+            long start = 0;
+            long size = inChannel.size();
+            
+            // 将文件的一部分映射到内存中
+            MappedByteBuffer buffer = inChannel.map(FileChannel.MapMode.READ_ONLY, start, size);
+            
+            // 读取并打印映射的内存区域内容
+            for (int i = 0; i < buffer.limit(); i++) {
+                System.out.print((char) buffer.get());
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+### 示例 4: 使用 Java 9 AIO
+
+这个例子演示了如何使用Java 9引入的异步文件通道进行异步读操作。
+
+```java
+import java.nio.ByteBuffer;
+import java.nio.channels.AsynchronousFileChannel;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.concurrent.Future;
+
+public class AsyncFileChannelExample {
+    public static void main(String[] args) {
+        Path path = Paths.get("asyncfile.txt");
+        try (AsynchronousFileChannel fileChannel = AsynchronousFileChannel.open(path, StandardOpenOption.READ)) {
+            
+            ByteBuffer buffer = ByteBuffer.allocate(1024);
+            Future<Integer> operation = fileChannel.read(buffer, 0);
+            
+            // 等待异步操作完成
+            int bytesRead = operation.get();
+            buffer.flip();
+            
+            while (buffer.hasRemaining()) {
+                System.out.print((char) buffer.get());
+            }
+            System.out.println("\nRead " + bytesRead + " bytes.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+请注意，这些示例代码仅用于演示目的，实际应用中可能需要更复杂的错误处理和资源管理。在使用这些技术时，确保你的环境支持这些操作，特别是零拷贝技术，因为它们依赖于底层操作系统的支持。
+
 # Java NIO 三大核心组件
 
 Netty 基于 Java NIO 开发
@@ -1220,6 +1349,7 @@ public class NonBlockingServerExample {
                                 socketChannel.close();
                             }
                         }
+                        // 将该事件从当前获取的一批事件中去除，避免重复处理
                         keyIterator.remove();
                     }
                 }
@@ -1290,7 +1420,9 @@ public class NonBlockingClientExample {
 
 ## SelectionKey
 
-`SelectionKey`是Java NIO中`Selector`和`Channel`之间的桥梁，它代表了一个特定的`Channel`在特定的`Selector`上的注册。当一个`Channel`注册到一个`Selector`时，它会返回一个`SelectionKey`对象，该对象包含了关于该`Channel`注册状态和选择操作的信息。下面是`SelectionKey`类中一些重要的API和属性：
+`SelectionKey`是Java NIO中`Selector`和`Channel`之间的桥梁，它代表了一个特定的`Channel`在特定的`Selector`上的注册。当一个`Channel`注册到一个`Selector`时，它会返回一个`SelectionKey`对象，该对象包含了关于该`Channel`注册状态和选择操作的信息。
+
+下面是`SelectionKey`类中一些重要的API和属性：
 
 1. Channel
 
@@ -1330,6 +1462,12 @@ public class NonBlockingClientExample {
 
 `SelectionKey`通常在使用`Selector`进行非阻塞IO操作时使用。当通过`Selector`选择操作时，可以检查每个`SelectionKey`的`readyOps()`来确定哪些操作是就绪的，然后根据`isReadable()`, `isWritable()`, `isConnectable()`, `isAcceptable()`等方法来执行相应的操作。
 
+# 基于 Java NIO 的多人群聊系统
+
+服务器端实现监听端口消息并转发，以及监控用户在线和离线状态
+客户端实现发送消息到服务器端
+
+# Netty
 
 
 
