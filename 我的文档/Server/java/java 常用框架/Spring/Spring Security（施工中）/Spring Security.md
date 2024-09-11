@@ -3278,33 +3278,13 @@ Refresh Token（刷新令牌）
 
 每种授权类型都有其适用场景和安全考虑。在实现OAuth 2.0授权服务器时，应根据客户端类型、用户代理和安全需求选择合适的授权类型。例如，授权码模式通常被认为是最安全的，因为它不直接暴露用户的凭证给客户端，而密码模式则需要客户端获得用户的高度信任。
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 ### 令牌管理配置
 
 AuthorizationServerTokenServices 接口定义了一些操作使得你可以对令牌进行一些必要的管理,令牌可以被用来加载身份信息，里面包含了这个令牌的相关权限。
 
-自己可以创建 AuthorizationServerTokenServices 这个接口的实现,则需要继承 DefaultTokenServices 这个类，里面包含了一些有用实现，你可以使用它来修改令牌的格式和令牌的存储。默认的，当它尝试创建一个令牌的时候，是使用随机值来进行填充的，除了持久化令牌是委托一个 Tokenstore 接口来实现以外，这个类几乎帮你做了所有的事情。并且 Tokenstore 这个接口有一个默认的实现，它就是InMemoryTokenstore，如其命名，所有的令牌是被保存在了内存中。除了使用这个类以外，你还可以使用一些其他的预定义实现，下面有几个版本，它们都实现了Tokenstore接口:
+自己可以创建 AuthorizationServerTokenServices 这个接口的实现,则需要继承 DefaultTokenServices 这个类，里面包含了一些有用实现，你可以使用它来修改令牌的格式和令牌的存储。
+
+默认的，当它尝试创建一个令牌的时候，是使用随机值来进行填充的，除了持久化令牌是委托一个 Tokenstore 接口来实现以外，这个类几乎帮你做了所有的事情。并且 Tokenstore 这个接口有一个默认的实现，它就是InMemoryTokenstore，如其命名，所有的令牌是被保存在了内存中。除了使用这个类以外，你还可以使用一些其他的预定义实现，下面有几个版本，它们都实现了Tokenstore接口:
 
 - InMemoryTokenstore:这个版本的实现是被默认采用的,它可以完美的工作在单服务器上(即访问并发量压力不大的情况下，并且它在失败的时候不会进行备份)，大多数的项目都可以使用这个版本的实现来进行尝试，你可以在开发的时候使用它来进行管理，因为不会被保存到磁盘中，所以更易于调试。
 - JdbcTokenstore:这是一个基于JDBC的实现版本，令牌会被保存进关系型数据库。使用这个版本的实现时，你可以在不同的服务器之间共享令牌信息，使用这个版本的时候请注意把"spring-jdbc"这个依赖加入到你的classpath当中。
@@ -3317,73 +3297,57 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.provider.token.TokenStore;
 import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
 
 @Configuration
 public class TokenConfig {
+
     /**
      * 定义令牌存储方式和生成方式
      */
     @Bean
     public TokenStore tokenStore() {
-        // 在内存中存储，生成普通令牌
-        return new InMemoryTokenStore();
+        // 配置为 JWT 令牌
+        return new JwtTokenStore(accessTokenConverter());
     }
+
+    @Bean
+    public JwtAccessTokenConverter accessTokenConverter() {
+        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+        converter.setSigningKey("demo-uaa"); // 令牌秘钥
+        return converter;
+    }
+
 }
 ```
 
 配置令牌管理服务
 
 ```java
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
-import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
-import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
-import org.springframework.security.oauth2.provider.ClientDetailsService;
-import org.springframework.security.oauth2.provider.token.AuthorizationServerTokenServices;
-import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
-import org.springframework.security.oauth2.provider.token.TokenStore;
-
-@Configuration
-@EnableAuthorizationServer
-public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
-
-    @Autowired
-    private TokenStore tokenStore;
-
-    /**
-     * 配置客户端信息
-     */
-    @Override
-    public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
-        clients.inMemory() // 使用内存存储
-                .withClient("client1") // 客户唯一标识 Client_ID
-                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
-                .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
-                .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
-                .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
-                .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
-                .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
-    }
-
-    // 获取上面配置创建的客户端信息服务
-    @Autowired
-    private ClientDetailsService clientDetailsService;
-    /**
-     * 配置令牌管理服务
-     */
-    @Bean
-    public AuthorizationServerTokenServices tokenService() {
-        DefaultTokenServices tokenServices = new DefaultTokenServices();
-        tokenServices.setClientDetailsService(clientDetailsService); // 客户端信息服务
-        tokenServices.setSupportRefreshToken(true); // 设置是否支持刷新令牌
-        tokenServices.setTokenStore(tokenStore); // 令牌存储策略
-        tokenServices.setAccessTokenValiditySeconds(60); // 令牌有效期
-        tokenServices.setRefreshTokenValiditySeconds(60); // 刷新令牌有效期
-        return tokenServices;
-    }
-
+@Autowired
+private TokenStore tokenStore;
+@Autowired
+private ClientDetailsService clientDetailsService;
+@Autowired
+private JwtAccessTokenConverter accessTokenConverter;
+/**
+ * 配置令牌管理服务
+ */
+@Bean
+public AuthorizationServerTokenServices tokenService() {
+    DefaultTokenServices tokenServices = new DefaultTokenServices();
+    tokenServices.setClientDetailsService(clientDetailsService); // 客户端信息服务
+    tokenServices.setSupportRefreshToken(true); // 设置是否支持刷新令牌
+    tokenServices.setTokenStore(tokenStore); // 令牌存储策略
+    // 设置 JWT 令牌服务
+    TokenEnhancerChain tokenEnhancerChain = new TokenEnhancerChain();
+    tokenEnhancerChain.setTokenEnhancers(Collections.singletonList(accessTokenConverter));
+    tokenServices.setTokenEnhancer(tokenEnhancerChain);
+	
+    tokenServices.setAccessTokenValiditySeconds(600); // 令牌有效期
+    tokenServices.setRefreshTokenValiditySeconds(600); // 刷新令牌有效期
+    return tokenServices;
 }
 ```
 
@@ -3398,6 +3362,35 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 - **有效期设置**：在生产环境中，通常会设置较长的有效期，例如访问令牌有效期为几小时或几天，刷新令牌有效期为几周或几个月。这取决于应用的安全需求和用户体验要求。
 - **刷新令牌**：支持刷新令牌是重要的，因为它允许用户在令牌过期后无需重新登录即可获取新的访问令牌，从而提供更好的用户体验。
 - **令牌存储**：令牌存储策略（`tokenStore`）的选择取决于应用的具体需求。`InMemoryTokenStore`适用于开发和测试环境，但在生产环境中，可能需要使用数据库存储或其他持久化方案以保证令牌的安全性和可靠性。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### 令牌访问端点配置
 
