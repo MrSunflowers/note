@@ -916,8 +916,6 @@ public class MySessionInformationExpiredStrategy implements SessionInformationEx
 }
 ```
 
-
-
 ### SecurityFilterChain配置
 
 ```java
@@ -929,7 +927,65 @@ http.sessionManagement(session -> {
 });
 ```
 
+## 授权流程
 
+1. 用户首先通过认证，比如登录成功后，拥有了一定的身份标识。
+2. 用户尝试访问某个受保护的资源，比如一个网页或API接口。
+3. Spring Security拦截这个请求，并尝试获取访问该资源所需要的权限信息。
+4. 这些权限信息通常以`Collection<ConfigAttribute>`的形式返回，其中包含了定义在安全配置中的权限规则。
+5. 授权决策管理器（`AccessDecisionManager`）接收到权限信息后，会调用`Decide()`方法来做出授权决策。
+6. `AccessDecisionManager`可能会使用多个投票器（`AccessDecisionVoter`）来对当前的访问请求进行投票决策。
+7. 如果决策结果是允许访问，那么用户的请求会被放行，用户就可以正常访问到受保护的资源。
+
+![微信截图_20240911213558](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202409112146090.png)
+
+## 授权投票
+
+在Spring Security中，投票机制是授权决策过程的核心部分，它允许系统根据多个投票器（`AccessDecisionVoter`）的投票结果来决定是否允许用户访问某个资源。下面详细解释这个过程：
+
+### 投票机制的工作原理：
+
+1. **投票器（Voters）**：`AccessDecisionManager`可以配置多个`AccessDecisionVoter`实例，每个实例负责根据不同的标准进行投票。例如，一个投票器可能基于用户的角色来投票，而另一个可能基于用户是否拥有某个特定权限来投票。
+
+2. **投票过程**：当`AccessDecisionManager`的`decide`方法被调用时，它会依次询问每个配置的`AccessDecisionVoter`是否支持当前的认证对象和请求资源。如果投票器支持，它会根据自己的逻辑进行投票，通常有三种投票结果：
+   - **GRANTED**：表示投票器认为当前用户有权限访问资源。
+   - **ABSTAIN**：表示投票器不参与此次投票，没有意见。
+   - **DENIED**：表示投票器认为当前用户没有权限访问资源。
+
+3. **决策结果**：`AccessDecisionManager`会根据所有投票器的投票结果来做出最终决策。如果所有投票器都投了`GRANTED`票，那么用户被授权访问资源。如果任何一个投票器投了`DENIED`票，那么用户将被拒绝访问。如果存在`DENIED`和`GRANTED`票，但没有`ABSTAIN`票，`AccessDecisionManager`的配置将决定如何处理这种冲突（例如，可以设置为多数决或一票否决等）。
+
+### 自定义投票器：
+
+如果你需要根据特定的业务逻辑来控制访问权限，你可以实现自己的`AccessDecisionVoter`。自定义投票器需要实现`AccessDecisionVoter`接口，并重写`vote`方法。在这个方法中，你可以访问认证对象、请求资源以及`ConfigAttribute`集合，然后根据你的业务逻辑返回投票结果。
+
+示例：
+
+假设你有一个投票器，它基于用户是否属于某个特定部门来授权访问某个资源：
+
+```java
+public class DepartmentAccessVoter implements AccessDecisionVoter<Object> {
+    @Override
+    public boolean supports(ConfigAttribute attribute) {
+        // 检查投票器是否支持当前的权限属性
+        return true;
+    }
+
+    @Override
+    public boolean supports(Class<?> clazz) {
+        // 检查投票器是否支持当前的投票对象类型
+        return true;
+    }
+
+    @Override
+    public int vote(Authentication authentication, Object object, Collection<ConfigAttribute> attributes) {
+        // 实现具体的投票逻辑
+        // 比如检查用户所属部门是否与资源要求的部门匹配
+        // 如果匹配返回GRANTED，否则返回DENIED
+    }
+}
+```
+
+通过这种方式，你可以灵活地根据应用的具体需求来控制访问权限。记得在配置Spring Security时注册你的自定义投票器，以便它能被`AccessDecisionManager`使用。
 
 # 权限模型系统设计
 
@@ -1378,7 +1434,7 @@ Spring Security 是一个强大的、可高度定制的身份验证和访问控�
    import org.springframework.security.config.annotation.web.builders.HttpSecurity;
    import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
    import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-
+   
    @EnableWebSecurity
    public class SecurityConfig extends WebSecurityConfigurerAdapter {
        @Override
@@ -1426,7 +1482,7 @@ Spring Security 是一个强大的、可高度定制的身份验证和访问控�
    import org.springframework.security.config.annotation.web.builders.HttpSecurity;
    import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
    import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
-
+   
    @EnableWebSecurity
    public class SecurityConfig extends WebSecurityConfigurerAdapter {
        @Override
@@ -2934,12 +2990,11 @@ GITHUB {
 
 ## 授权服务器（Authorization Server）
 
-Spring-Security-OAuth2
+授权服务器是权限与用户中心，包含了全部用户和用户的权限信息，可以使用表单登录和 JWT 登录两种方式来登录授权服务器，其中使用 JWT 登录需要编写前端页面配合才能实现，这种适合于前后端分离的项目。由于下文演示的重点是分布式环境下的授权服务中心的搭建，就暂时使用表单登录实现。
 
-授权服务 (Authorization server)应包含对接入端以及登入用户的合法性进行验证并颁发token等功能对令牌的请求端点由 Spring MVC 控制器进行实现，下面是配置一个认证服务必须要实现的endpoints:
+首先搭建一个 Spring-Security 基本微服务项目，具体可参考上文的最基本的 Spring-Security 项目搭建。如果想改造成为基于 JWT 实现的认证，则可参考 "基于 jwt 的认证实现示例" 一节的内容，完全照搬即可。
 
-- AuthorizationEndpoint 服务于认证请求，校验接入系统的客户端身份。默认 URL: `/oauth/authorize`。
-- TokenEndpoint 服务用于颁发访问令牌的请求。默认 URL: `/oauth/token` 。
+下面演示搭建微服务鉴权中心的配置
 
 添加依赖
 
@@ -2957,49 +3012,41 @@ Spring-Security-OAuth2
 
 添加配置类
 
-```java
-@Configuration
-@EnableAuthorizationServer
-public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
-}
-```
-
-通过继承 AuthorizationServerConfigurerAdapter 类并使用 @EnableAuthorizationServer 注解，定义了一个配置类，该类将启用 Spring Security OAuth2 授权服务器的功能。
-
-AuthorizationServerConfigurerAdapter要求配置以下几个类,这几个类是由spring 创建的独立配置对象，它们会被 Spring 传入 AuthorizationServerConfigurer 中进行配置。
-
-- **ClientDetailsServiceConfigurer**:用来配置客户端详情服务(ClientDetailsService),客户端详情信息在这里进行初始化，你能够把客户端详情信息写死在这里或者是通过数据库来存储调取详情信息。能够支持哪些客户端。
-- **AuthorizationserverEndpointsconfigurer**:用来配置令牌(token)的访问端点和令牌服务(tokenservices)。申请令牌的地址和如何生成令牌
-- **Authorizationserversecurityconfigurer**:用来配置令牌端点的安全约束，哪些人可以访问令牌
-
-### 客户端信息配置
-
-用于存储申请接入系统的客户端信息
-
-ClientDetailsServiceConfigurer 能够使用内存或者]DBC来实现客户端详情服务ClientDetailsService),ClientDetailsService负责查找ClientDetails,而ClientDetails有几个重要的属性如下列表:
-
-- clientld:(必须的)用来标识客户的Id。
-- secret:(需要值得信任的客户端)客户端安全码，如果有的话，
-- scope:用来限制客户端的访问范围，如果为空(默认)的话，那么客户端拥有全部的访问范围。
-- authorizedGrantTypes:此客户端可以使用的授权类型，默认为空。
-- authorities:此客户端可以使用的权限(基于Spring Security authorities)。
-
-客户端详情(Client Details)能够在应用程序运行的时候进行更新,可以通过访问底层的存储服务(例如将客户端详情存储在一个关系数据库的表中，就可以使用 |dbcClientDetailsService)或者通过自己实现ClientRegistrationService接囗(同时你也可以实现 ClientDetailsService 接口)来进行管理。
-
-我们暂时使用内存方式存储客户端详情信息，配置如下:
+AuthorizationServer
 
 ```java
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerEndpointsConfigurer;
+import org.springframework.security.oauth2.config.annotation.web.configurers.AuthorizationServerSecurityConfigurer;
+import org.springframework.security.oauth2.provider.ClientDetailsService;
+import org.springframework.security.oauth2.provider.code.AuthorizationCodeServices;
+import org.springframework.security.oauth2.provider.code.InMemoryAuthorizationCodeServices;
+import org.springframework.security.oauth2.provider.token.AuthorizationServerTokenServices;
+import org.springframework.security.oauth2.provider.token.DefaultTokenServices;
+import org.springframework.security.oauth2.provider.token.TokenEnhancerChain;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+
+import java.util.Arrays;
+import java.util.Collections;
 
 @Configuration
 @EnableAuthorizationServer
 public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 
-	@Autowired
+    @Autowired
+    private TokenStore tokenStore;
+    @Autowired
     private PasswordEncoder passwordEncoder;
+
     /**
      * 配置客户端信息
      */
@@ -3007,19 +3054,202 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
         clients.inMemory() // 使用内存存储
                 .withClient("client1") // 客户唯一标识 Client_ID
-                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret，默认 passwordEncoder 加密
-                .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
+                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
+                .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
                 .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
-                .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
-                .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
+                .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
+                .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
     }
+
+    @Autowired
+    private ClientDetailsService clientDetailsService;
+    @Autowired
+    private JwtAccessTokenConverter accessTokenConverter;
+
+    /**
+     * 配置令牌管理服务
+     */
+    @Bean
+    public AuthorizationServerTokenServices tokenService() {
+        DefaultTokenServices tokenServices = new DefaultTokenServices();
+        tokenServices.setClientDetailsService(clientDetailsService); // 客户端信息服务
+        tokenServices.setSupportRefreshToken(true); // 设置是否支持刷新令牌
+        tokenServices.setTokenStore(tokenStore); // 令牌存储策略
+
+        // 设置 JWT 令牌服务
+        TokenEnhancerChain tokenEnhancerChain = new TokenEnhancerChain();
+        tokenEnhancerChain.setTokenEnhancers(Collections.singletonList(accessTokenConverter));
+        tokenServices.setTokenEnhancer(tokenEnhancerChain);
+
+        tokenServices.setAccessTokenValiditySeconds(600); // 令牌有效期
+        tokenServices.setRefreshTokenValiditySeconds(600); // 刷新令牌有效期
+        return tokenServices;
+    }
+
+    /**
+     * 配置授权码存储方式
+     */
+    @Bean
+    public AuthorizationCodeServices authorizationCodeServices() {
+        return new InMemoryAuthorizationCodeServices();
+    }
+
+    @Autowired
+    private AuthenticationManager authenticationManager;
+    @Autowired
+    private AuthorizationCodeServices authorizationCodeServices;
+    /**
+     * 配置令牌访问端点
+     */
+    @Override
+    public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+        endpoints.tokenServices(tokenService()) // 令牌管理服务
+                .authenticationManager(authenticationManager) // 密码模式需要，认证管理器
+                .authorizationCodeServices(authorizationCodeServices) // 授权码模式需要，配置授权码存储方式
+                .allowedTokenEndpointRequestMethods(HttpMethod.POST);// 允许post提交
+    }
+
+
+    /**
+     * 配置授权服务器的安全规则
+     */
+    @Override
+    public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+        security.tokenKeyAccess("permitAll()") // 允许所有人访问令牌密钥端点
+                .checkTokenAccess("permitAll()"); // 允许所有人检查令牌
+                .allowFormAuthenticationForClients(); // 允许客户端使用表单认证
+    }
+}
+```
+
+TokenConfig
+
+```java
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.oauth2.provider.token.TokenStore;
+import org.springframework.security.oauth2.provider.token.store.InMemoryTokenStore;
+import org.springframework.security.oauth2.provider.token.store.JwtAccessTokenConverter;
+import org.springframework.security.oauth2.provider.token.store.JwtTokenStore;
+
+@Configuration
+public class TokenConfig {
+    /**
+     * 定义令牌存储方式和生成方式
+     */
+    @Bean
+    public TokenStore tokenStore() {
+        // 配置为 JWT 令牌
+        return new JwtTokenStore(accessTokenConverter());
+    }
+    @Bean
+    public JwtAccessTokenConverter accessTokenConverter() {
+        JwtAccessTokenConverter converter = new JwtAccessTokenConverter();
+        converter.setSigningKey("demo-uaa"); // 令牌秘钥
+        return converter;
+    }
+}
+```
+
+通过继承 AuthorizationServerConfigurerAdapter 类并使用 @EnableAuthorizationServer 注解，定义了一个配置类，该类将启用 Spring Security OAuth2 授权服务器的功能。
+
+AuthorizationServerConfigurerAdapter 类源码
+
+```java
+public class AuthorizationServerConfigurerAdapter implements AuthorizationServerConfigurer {
+
+	@Override
+	public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
+	}
+
+	@Override
+	public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+	}
+
+	@Override
+	public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
+	}
+
+}
+```
+
+可以看出在 AuthorizationServerConfigurerAdapter 中要求配置三类资源，以不同的参数来区分
+
+其中
+
+- `configure(ClientDetailsServiceConfigurer clients)` 用于配置想要接入本系统的客户端系统信息
+- `configure(AuthorizationServerSecurityConfigurer security)` 用于配置授权服务器的安全规则
+- `configure(AuthorizationServerEndpointsConfigurer endpoints)` 用于配置令牌信息
+
+下面分别说明三类资源
+
+### 客户端信息配置
+
+用于存储申请接入系统的客户端信息
+
+ClientDetailsServiceConfigurer 能够使用 **内存** 或者 **JDBC** 来存储和加载客户端详情信息
+
+```java
+// 使用内存
+public InMemoryClientDetailsServiceBuilder inMemory() throws Exception {
+	InMemoryClientDetailsServiceBuilder next = getBuilder().inMemory();
+	setBuilder(next);
+	return next;
+}
+// 使用 JDBC
+public JdbcClientDetailsServiceBuilder jdbc(DataSource dataSource) throws Exception {
+	JdbcClientDetailsServiceBuilder next = getBuilder().jdbc().dataSource(dataSource);
+	setBuilder(next);
+	return next;
+}
+```
+
+配置示例
+
+```java
+@Override
+public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+    clients.inMemory();
+}
+```
+
+这个存储和加载过程是由 ClientDetailsService 和 ClientRegistrationService 类来完成的
+
+一个客户端至少需要下面几个属性
+
+- clientld:(必须的)用来标识客户的 Id。
+- secret:客户端安全秘钥
+- scope:用来限制客户端的访问范围，如果为空(默认)的话，那么客户端拥有全部的访问范围。
+- authorizedGrantTypes:此客户端可以使用的授权类型，默认为空。
+- authorities:此客户端可以使用的权限(基于Spring Security authorities)。
+
+客户端详情(Client Details)能够在应用程序运行的时候进行更新,可以通过访问底层的存储服务(例如将客户端详情存储在一个关系数据库的表中，就可以使用 JdbcClientDetailsService)或者通过自己实现ClientRegistrationService接囗(同时你也可以实现 ClientDetailsService 接口)来进行管理。
+
+我们暂时使用内存方式存储客户端详情信息，配置如下:
+
+```java
+@Autowired
+private PasswordEncoder passwordEncoder;
+/**
+ * 配置客户端信息
+ */
+@Override
+public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
+    clients.inMemory() // 使用内存存储
+            .withClient("client1") // 客户唯一标识 Client_ID
+            .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
+            .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
+            .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
+            .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
+            .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
+            .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
 }
 ```
 
 authorizedGrantTypes：
 
-指定了客户端可以使用的授权类型。下面是对这些授权类型的简要说明：
+指定了客户端可以使用的授权方式。下面是对这些授权方式的简要说明：
 
 Authorization Code（授权码）
 
@@ -3047,6 +3277,28 @@ Refresh Token（刷新令牌）
 - **流程**：当客户端获得访问令牌时，通常也会获得一个刷新令牌。当访问令牌过期后，客户端可以使用刷新令牌请求新的访问令牌。
 
 每种授权类型都有其适用场景和安全考虑。在实现OAuth 2.0授权服务器时，应根据客户端类型、用户代理和安全需求选择合适的授权类型。例如，授权码模式通常被认为是最安全的，因为它不直接暴露用户的凭证给客户端，而密码模式则需要客户端获得用户的高度信任。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ### 令牌管理配置
 
@@ -3107,12 +3359,12 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
         clients.inMemory() // 使用内存存储
                 .withClient("client1") // 客户唯一标识 Client_ID
-                .secret("secret") // 秘钥 Client_secret
-                .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
+                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
+                .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
                 .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
-                .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
-                .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
+                .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
+                .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
     }
 
     // 获取上面配置创建的客户端信息服务
@@ -3212,12 +3464,12 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
         clients.inMemory() // 使用内存存储
                 .withClient("client1") // 客户唯一标识 Client_ID
-                .secret("secret") // 秘钥 Client_secret
-                .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
+                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
+                .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
                 .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
-                .autoApprove(true) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
-                .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
+                .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
+                .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
     }
 
     @Autowired
@@ -3273,6 +3525,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.config.annotation.configurers.ClientDetailsServiceConfigurer;
 import org.springframework.security.oauth2.config.annotation.web.configuration.AuthorizationServerConfigurerAdapter;
 import org.springframework.security.oauth2.config.annotation.web.configuration.EnableAuthorizationServer;
@@ -3291,6 +3544,8 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 
     @Autowired
     private TokenStore tokenStore;
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     /**
      * 配置客户端信息
@@ -3299,16 +3554,17 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     public void configure(ClientDetailsServiceConfigurer clients) throws Exception {
         clients.inMemory() // 使用内存存储
                 .withClient("client1") // 客户唯一标识 Client_ID
-                .secret("secret") // 秘钥 Client_secret
-                .resourceIds("client1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
+                .secret(passwordEncoder.encode("secret")) // 秘钥 Client_secret
+                .resourceIds("resourceId1") // 定义了客户端可以访问的资源ID。在实际应用中，资源ID通常与资源服务器相关联。
                 .authorizedGrantTypes("authorization_code", "password", "client_credentials", "implicit", "refresh_token") // 指定了客户端可以使用的授权类型。
                 .scopes("read", "write") // 定义了客户端请求的权限范围。这决定了客户端可以执行的操作类型。
                 .autoApprove(false) // 表示客户端请求的权限将被自动批准，不需用户手动确认。 false 则跳转到授权页面，要求用户授权
-                .redirectUris("http://localhost:8080/oauth/authorize");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
+                .redirectUris("http://www.baidu.com");// 定义了授权码模式下，用户授权后浏览器重定向的地址。
     }
 
     @Autowired
     private ClientDetailsService clientDetailsService;
+
     /**
      * 配置令牌管理服务
      */
@@ -3322,7 +3578,6 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
         tokenServices.setRefreshTokenValiditySeconds(60); // 刷新令牌有效期
         return tokenServices;
     }
-
 
     /**
      * 配置授权码存储方式
@@ -3342,8 +3597,8 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
     @Override
     public void configure(AuthorizationServerEndpointsConfigurer endpoints) throws Exception {
         endpoints.tokenServices(tokenService()) // 令牌管理服务
-                .authenticationManager(authenticationManager) // 密码模式需要
-                .authorizationCodeServices(authorizationCodeServices) // 授权码模式需要
+                .authenticationManager(authenticationManager) // 密码模式需要，认证管理器
+                .authorizationCodeServices(authorizationCodeServices) // 授权码模式需要，配置授权码存储方式
                 .allowedTokenEndpointRequestMethods(HttpMethod.POST);// 允许post提交
     }
 
@@ -3353,11 +3608,12 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
      */
     @Override
     public void configure(AuthorizationServerSecurityConfigurer security) throws Exception {
-        security.tokenKeyAccess("permitAll()") // 允许所有人访问令牌密钥端点，即不需要登录即可访问
-                .checkTokenAccess("permitAll()") // 允许所有人检查令牌，用于资源服务器远程校验 token，即不需要登录即可访问
+        security.tokenKeyAccess("permitAll()") // 允许所有人访问令牌密钥端点
+                .checkTokenAccess("permitAll()") // 允许所有人检查令牌
                 .allowFormAuthenticationForClients(); // 允许客户端使用表单认证
     }
 }
+
 ```
 
 
@@ -3374,6 +3630,35 @@ public class AuthorizationServer extends AuthorizationServerConfigurerAdapter {
 - **令牌检查端点安全**：检查令牌端点通常需要严格的安全控制，因为它可以提供有关令牌的敏感信息。确保只有可信的服务或客户端可以访问此端点。
 
 - **客户端认证方式**：表单认证是一种简单的方式，但可能不是最安全的。在生产环境中，可能需要考虑使用更安全的认证方式，如HTTP基本认证或OAuth2客户端认证。
+
+
+
+
+
+
+
+
+
+
+
+授权服务 (Authorization server) 首先应提供申请授权码的接口，这个接口在框架实现中已经内置了，默认访问地址为：
+
+```
+/oauth/authorize
+```
+
+应包含对接入端以及登入用户的合法性进行验证并颁发token等功能对令牌的请求端点由 Spring MVC 控制器进行实现，下面是配置一个认证服务必须要实现的endpoints:
+
+- AuthorizationEndpoint 服务于认证请求，校验接入系统的客户端身份。默认 URL: `/oauth/authorize`。
+- TokenEndpoint 服务用于颁发访问令牌的请求。默认 URL: `/oauth/token` 。
+
+AuthorizationServerConfigurerAdapter要求配置以下几个类,这几个类是由spring 创建的独立配置对象，它们会被 Spring 传入 AuthorizationServerConfigurer 中进行配置。
+
+- **ClientDetailsServiceConfigurer**:用来配置客户端详情服务(ClientDetailsService),客户端详情信息在这里进行初始化，你能够把客户端详情信息写死在这里或者是通过数据库来存储调取详情信息。能够支持哪些客户端。
+- **AuthorizationserverEndpointsconfigurer**:用来配置令牌(token)的访问端点和令牌服务(tokenservices)。申请令牌的地址和如何生成令牌
+- **Authorizationserversecurityconfigurer**:用来配置令牌端点的安全约束，哪些人可以访问令牌
+
+
 
 ## 授权流程测试
 
@@ -3524,10 +3809,6 @@ HttpSecurity配置这个与Spring Security类似:
 
 `@EnableResourceServer` 注解自动增加了一个类型为 `OAuth2AuthenticationProcessingfilter` 的过滤器链
 
-
-
-
-
 ### 验证token
 
 ResourceServerTokenServices 是组成授权服务的另一半,如果你的授权服务和资源服务在同一个应用程序上的话，你可以使用 DefaultTokenservices，这样的话，你就不用考虑关于实现所有必要的接口的一致性问题。如果你的资源服务器是分离开的，那么你就必须要确保能够有匹配授权服务提供的 ResourceServerTokenServices，它知道如何对令牌进行解码
@@ -3541,13 +3822,89 @@ ResourceServerTokenServices 是组成授权服务的另一半,如果你的授权
 
 在资源服务配置 RemoteTokenServices，在 ResouceServerConfig 中配置
 
+### 配置文件
+
+ResouceServerConfig
+
+```java
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.config.annotation.web.configuration.EnableResourceServer;
+import org.springframework.security.oauth2.config.annotation.web.configuration.ResourceServerConfigurerAdapter;
+import org.springframework.security.oauth2.config.annotation.web.configurers.ResourceServerSecurityConfigurer;
+import org.springframework.security.oauth2.provider.token.RemoteTokenServices;
+import org.springframework.security.oauth2.provider.token.ResourceServerTokenServices;
+
+@Configuration
+@EnableResourceServer
+public class ResouceServerConfig extends ResourceServerConfigurerAdapter {
+
+    /**
+     * 配置资源 ID
+     */
+    public static final String RESOURCE_ID = "resourceId1";
 
 
 
+    @Override
+    public void configure(ResourceServerSecurityConfigurer resources) throws Exception {
+        resources.resourceId(RESOURCE_ID) // 资源 ID
+                .tokenServices(tokenServices()) // 验证令牌的服务
+                .stateless(true); // 是否为无状态服务
+    }
+
+    /**
+     * 配置安全策略
+     */
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.authorizeRequests()
+                .antMatchers("/**").access("#oauth2.hasScope('read')") // 校验授权范围
+                .and().csrf().disable()
+                .sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+    }
 
 
+    /**
+     * 配置资源服务器令牌解析服务
+     */
+    @Bean
+    public ResourceServerTokenServices tokenServices() throws Exception {
+        RemoteTokenServices remoteTokenServices = new RemoteTokenServices();
+        // 授权服务器的检测 token 的地址
+        remoteTokenServices.setCheckTokenEndpointUrl("http://localhost:9010/oauth/check_token");
+        remoteTokenServices.setClientId("client1");
+        remoteTokenServices.setClientSecret("secret");
+        return remoteTokenServices;
+    }
 
+}
+```
 
+SecurityConfig
+
+```java
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configuration.WebSecurityConfigurerAdapter;
+
+@Configuration
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+
+    @Override
+    public void configure(HttpSecurity http) throws Exception {
+        http.csrf().disable();
+        http.authorizeRequests()
+                // 配置登录注册接口放行
+                .anyRequest().authenticated()
+        ;
+        http.cors();
+        http.formLogin();
+    }
+}
+```
 
 # 基于 spring-boot 3 + Spring Authorization Server OAuth2 的认证服务器的搭建
 
