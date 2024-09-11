@@ -607,6 +607,57 @@ public class AsyncFileChannelExample {
 
 请注意，这些示例代码仅用于演示目的，实际应用中可能需要更复杂的错误处理和资源管理。在使用这些技术时，确保你的环境支持这些操作，特别是零拷贝技术，因为它们依赖于底层操作系统的支持。
 
+### 注意
+
+在Windows平台上，`FileChannel.transferTo()` 和 `transferFrom()` 方法的传输大小可能会受到限制，这主要是由于Windows的本地I/O系统调用的限制。在某些版本的Windows系统中，确实存在一个限制，即单次传输操作不能超过8MB（有时是4MB，具体取决于Windows的版本和配置）。超过这个限制的传输可能会被操作系统分割成多个较小的传输操作。而 Linux 则没有此限制。
+
+这种限制源于Windows的内部缓冲机制和I/O完成端口的限制。当尝试进行超过限制的传输时，操作系统可能会将大块的传输拆分成多个较小的传输，这可能导致性能下降，因为需要更多的系统调用和上下文切换。
+
+解决方案和注意事项
+
+1. **分块传输**：如果需要传输大量数据，可以将大块数据分成多个小于限制大小的块进行传输。这需要在应用层手动实现分块逻辑。
+
+2. **检查系统限制**：可以通过编程方式检查当前系统对`transferTo()`和`transferFrom()`操作的限制。虽然Java标准库没有直接提供这样的API，但可以通过执行一些测试传输来间接确定限制。
+
+3. **使用其他方法**：如果`FileChannel`的`transferTo()`和`transferFrom()`方法的限制对你的应用影响较大，可以考虑使用其他方法，如使用`allocateDirect()`创建的直接缓冲区进行数据传输，或者使用`FileChannel.map()`进行内存映射。
+
+4. **操作系统更新**：有时候，操作系统更新可能会改变这些限制。如果你正在使用较旧的Windows版本，考虑升级到最新版本可能会解决一些限制问题。
+
+示例代码片段（分块传输）
+
+```java
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.nio.channels.FileChannel;
+
+public class TransferChunkedExample {
+    public static void main(String[] args) {
+        try (FileInputStream fis = new FileInputStream("source.txt");
+             FileOutputStream fos = new FileOutputStream("destination.txt");
+             FileChannel sourceChannel = fis.getChannel();
+             FileChannel destinationChannel = fos.getChannel()) {
+            
+            long totalSize = sourceChannel.size();
+            long position = 0;
+            long maxChunkSize = 8 * 1024 * 1024; // 8MB
+
+            while (position < totalSize) {
+                long remaining = totalSize - position;
+                long chunkSize = Math.min(remaining, maxChunkSize);
+                position += sourceChannel.transferTo(position, chunkSize, destinationChannel);
+            }
+            System.out.println("Data transfer completed.");
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+}
+```
+
+在上述代码中，我们通过循环将大文件分成多个8MB的块进行传输。每次循环调用`transferTo()`时，都会传输文件的一部分，直到整个文件传输完成。
+
+请记住，这些限制和解决方案可能因不同的Windows版本和配置而异，因此在实施之前最好进行适当的测试和验证。
+
 # Java NIO 三大核心组件
 
 Netty 基于 Java NIO 开发
