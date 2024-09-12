@@ -1967,13 +1967,267 @@ class SimpleClientHandler extends io.netty.channel.ChannelInboundHandlerAdapter 
 
 请确保服务器端代码正在运行，并且客户端代码中的主机地址和端口号与服务器端配置相匹配。这个例子同样需要根据实际使用的Netty版本进行调整。
 
+# EventLoopGroup
 
+在Netty中，`EventLoopGroup` 的默认池大小取决于你的操作系统和JVM的可用处理器数量。Netty默认会尝试使用CPU核心数的两倍作为`EventLoopGroup`的线程数。这个默认行为是基于Netty的默认构造器，它使用`NioEventLoopGroup`作为实现。
 
+例如，如果你的机器有4个CPU核心，Netty默认会创建一个包含8个线程的`EventLoopGroup`。这个默认值可以通过构造函数的参数进行调整，或者通过设置系统属性来改变。
 
+如果你需要查看或修改这个默认值，可以查看Netty的源代码或文档，了解如何通过构造函数参数来指定线程数，或者如何通过系统属性来设置默认的线程池大小。
 
+请注意，最佳的线程池大小可能依赖于具体的应用场景和硬件配置，因此在生产环境中，建议根据实际的性能测试结果来调整这个值。
 
+# TaskQueue 自定义任务
 
+在Netty中，`TaskQueue`是一个用于存放待执行任务的队列，这些任务通常是由`EventLoop`来处理的。`TaskQueue`是`EventExecutor`接口的一部分，而`EventExecutor`又是`EventLoop`的父接口。`TaskQueue`的主要作用是提供一个线程安全的方式来存放那些需要在`EventLoop`的线程中执行的任务。
 
+比如提交一个耗时比较长的任务给一个 worker 去异步执行。
+
+主要特点和用途
+
+1. **线程安全**：`TaskQueue`保证了任务的添加和执行是线程安全的，即使在多线程环境下，也不会出现数据竞争或不一致的问题。
+
+2. **任务排队**：当有任务需要异步执行时，这些任务会被添加到`TaskQueue`中。`EventLoop`会按照队列的顺序来依次执行这些任务。
+
+3. **异步执行**：`TaskQueue`允许开发者将耗时的操作（如数据库访问、复杂的计算等）异步地放入队列中，由`EventLoop`在适当的时候执行，这样可以避免阻塞I/O线程，提高应用的性能。
+
+4. **与事件循环集成**：`TaskQueue`与Netty的事件循环机制紧密集成，确保了任务的执行不会影响到I/O事件的处理。
+
+使用场景
+
+- **延时任务**：可以将需要延时执行的任务加入到`TaskQueue`中，由`EventLoop`在指定时间后执行。
+
+- **后台任务**：对于一些不紧急但需要在服务器端执行的后台任务，可以使用`TaskQueue`来异步处理。
+
+- **资源释放**：在某些情况下，可能需要在连接关闭后释放一些资源，这些清理工作可以作为任务加入到`TaskQueue`中。
+
+示例代码
+
+```java
+// 假设我们有一个EventLoopGroup和EventLoop
+EventLoopGroup eventLoopGroup = new NioEventLoopGroup();
+EventLoop eventLoop = eventLoopGroup.next();
+
+// 创建一个任务
+Runnable task = () -> {
+    // 执行一些耗时操作
+    System.out.println("Task executed by " + Thread.currentThread().getName());
+};
+
+// 将任务添加到TaskQueue中
+eventLoop.execute(task);
+```
+
+在这个例子中，`task`将被添加到与`eventLoop`关联的`TaskQueue`中，并在`eventLoop`的线程中执行。
+
+注意事项
+
+- `TaskQueue`中的任务执行顺序通常遵循先进先出（FIFO）的原则，但Netty的某些版本可能支持优先级队列或其他类型的队列。
+- 在Netty 4.x版本中，`TaskQueue`是`EventExecutor`的一部分，而在Netty 5.x版本中，`TaskQueue`的概念被进一步抽象化，以支持更灵活的任务调度。
+
+`TaskQueue`是Netty实现高效、异步任务处理的关键组件之一，它使得开发者可以轻松地将任务安排到合适的线程中执行，而无需担心线程管理和同步问题。
+
+## 自定义普通任务
+
+在Netty中，自定义普通任务通常意味着创建一个可以在`EventLoop`的线程中异步执行的任务。下面是一个简单的示例，演示如何在Netty中自定义并执行一个普通任务：
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+
+public class NettyServer {
+
+    private final int port;
+
+    public NettyServer(int port) {
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        // 创建两个EventLoopGroup对象，一个用于接收连接，另一个用于处理连接的数据读写
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        try {
+            // 创建服务端启动助手
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+             .channel(NioServerSocketChannel.class) // 指定使用的channel
+             .childHandler(new ChannelInitializer<SocketChannel>() { // 设置childHandler来处理网络事件
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     // 添加字符串解码器和编码器
+                     ch.pipeline().addLast(new StringDecoder());
+                     ch.pipeline().addLast(new StringEncoder());
+                     // 添加自定义的处理器
+                     ch.pipeline().addLast(new SimpleServerHandler());
+                 }
+             });
+
+            // 绑定端口并同步等待成功，即启动服务端
+            ChannelFuture f = b.bind(port).sync();
+
+            // 等待服务端监听端口关闭
+            f.channel().closeFuture().sync();
+        } finally {
+            // 关闭两个EventLoopGroup，释放资源
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int port = 8080; // 服务器端口
+        new NettyServer(port).start();
+    }
+}
+
+class SimpleServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter {
+    @Override
+    public void channelActive(io.netty.channel.ChannelHandlerContext ctx) {
+        // 当连接建立时，执行一个自定义任务
+        ctx.channel().eventLoop().execute(new Runnable() {
+            @Override
+            public void run() {
+                // 这里可以执行耗时操作，例如记录日志、计算等
+                System.out.println("执行自定义任务，当前线程：" + Thread.currentThread().getName());
+            }
+        });
+    }
+
+    @Override
+    public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) {
+        // 接收到消息后，简单地将接收到的字符串转换为大写并回写给客户端
+        System.out.println("Server received: " + msg);
+        ctx.write(msg);
+    }
+
+    @Override
+    public void channelReadComplete(io.netty.channel.ChannelHandlerContext ctx) {
+        ctx.flush();
+    }
+
+    @Override
+    public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+        // 出现异常时关闭连接
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+在这个示例中，我们创建了一个Netty服务器，它监听指定的端口并接受客户端连接。当一个新的连接被建立时（`channelActive`方法被调用时），我们通过`ctx.channel().eventLoop().execute()`方法提交了一个自定义任务到`EventLoop`的线程中执行。这个自定义任务是一个简单的打印操作，用于演示如何在`EventLoop`的线程中执行任务。
+
+请注意，这个示例仅用于演示如何提交自定义任务，并没有实现完整的客户端和服务器之间的通信逻辑。在实际应用中，你可能需要根据具体需求来扩展和调整代码。
+
+## 自定义定时任务
+
+在Netty中，你可以使用`ScheduledExecutorService`来安排定时任务。Netty的`EventLoop`提供了`schedule`、`scheduleAtFixedRate`和`scheduleWithFixedDelay`方法来安排这些任务。下面是一个自定义定时任务的示例，演示如何在Netty中安排一个定时任务，该任务每隔一定时间间隔执行一次。
+
+创建一个Netty应用程序，其中包含自定义定时任务的执行：
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+
+public class NettyServer {
+
+    private final int port;
+
+    public NettyServer(int port) {
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        // 创建两个EventLoopGroup对象，一个用于接收连接，另一个用于处理连接的数据读写
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        try {
+            // 创建服务端启动助手
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+             .channel(NioServerSocketChannel.class) // 指定使用的channel
+             .childHandler(new ChannelInitializer<SocketChannel>() { // 设置childHandler来处理网络事件
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     // 添加字符串解码器和编码器
+                     ch.pipeline().addLast(new StringDecoder());
+                     ch.pipeline().addLast(new StringEncoder());
+                     // 添加自定义的处理器
+                     ch.pipeline().addLast(new SimpleServerHandler());
+                 }
+             });
+
+            // 绑定端口并同步等待成功，即启动服务端
+            ChannelFuture f = b.bind(port).sync();
+
+            // 等待服务端监听端口关闭
+            f.channel().closeFuture().sync();
+        } finally {
+            // 关闭两个EventLoopGroup，释放资源
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int port = 8080; // 服务器端口
+        new NettyServer(port).start();
+    }
+}
+
+class SimpleServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter {
+    @Override
+    public void channelActive(io.netty.channel.ChannelHandlerContext ctx) {
+        // 当连接建立时，安排一个定时任务
+        ctx.channel().eventLoop().scheduleAtFixedRate(new Runnable() {
+            @Override
+            public void run() {
+                // 这里可以执行定时任务，例如发送心跳包、清理资源等
+                System.out.println("执行定时任务，当前线程：" + Thread.currentThread().getName());
+            }
+        }, 0, 5, TimeUnit.SECONDS); // 每5秒执行一次
+    }
+
+    @Override
+    public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) {
+        // 接收到消息后，简单地将接收到的字符串转换为大写并回写给客户端
+        System.out.println("Server received: " + msg);
+        ctx.write(msg);
+    }
+
+    @Override
+    public void channelReadComplete(io.netty.channel.ChannelHandlerContext ctx) {
+        ctx.flush();
+    }
+
+    @Override
+    public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+        // 出现异常时关闭连接
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+在这个示例中，当一个新的连接被建立时（`channelActive`方法被调用时），我们使用`ctx.channel().eventLoop().scheduleAtFixedRate()`方法安排了一个定时任务。这个任务是一个简单的打印操作，每隔5秒执行一次，用于演示如何在Netty中安排定时任务。
+
+请注意，这个示例仅用于演示如何安排定时任务，并没有实现完整的客户端和服务器之间的通信逻辑。在实际应用中，你可能需要根据具体需求来扩展和调整代码。
+
+## 非当前 Reactor 线程调用 Channel 的各种方法，比如推送系统
 
 
 
