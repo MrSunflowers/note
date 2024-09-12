@@ -1561,11 +1561,230 @@ Netty 线程模型就是从主从Reactor多线程模型发展而来。
 
 一个简单的 Netty 模型说明就是： Netty 引入一个 BossGroup 角色来接收客户端连接请求，将请求通过 Selecter.accept() 获取到 SocketChannel，再将 SocketChannel 转化为 NIOSocketChannel 交给 WorkerGroup 通过 Selecter 来监听并交由 Handler 处理。
 
+实际上的 Netty 模型会比上面的描述要复杂一些
 
+可以总结如下
 
+1. Netty抽象出两组线程池 ：BossGroup 专门负责接收客户端的连接，WorkerGroup ：专门负责网络的读写。
+2. BossGroup 和 WorkerGroup 类型都是 NioEventLoopGroup。
+3. NioEventLoopGroup 相当于一个事件循环组，这个组中含有多个事件循环，每一个事件循环是 NioEventLoop。
+4. NioEventLoop 表示一个不断循环的执行处理任务的线程，每个 NioEventLoop 都有一个 selector，用于监听绑定在其上的 socket 的网络通信。
+5. NioEventLoopGroup 可以有多个线程，即可以含有多个 NioEventLoop。
+6. 每个 Boss NioEventLoop 循环执行的步骤有3步。
+7. 轮询accept事件。
+8. 处理accept事件，与client建立连接，生成NioSocketChannel，并将其注册到某个worker NioEventLoop上的selector。
+9. 处理任务。
 
+# 示例
 
+## 服务器端示例
 
+下面是一个简单的Netty服务器端示例，用于展示如何使用Netty创建一个基本的服务器。这个例子中，我们将创建一个能够接收客户端消息并返回简单响应的服务器。
+
+首先，确保你已经添加了Netty的依赖到你的项目中。如果你使用Maven，可以在`pom.xml`中添加如下依赖：
+
+```xml
+<dependencies>
+    <!-- Netty -->
+    <dependency>
+        <groupId>io.netty</groupId>
+        <artifactId>netty-all</artifactId>
+        <version>4.1.68.Final</version>
+    </dependency>
+</dependencies>
+```
+
+然后，创建一个Netty服务器的实现：
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+
+public class NettyServer {
+
+    private final int port;
+
+    public NettyServer(int port) {
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        // 创建两个EventLoopGroup对象，一个用于接收连接，另一个用于处理连接的数据读写
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        try {
+            // 创建服务端启动助手
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+             .channel(NioServerSocketChannel.class) // 指定使用的channel
+             .childHandler(new ChannelInitializer<SocketChannel>() { // 设置childHandler来处理网络事件
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     ChannelPipeline pipeline = ch.pipeline();
+                     // 添加字符串解码器和编码器
+                     pipeline.addLast("decoder", new StringDecoder());
+                     pipeline.addLast("encoder", new StringEncoder());
+                     // 添加自定义的处理器
+                     pipeline.addLast(new SimpleServerHandler());
+                 }
+             });
+
+            // 绑定端口并同步等待成功，即启动服务端
+            ChannelFuture f = b.bind(port).sync();
+
+            // 等待服务端监听端口关闭
+            f.channel().closeFuture().sync();
+        } finally {
+            // 关闭两个EventLoopGroup，释放资源
+            bossGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int port = 8080; // 服务器端口
+        new NettyServer(port).start();
+    }
+}
+
+// 自定义的处理器，用于处理读写事件
+class SimpleServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter {
+    @Override
+    public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) {
+        // 接收到消息后，简单地将接收到的字符串转换为大写并回写给客户端
+        System.out.println("Server received: " + msg);
+        ctx.write(msg);
+    }
+
+    @Override
+    public void channelReadComplete(io.netty.channel.ChannelHandlerContext ctx) {
+        ctx.flush();
+    }
+
+    @Override
+    public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+        // 出现异常时关闭连接
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+这个例子中，我们创建了一个`NettyServer`类，它在指定端口上启动了一个服务器。服务器使用了两个`NioEventLoopGroup`，一个用于接收新的连接请求（boss group），另一个用于处理已接收连接的数据读写（worker group）。我们通过`ServerBootstrap`配置了服务器，并指定了一个`ChannelInitializer`来添加处理器到每个新的连接。
+
+`SimpleServerHandler`类扩展了`ChannelInboundHandlerAdapter`，并重写了`channelRead`方法来处理接收到的消息。在这个例子中，服务器简单地将接收到的字符串转换为大写并回写给客户端。
+
+请注意，这只是一个基础示例，实际生产环境中的Netty服务器会更复杂，包括异常处理、日志记录、协议编解码器等。此外，Netty版本更新可能会带来API的变化，请根据实际使用的Netty版本调整代码。
+
+## 客户端示例
+
+当然，下面是一个简单的Netty客户端示例，用于连接到上面提供的服务器，并发送消息给服务器，然后接收服务器的响应。
+
+```java
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+
+public class NettyClient {
+
+    private final String host;
+    private final int port;
+
+    public NettyClient(String host, int port) {
+        this.host = host;
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        // 创建一个EventLoopGroup对象，用于处理客户端事件
+        EventLoopGroup group = new NioEventLoopGroup();
+        try {
+            // 创建客户端启动助手
+            Bootstrap b = new Bootstrap();
+            b.group(group) // 设置EventLoopGroup，用于处理客户端事件
+             .channel(NioSocketChannel.class) // 指定使用的channel
+             .handler(new ChannelInitializer<SocketChannel>() { // 设置ChannelInitializer来处理Channel
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     ChannelPipeline pipeline = ch.pipeline();
+                     // 添加字符串解码器和编码器
+                     pipeline.addLast("decoder", new StringDecoder());
+                     pipeline.addLast("encoder", new StringEncoder());
+                     // 添加自定义的处理器
+                     pipeline.addLast(new SimpleClientHandler());
+                 }
+             });
+
+            // 连接到服务器
+            ChannelFuture f = b.connect(host, port).sync();
+
+            // 等待连接关闭
+            f.channel().closeFuture().sync();
+        } finally {
+            // 关闭EventLoopGroup，释放资源
+            group.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String host = "localhost"; // 服务器地址
+        int port = 8080; // 服务器端口
+        new NettyClient(host, port).start();
+    }
+}
+
+// 自定义的处理器，用于处理读写事件
+class SimpleClientHandler extends io.netty.channel.ChannelInboundHandlerAdapter {
+    private final String message;
+
+    public SimpleClientHandler() {
+        // 初始化要发送的消息
+        this.message = "Hello Netty Server!";
+    }
+
+    @Override
+    public void channelActive(io.netty.channel.ChannelHandlerContext ctx) {
+        // 当连接建立时发送消息
+        ctx.writeAndFlush(message);
+    }
+
+    @Override
+    public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) {
+        // 接收到服务器响应的消息后处理
+        System.out.println("Client received: " + msg);
+    }
+
+    @Override
+    public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+        // 出现异常时关闭连接
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+在这个客户端代码中，我们创建了一个`NettyClient`类，它使用`Bootstrap`来配置客户端连接。我们同样使用了`NioEventLoopGroup`来处理客户端的事件循环，并通过`ChannelInitializer`添加了处理器到连接中。
+
+`SimpleClientHandler`类扩展了`ChannelInboundHandlerAdapter`，并重写了`channelActive`方法来在连接建立后发送消息给服务器。同时，它还重写了`channelRead`方法来处理从服务器接收到的响应。
+
+客户端启动后，会连接到服务器，并发送一条消息"Hello Netty Server!"。然后，它会等待并打印服务器的响应。
+
+请确保服务器端代码正在运行，并且客户端代码中的主机地址和端口号与服务器端配置相匹配。这个例子同样需要根据实际使用的Netty版本进行调整。
 
 
 
