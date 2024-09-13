@@ -2439,9 +2439,177 @@ future.addListener(new ChannelFutureListener() {
 
 # 使用 netty 作为 Http 服务器
 
-# 
+# Bootstrap
 
+Netty 的 `Bootstrap` 是一个用于配置和启动 Netty 服务器或客户端的类。它提供了一种灵活的方式来设置网络应用程序，包括线程模型、通道选项、处理器链等。`Bootstrap` 类在服务器端和客户端有不同的实现：`ServerBootstrap` 用于服务器端，而 `Bootstrap` 用于客户端。
 
+ServerBootstrap
+
+`ServerBootstrap` 用于设置和绑定监听端口的服务器。它允许你配置服务器的参数，并最终绑定到一个端口上开始监听连接请求。
+
+主要功能：
+
+- **设置线程组**：通过 `group()` 方法设置 `EventLoopGroup`，它负责处理所有的事件和IO操作。对于服务器端，通常有两个线程组：一个用于接受新的连接（`boss`），另一个用于处理已接受连接的数据读写（`worker`）。
+
+- **设置通道类型**：通过 `channel()` 方法指定使用的通道类型，例如 `NioServerSocketChannel` 表示使用 NIO 的 ServerSocketChannel。
+
+- **设置通道选项**：通过 `option()` 方法设置服务器端通道参数，如 TCP 参数。
+
+- **设置处理器链**：通过 `childHandler()` 方法添加一个 `ChannelInitializer`，它在新的连接被接受后会初始化该连接的 ChannelPipeline。
+
+- **绑定端口**：通过 `bind()` 方法绑定到一个端口上，开始监听连接请求。
+
+Bootstrap
+
+`Bootstrap` 用于客户端，其用法与 `ServerBootstrap` 类似，但主要关注点在于连接到远程服务器。
+
+主要功能：
+
+- **设置线程组**：通常只需要一个线程组，因为客户端通常只有一个连接。
+
+- **设置通道类型**：同样通过 `channel()` 方法指定使用的通道类型，例如 `NioSocketChannel` 表示使用 NIO 的 SocketChannel。
+
+- **设置通道选项**：通过 `option()` 方法设置客户端通道参数。
+
+- **设置处理器链**：通过 `handler()` 方法添加一个 `ChannelInitializer`，用于初始化客户端连接的 ChannelPipeline。
+
+- **连接到服务器**：通过 `connect()` 方法连接到远程服务器。
+
+示例代码
+
+服务器端示例
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+
+public class EchoServer {
+    private final int port;
+
+    public EchoServer(int port) {
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        try {
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+             .channel(NioServerSocketChannel.class)
+             .childHandler(new ChannelInitializer<SocketChannel>() {
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     ch.pipeline().addLast(new EchoServerHandler());
+                 }
+             });
+
+            ChannelFuture f = b.bind(port).sync();
+            f.channel().closeFuture().sync();
+        } finally {
+            workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int port = 8080;
+        new EchoServer(port).start();
+    }
+}
+```
+
+客户端示例
+
+```java
+import io.netty.bootstrap.Bootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioSocketChannel;
+
+public class EchoClient {
+    private final String host;
+    private final int port;
+
+    public EchoClient(String host, int port) {
+        this.host = host;
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        EventLoopGroup group = new NioEventLoopGroup();
+        try {
+            Bootstrap b = new Bootstrap();
+            b.group(group)
+             .channel(NioSocketChannel.class)
+             .handler(new ChannelInitializer<SocketChannel>() {
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     ch.pipeline().addLast(new EchoClientHandler());
+                 }
+             });
+
+            ChannelFuture f = b.connect(host, port).sync();
+            f.channel().closeFuture().sync();
+        } finally {
+            group.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        String host = "127.0.0.1";
+        int port = 8080;
+        new EchoClient(host, port).start();
+    }
+}
+```
+
+在这两个示例中，`EchoServerHandler` 和 `EchoClientHandler` 分别是服务器和客户端的处理器，用于处理接收到的数据。
+
+`Bootstrap` 类是 Netty 中用于配置和启动网络应用程序的核心组件。`ServerBootstrap` 用于配置服务器，而 `Bootstrap` 用于配置客户端。它们都允许你设置线程模型、通道类型、通道选项和处理器链，从而灵活地构建出满足不同需求的网络应用程序。
+
+## 常用方法
+
+`Bootstrap` 类在 Netty 中用于配置客户端或未绑定的服务器端的通道（Channel）。以下是 `Bootstrap` 类中一些常用的配置方法：
+
+1. `group(EventLoopGroup group)`
+
+- **作用**：设置 `EventLoopGroup`，它负责处理所有事件和IO操作。
+- **参数**：`EventLoopGroup` 实例，通常对于客户端是一个 `NioEventLoopGroup`，对于服务器端是两个：一个 `boss` 和一个 `worker`。
+
+2. `channel(Class<? extends C> channelClass)`
+
+- **作用**：指定要使用的通道（Channel）类型，例如 `NioSocketChannel`（客户端）或 `NioServerSocketChannel`（服务器端）。
+- **参数**：通道类的 Class 对象。
+
+3. `option(ChannelOption<T> option, T value)`
+
+- **作用**：设置通道参数，如 TCP 参数。
+- **参数**：`ChannelOption` 类型的参数和对应的值。
+
+4. `handler(ChannelHandler handler)`
+
+- **作用**：设置在客户端或未绑定的服务器端的 ChannelPipeline 中的 ChannelHandler。
+- **参数**：`ChannelHandler` 实例，用于处理入站和出站数据。
+
+5. `childHandler(ChannelHandler childHandler)`
+
+- **作用**：设置在服务器端 ChannelPipeline 中的 ChannelHandler，用于处理已接受的客户端连接。
+- **参数**：`ChannelHandler` 实例。
+
+6. `connect(SocketAddress remoteAddress)`
+
+- **作用**：连接到远程地址。
+- **参数**：远程地址的 `SocketAddress`。
+
+7. `bind(SocketAddress localAddress)`
+
+- **作用**：绑定到本地地址。
+- **参数**：本地地址的 `SocketAddress`。
 
 
 
