@@ -2229,10 +2229,217 @@ class SimpleServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter 
 
 ## 非当前 Reactor 线程调用 Channel 的各种方法，比如推送系统
 
+# ChannelFuture
 
+Netty 是一个高性能的异步事件驱动的网络应用程序框架，用于快速开发可维护的高性能协议服务器和客户端。在 Netty 中，`ChannelFuture` 是一个非常核心的概念，它用于处理异步操作的结果。
 
+1. 异步操作与同步操作的区别
 
+在传统的同步编程模型中，操作会阻塞当前线程直到操作完成。而在异步编程模型中，操作会立即返回，而实际的工作会在后台线程中完成，当前线程可以继续执行其他任务。
 
+2. ChannelFuture 的作用
+
+在 Netty 中，所有的 I/O 操作都是异步的。这意味着当调用一个方法如 `channel.write()` 或 `channel.connect()` 时，操作会立即返回一个 `ChannelFuture` 对象，而实际的 I/O 操作会在之后的某个时间点完成。
+
+`ChannelFuture` 提供了以下关键功能：
+
+- **状态监听**：你可以添加 `ChannelFutureListener` 到 `ChannelFuture`，当操作完成时，监听器的 `operationComplete` 方法会被调用。这允许你执行一些操作，比如在数据发送完毕后关闭连接。
+
+- **非阻塞结果查询**：你可以查询 `ChannelFuture` 的状态来了解操作是否已经完成、是否成功、或者是否失败。
+
+- **异常处理**：如果操作失败，`ChannelFuture` 会持有导致失败的异常，你可以通过调用 `cause()` 方法来获取它。
+
+3. 使用示例
+
+下面是一个简单的例子，演示如何使用 `ChannelFuture`：
+
+```java
+// 获取Channel实例
+Channel channel = ...;
+
+// 异步写数据
+ChannelFuture future = channel.write(someObject);
+
+// 添加监听器，处理操作完成后的逻辑
+future.addListener(new ChannelFutureListener() {
+    @Override
+    public void operationComplete(ChannelFuture future) {
+        if (future.isSuccess()) {
+            System.out.println("Write successful.");
+        } else {
+            System.err.println("Write failed.");
+            future.cause().printStackTrace();
+        }
+    }
+});
+
+// 或者使用lambda表达式简化
+future.addListener(future1 -> {
+    if (future1.isSuccess()) {
+        System.out.println("Write successful.");
+    } else {
+        System.err.println("Write failed.");
+        future1.cause().printStackTrace();
+    }
+});
+```
+
+4. 关键点总结
+
+- **异步性**：`ChannelFuture` 是异步操作完成的标志，它允许你继续执行其他任务，而不是阻塞等待操作完成。
+- **监听器**：通过添加 `ChannelFutureListener`，你可以在操作完成时得到通知，并执行相应的逻辑。
+- **非阻塞查询**：你可以随时查询 `ChannelFuture` 的状态，了解操作是否完成、成功或失败。
+- **异常处理**：如果操作失败，`ChannelFuture` 会持有异常信息，你可以通过它来诊断问题。
+
+理解 `ChannelFuture` 的工作原理和使用方法对于编写高效、可维护的 Netty 应用程序至关重要。
+
+一个完整的代码示例如下
+
+更清晰地展示如何使用 `ChannelFuture` 来添加事件监听器，这样可以更好地体现其事件监听的特性。
+
+服务器端代码示例（包含 ChannelFuture 事件监听）
+
+```java
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.handler.codec.string.StringDecoder;
+import io.netty.handler.codec.string.StringEncoder;
+
+public class EchoServer {
+    private final int port;
+
+    public EchoServer(int port) {
+        this.port = port;
+    }
+
+    public void start() throws Exception {
+        EventLoopGroup bossGroup = new NioEventLoopGroup();
+        EventLoopGroup workerGroup = new NioEventLoopGroup();
+        try {
+            ServerBootstrap b = new ServerBootstrap();
+            b.group(bossGroup, workerGroup)
+             .channel(NioServerSocketChannel.class)
+             .childHandler(new ChannelInitializer<SocketChannel>() {
+                 @Override
+                 protected void initChannel(SocketChannel ch) {
+                     ch.pipeline().addLast(new StringDecoder(), new StringEncoder(), new EchoServerHandler());
+                 }
+             });
+
+            // 绑定端口并异步等待成功，即启动服务端
+            ChannelFuture f = b.bind(port).sync();
+            System.out.println("Server started and listening on " + f.channel().localAddress());
+
+            // 添加监听器来处理 ChannelFuture
+            f.addListener(new ChannelFutureListener() {
+                @Override
+                public void operationComplete(ChannelFuture future) {
+                    if (future.isSuccess()) {
+                        System.out.println("Server bound successfully.");
+                    } else {
+                        System.err.println("Server bound failed.");
+                        future.cause().printStackTrace();
+                    }
+                }
+            });
+
+            // 等待服务端监听端口关闭
+            f.channel().closeFuture().sync();
+        } finally {
+            workerGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully();
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        int port = 8080;
+        new EchoServer(port).start();
+    }
+}
+
+class EchoServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter {
+    @Override
+    public void channelRead(io.netty.channel.ChannelHandlerContext ctx, Object msg) {
+        ctx.write(msg); // 回声消息给发送者
+    }
+
+    @Override
+    public void channelReadComplete(io.netty.channel.ChannelHandlerContext ctx) {
+        ctx.flush();
+    }
+
+    @Override
+    public void exceptionCaught(io.netty.channel.ChannelHandlerContext ctx, Throwable cause) {
+        cause.printStackTrace();
+        ctx.close();
+    }
+}
+```
+
+我们使用 `bind(port).sync()` 方法异步地绑定端口，并通过 `addListener` 方法添加了一个 `ChannelFutureListener`。当绑定操作完成时，`operationComplete` 方法会被调用，允许我们根据操作的成功与否执行相应的逻辑。
+
+客户端代码可以类似地修改，以展示如何在客户端使用 `ChannelFuture` 监听连接操作的完成。
+
+通过这种方式，`ChannelFuture` 允许你以非阻塞的方式处理异步事件，使得你的应用程序能够更加高效地处理 I/O 操作。
+
+## 事件监听
+
+`ChannelFuture` 主要用于监听异步操作的结果，它提供了以下几种事件的监听方式：
+
+1. **操作完成（Operation Complete）**:
+   - 这是最基本的事件，表示异步操作已经完成。无论操作是成功还是失败，都会触发这个事件。
+   - 通过添加 `ChannelFutureListener`，可以在操作完成时得到通知。
+
+2. **操作成功（Operation Success）**:
+   - 当异步操作成功完成时，会触发这个事件。
+   - 在 `ChannelFutureListener` 的 `operationComplete` 方法中，你可以通过 `future.isSuccess()` 判断操作是否成功。
+
+3. **操作失败（Operation Failure）**:
+   - 如果在执行异步操作过程中发生异常或错误，会触发操作失败事件。
+   - 在 `operationComplete` 方法中，你可以通过 `future.isSuccess()` 判断操作是否失败，并通过 `future.cause()` 获取异常信息。
+
+4. **取消操作（Operation Cancellation）**:
+   - 如果异步操作被取消，会触发这个事件。
+   - 通常，你可以调用 `ChannelFuture.cancel()` 方法来尝试取消一个操作。如果操作被成功取消，`isCancelled()` 方法会返回 `true`。
+
+5. **操作可写（Operation Writable）**:
+   - 在某些情况下，如使用 `ChannelHandlerContext.writeAndFlush()` 方法时，你可能对写操作何时完成感兴趣。
+   - 通过监听写操作的 `ChannelFuture`，你可以知道何时可以安全地进行下一个写操作。
+
+示例代码
+
+```java
+ChannelFuture future = channel.write(someObject);
+future.addListener(new ChannelFutureListener() {
+    @Override
+    public void operationComplete(ChannelFuture future) {
+        if (future.isSuccess()) {
+            System.out.println("Operation succeeded.");
+        } else {
+            System.err.println("Operation failed.");
+            future.cause().printStackTrace();
+        }
+    }
+});
+```
+
+在这个示例中，我们监听了操作完成事件，并根据操作的成功与否打印不同的信息。
+
+注意事项
+
+- `ChannelFutureListener` 只能被触发一次，一旦操作完成，监听器就会被移除。
+- 通常，监听器中的代码应该尽可能轻量，避免执行耗时或复杂的操作，因为它们是在 I/O 线程中执行的。
+
+`ChannelFuture` 的这些事件监听机制是 Netty 异步编程模型的核心部分，允许开发者高效地处理网络操作的结果，而无需阻塞等待。
+
+# 使用 netty 作为 Http 服务器
+
+# 
 
 
 
