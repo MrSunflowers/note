@@ -658,7 +658,7 @@ public class TransferChunkedExample {
 
 请记住，这些限制和解决方案可能因不同的Windows版本和配置而异，因此在实施之前最好进行适当的测试和验证。
 
-# Java NIO 三大核心组件
+# Java NIO
 
 Netty 基于 Java NIO 开发
 
@@ -1513,7 +1513,7 @@ public class NonBlockingClientExample {
 
 `SelectionKey`通常在使用`Selector`进行非阻塞IO操作时使用。当通过`Selector`选择操作时，可以检查每个`SelectionKey`的`readyOps()`来确定哪些操作是就绪的，然后根据`isReadable()`, `isWritable()`, `isConnectable()`, `isAcceptable()`等方法来执行相应的操作。
 
-# 基于 Java NIO 的多人群聊系统
+## 基于 Java NIO 的多人群聊系统
 
 服务器端实现监听端口消息并转发，以及监控用户在线和离线状态
 客户端实现发送消息到服务器端
@@ -1529,9 +1529,9 @@ public class NonBlockingClientExample {
 
 目前 netty 5.x 已经被官方废弃，所以本文以 netty 4.1 为示例版本。
 
-# IO 线程模型
+## IO 线程模型
 
-## Reactor 线程模型
+### Reactor 线程模型
 
 针对传统 IO 导致的一个链接对应一个客户端，每个链接又需要一个单独的线程来维护，提出了 Reactor 线程模型。
 
@@ -1549,7 +1549,7 @@ Reactor模型主要有以下几种类型：
 
 其中，分发器的实现即 NIO 的 Selecter 用来接收和分发请求，而事件的处理器即可以根据 Selecter 监听的事件分成几类（建立链接、读、写等）分别独立成不同的方法给不同的线程来调用。
 
-### 单Reactor单线程模型
+#### 单Reactor单线程模型
 
 单 Reactor 单线程模型是 Reactor 模式中最简单的一种实现方式。在这种模型中，所有的I/O操作和业务逻辑处理都在同一个线程中完成。下面是这种模型的内部结构和工作流程的详细描述：
 
@@ -1593,7 +1593,7 @@ Reactor模型主要有以下几种类型：
 
 上文的群聊系统的实现就是用的单Reactor单线程模型，因为所有的处理都是在自己的线程里处理的。
 
-### 单Reactor多线程模型
+#### 单Reactor多线程模型
 
 单Reactor多线程模型就是将涉及业务处理的地方独立成单独的方法分发给其他线程来完成，并将结果返回。其中读、写、发送数据等过程还是在自己的线程中完成。即 Reactor 线程只负责响应事件。
 
@@ -1641,7 +1641,7 @@ Reactor模型主要有以下几种类型：
 
 单 Reactor 多线程模型适用于需要处理大量并发连接，且事件处理逻辑相对复杂的场景。例如，Web服务器、数据库服务器等，这些场景下，事件处理可能包括网络I/O、磁盘I/O以及复杂的业务逻辑处理。通过将耗时操作分配给工作线程池，可以有效提高系统的整体性能和响应速度。
 
-### 主从Reactor多线程模型
+#### 主从Reactor多线程模型
 
 主从Reactor多线程模型是将上一步的读、写、发送数据等过程也拆分成方法发送给从 Reactor 线程来处理。即主Reactor线程只负责接收新的链接。其余的都交给了子 Reactor 线程和 worker 线程处理。而后续子 Reactor 线程也不需要与主 Reactor 进行信息交互，因为读写数据都在子 Reactor 线程中自己处理，子 Reactor 线程只需要和 worker 线程进行数据交互，拿到 worker 线程的业务数据即可。
 
@@ -1694,7 +1694,7 @@ Reactor模型主要有以下几种类型：
 
 Netty 线程模型就是从主从Reactor多线程模型发展而来。
 
-## Netty 线程模型
+### Netty 的线程模型
 
 一个简单的 Netty 模型说明就是： Netty 引入一个 BossGroup 角色来接收客户端连接请求，将请求通过 Selecter.accept() 获取到 SocketChannel，再将 SocketChannel 转化为 NIOSocketChannel 交给 WorkerGroup 通过 Selecter 来监听并交由 Handler 处理。
 
@@ -1756,9 +1756,9 @@ Netty 的线程模型适用于需要高性能、高可靠性的网络通信场�
 8. 处理accept事件，与client建立连接，生成NioSocketChannel，并将其注册到某个worker NioEventLoop上的selector。
 9. 处理任务。
 
-# 示例
+## 基本使用示例
 
-## 服务器端示例
+### 服务器端示例
 
 下面是一个简单的Netty服务器端示例，用于展示如何使用Netty创建一个基本的服务器。这个例子中，我们将创建一个能够接收客户端消息并返回简单响应的服务器。
 
@@ -1865,7 +1865,7 @@ class SimpleServerHandler extends io.netty.channel.ChannelInboundHandlerAdapter 
 
 请注意，这只是一个基础示例，实际生产环境中的Netty服务器会更复杂，包括异常处理、日志记录、协议编解码器等。此外，Netty版本更新可能会带来API的变化，请根据实际使用的Netty版本调整代码。
 
-## 客户端示例
+### 客户端示例
 
 当然，下面是一个简单的Netty客户端示例，用于连接到上面提供的服务器，并发送消息给服务器，然后接收服务器的响应。
 
@@ -1967,15 +1967,190 @@ class SimpleClientHandler extends io.netty.channel.ChannelInboundHandlerAdapter 
 
 请确保服务器端代码正在运行，并且客户端代码中的主机地址和端口号与服务器端配置相匹配。这个例子同样需要根据实际使用的Netty版本进行调整。
 
-# EventLoopGroup
+# Netty 核心组件
 
-在Netty中，`EventLoopGroup` 的默认池大小取决于你的操作系统和JVM的可用处理器数量。Netty默认会尝试使用CPU核心数的两倍作为`EventLoopGroup`的线程数。这个默认行为是基于Netty的默认构造器，它使用`NioEventLoopGroup`作为实现。
+## EventLoopGroup
+
+想象一下，你在一个繁忙的餐厅工作，这个餐厅需要同时接待很多顾客，并且为他们提供食物。在这个场景中，`EventLoopGroup` 就像是餐厅里的服务员团队，而每个 `EventLoop` 就相当于一个服务员。
+
+服务员团队（EventLoopGroup）
+
+1. **接待顾客（处理连接）**：当顾客（客户端）进入餐厅（建立连接）时，需要有人接待他们。服务员团队（`EventLoopGroup`）负责分配一个服务员（`EventLoop`）来照顾这个顾客。
+
+2. **分配工作（负载均衡）**：服务员团队需要确保每个服务员都有事情做，不会太忙也不会太闲。如果一个服务员正在忙于服务顾客，团队会将新来的顾客分配给其他空闲的服务员。
+
+3. **处理订单（处理事件）**：服务员（`EventLoop`）负责接收顾客的点餐（网络事件），并确保他们得到正确的食物（数据处理）。服务员会一直负责这个顾客直到他们离开（连接关闭）。
+
+4. **额外任务（任务调度）**：除了照顾顾客点餐，服务员还需要处理一些额外的任务，比如清理桌子、准备餐具等。`EventLoopGroup` 也负责安排这些额外的任务。
+
+服务员（EventLoop）
+
+- **长期关系（Channel 绑定）**：一旦服务员开始服务一个顾客，他会一直负责这个顾客直到他们离开。在 Netty 中，一个 `EventLoop` 一旦被分配给一个 `Channel`，就会一直处理这个 `Channel` 上的所有事件。
+
+- **高效工作（无锁设计）**：服务员们高效地工作，不会互相干扰。在 Netty 中，`EventLoop` 通过无锁设计确保了高效处理事件，避免了线程之间的竞争和锁的使用。
+
+通过这个比喻，我们可以看到 `EventLoopGroup` 在 Netty 中的作用就像一个高效协调服务员团队的领班，确保每个顾客（客户端）都能得到及时和专业的服务。而每个服务员（`EventLoop`）则专注于处理与顾客相关的所有事务，保证了服务的连贯性和效率。
+
+在 Netty 中，`EventLoopGroup` 所管理的 EventLoop 的默认池大小取决于你的操作系统和 JVM 的可用处理器数量。Netty默认会尝试使用CPU核心数的两倍作为`EventLoopGroup`的线程数。这个默认行为是基于Netty的默认构造器，它使用`NioEventLoopGroup`作为实现。
 
 例如，如果你的机器有4个CPU核心，Netty默认会创建一个包含8个线程的`EventLoopGroup`。这个默认值可以通过构造函数的参数进行调整，或者通过设置系统属性来改变。
 
 如果你需要查看或修改这个默认值，可以查看Netty的源代码或文档，了解如何通过构造函数参数来指定线程数，或者如何通过系统属性来设置默认的线程池大小。
 
 请注意，最佳的线程池大小可能依赖于具体的应用场景和硬件配置，因此在生产环境中，建议根据实际的性能测试结果来调整这个值。
+
+在创建服务端应用程序时，需要创建两个 EventLoopGroup 分别代表
+
+1. **Boss EventLoopGroup（主事件循环组）**：
+   - 这个 `EventLoopGroup` 通常只有一个 `EventLoop`（尽管可以配置多个），它的主要职责是监听和接受新的连接请求。
+   - 当一个客户端尝试连接到服务器时，`Boss EventLoopGroup` 中的一个 `EventLoop` 会负责处理这个新的连接请求，并将其注册到 `Worker EventLoopGroup`。
+   - 在 Netty 中，`Boss EventLoopGroup` 通常使用 `NioEventLoopGroup` 类实现，它基于 Java NIO 的选择器（Selector）机制。
+
+2. **Worker EventLoopGroup（工作事件循环组）**：
+   - 一旦新的连接被接受，`Boss EventLoopGroup` 会将这个连接分配给 `Worker EventLoopGroup`。
+   - `Worker EventLoopGroup` 负责处理已接受连接的数据读写事件，即实际的数据传输和业务逻辑处理。
+   - `Worker EventLoopGroup` 通常包含多个 `EventLoop`，以便并行处理多个连接上的事件，提高服务器的吞吐量。
+   - 类似地，`Worker EventLoopGroup` 也通常使用 `NioEventLoopGroup` 类实现。
+
+### 创建和使用示例
+
+在 Netty 的服务端启动代码中，你会看到类似下面的代码段：
+
+```java
+// 创建 Boss EventLoopGroup 和 Worker EventLoopGroup
+EventLoopGroup bossGroup = new NioEventLoopGroup(1); // 通常只需要一个线程
+EventLoopGroup workerGroup = new NioEventLoopGroup(); // 可以根据需要配置多个线程
+
+try {
+    // 创建服务端启动引导类
+    ServerBootstrap b = new ServerBootstrap();
+    b.group(bossGroup, workerGroup) // 设置两个 EventLoopGroup
+      .channel(NioServerSocketChannel.class) // 指定使用 NIO 的传输 Channel
+      // 其他配置省略...
+
+    // 绑定端口并同步等待成功，生成 ChannelFuture
+    ChannelFuture f = b.bind(port).sync();
+
+    // 等待服务端监听端口关闭
+    f.channel().closeFuture().sync();
+} finally {
+    // 关闭两个 EventLoopGroup，释放资源
+    bossGroup.shutdownGracefully();
+    workerGroup.shutdownGracefully();
+}
+```
+
+在创建基于 Netty 的客户端应用程序时，通常只需要创建一个 `EventLoopGroup`。这是因为客户端通常不需要像服务器端那样处理大量的并发连接。客户端的主要任务是与服务器建立连接，并发送或接收数据。
+
+客户端的 `EventLoopGroup` 负责管理所有的 `Channel`，并为每个 `Channel` 分配一个 `EventLoop` 来处理事件。这些事件包括连接的建立、数据的读写、连接的关闭等。
+
+1. **单个连接**：客户端通常只需要与服务器建立一个连接（或者在连接池的情况下，有限数量的连接），因此不需要像服务器端那样进行复杂的连接管理。
+
+2. **资源优化**：使用单个 `EventLoopGroup` 可以减少资源消耗，因为客户端不需要像服务器端那样处理大量的并发连接。
+
+3. **简化管理**：一个 `EventLoopGroup` 足以处理客户端的所有网络操作，简化了事件循环的管理。
+
+在 Netty 的客户端代码中，创建 `EventLoopGroup` 的过程相对简单：
+
+```java
+// 创建一个 EventLoopGroup
+EventLoopGroup group = new NioEventLoopGroup();
+
+try {
+    // 创建客户端启动引导类
+    Bootstrap b = new Bootstrap();
+    b.group(group) // 设置 EventLoopGroup
+      .channel(NioSocketChannel.class) // 指定使用 NIO 的传输 Channel
+      // 其他配置省略...
+
+    // 连接到远程服务器
+    ChannelFuture f = b.connect(host, port).sync();
+
+    // 等待连接关闭
+    f.channel().closeFuture().sync();
+} finally {
+    // 关闭 EventLoopGroup，释放资源
+    group.shutdownGracefully();
+}
+```
+
+### EventLoopGroup 的常用实现类及其特点
+
+1. NioEventLoopGroup
+
+- **特点**：
+  - 基于 Java NIO 的 `Selector` 实现，适用于大多数基于 NIO 的应用场景。
+  - 通常用于服务器端的 `Boss` 和 `Worker` 线程组，以及客户端的线程组。
+  - 支持多线程处理，可以配置线程数量，以适应不同的性能需求。
+  - `NioEventLoop` 通常会处理多个 `Channel` 的事件，实现高效的事件循环。
+
+- **适用场景**：
+  - 需要高性能网络通信的场景。
+  - 大多数标准的网络应用，无论是客户端还是服务器端。
+
+2. EpollEventLoopGroup
+
+- **特点**：
+  - 仅适用于 Linux 系统。
+  - 使用 Linux 的 `epoll` 系统调用来实现高效的 I/O 事件通知，相比 NIO 的 `Selector`，在高负载下性能更优。
+  - 与 `NioEventLoopGroup` 类似，支持多线程处理和高效事件循环。
+
+- **适用场景**：
+  - 高性能网络服务器，特别是在 Linux 系统上。
+  - 处理大量并发连接和高负载网络通信的场景。
+
+3. OioEventLoopGroup
+
+- **特点**：
+  - 基于 Java 的阻塞 I/O（Old I/O），使用 `Selector` 但不使用 NIO 的非阻塞特性。
+  - 适用于需要兼容旧版 Java 应用的场景，或者对 I/O 性能要求不高的简单应用。
+  - 通常不推荐用于高性能网络应用，因为其阻塞特性可能导致线程资源的浪费。
+
+- **适用场景**：
+  - 兼容性要求较高的旧系统。
+  - 对网络性能要求不高的简单应用场景。
+
+4. DefaultEventLoopGroup
+
+- **特点**：
+  - 适用于需要在单个线程中执行任务的场景。
+  - 不直接用于处理网络 I/O 事件，而是用于执行一些耗时的计算任务或定时任务。
+  - 可以在 `ChannelHandler` 中使用，以避免在 I/O 线程中执行耗时操作。
+
+- **适用场景**：
+  - 执行非 I/O 相关的后台任务。
+  - 在 `ChannelHandler` 中处理需要延迟或定时执行的任务。
+
+选择合适的 `EventLoopGroup` 实现类取决于你的应用需求、目标平台以及性能要求。对于大多数现代网络应用，`NioEventLoopGroup` 是一个很好的起点。如果你的应用运行在 Linux 系统上，并且对性能有极高的要求，`EpollEventLoopGroup` 可能是更好的选择。对于特定的兼容性或简单应用场景，`OioEventLoopGroup` 和 `DefaultEventLoopGroup` 可能更合适。在实际应用中，根据具体情况选择最合适的实现类，可以优化你的应用性能和资源使用。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 # TaskQueue 自定义任务
 
