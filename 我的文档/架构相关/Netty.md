@@ -3618,11 +3618,90 @@ public class ChatServerHandler extends ChannelInboundHandlerAdapter {
 
 通过使用 `ChannelGroup`，你可以简化对多个客户端连接的管理，特别是在需要向所有客户端广播消息的场景中，它提供了一种高效且线程安全的方式来处理这些操作。
 
+# Netty 心跳机制实现
 
+当服务器 3 秒没有读时就提示读空闲，超过 5 秒没有写操作时就提示写空闲，超过 7 秒没有读或写操作时就提示读写空闲
 
+在Netty中实现心跳机制通常涉及到使用`IdleStateHandler`，这是一个特殊的处理器，用于检测连接的读写空闲状态。当连接空闲超过指定的时间时，`IdleStateHandler`会触发一个事件，你可以通过添加自定义的`ChannelInboundHandler`来处理这些事件。
 
+下面是如何设置心跳机制的示例代码：
 
+1. 添加IdleStateHandler到ChannelPipeline
 
+首先，在你的`ChannelInitializer`中添加`IdleStateHandler`到`ChannelPipeline`。
+
+```java
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.socket.SocketChannel;
+import io.netty.handler.timeout.IdleStateHandler;
+
+public class MyChannelInitializer extends ChannelInitializer<SocketChannel> {
+    @Override
+    protected void initChannel(SocketChannel ch) throws Exception {
+        ChannelPipeline pipeline = ch.pipeline();
+        
+        // 添加IdleStateHandler，参数分别为读空闲时间、写空闲时间和读写空闲时间
+        pipeline.addLast(new IdleStateHandler(3, 5, 7));
+        
+        // 添加自定义的处理器来处理心跳事件
+        pipeline.addLast(new MyHeartbeatHandler());
+    }
+}
+```
+
+2. 实现自定义的ChannelHandler处理心跳事件
+
+然后，创建一个自定义的`ChannelHandler`来处理`IdleStateHandler`触发的事件。
+
+```java
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.handler.timeout.IdleStateEvent;
+
+public class MyHeartbeatHandler extends ChannelInboundHandlerAdapter {
+    @Override
+    public void userEventTriggered(ChannelHandlerContext ctx, Object evt) throws Exception {
+        if (evt instanceof IdleStateEvent) {
+            IdleStateEvent event = (IdleStateEvent) evt;
+            switch (event.state()) {
+                case READER_IDLE:
+                    System.out.println("读空闲超过3秒");
+                    // 可以在这里处理读空闲事件，例如关闭连接或发送心跳包
+                    break;
+                case WRITER_IDLE:
+                    System.out.println("写空闲超过5秒");
+                    // 可以在这里处理写空闲事件，例如发送心跳包
+                    break;
+                case ALL_IDLE:
+                    System.out.println("读写空闲超过7秒");
+                    // 可以在这里处理读写空闲事件，例如关闭连接
+                    break;
+                default:
+                    break;
+            }
+        } else {
+            super.userEventTriggered(ctx, evt);
+        }
+    }
+}
+```
+
+3. 启动服务器
+
+最后，你需要在你的服务器启动代码中使用`MyChannelInitializer`。
+
+```java
+// ...其他代码，例如创建ServerBootstrap等
+ServerBootstrap b = new ServerBootstrap();
+// ...其他配置代码
+b.childHandler(new MyChannelInitializer());
+// ...其他代码，例如绑定端口等
+```
+
+通过上述步骤，你可以在Netty服务器中实现心跳机制。`IdleStateHandler`会根据配置的空闲时间检测连接的读写状态，并在达到指定的空闲时间时触发事件。然后，你可以通过自定义的`MyHeartbeatHandler`来处理这些事件，例如发送心跳包、关闭连接或执行其他逻辑。
+
+请注意，心跳机制的实现可能需要根据你的具体需求进行调整，例如发送特定的心跳消息或处理心跳超时后的逻辑。此外，确保在实际部署中测试心跳机制以验证其行为符合预期。
 
 
 
