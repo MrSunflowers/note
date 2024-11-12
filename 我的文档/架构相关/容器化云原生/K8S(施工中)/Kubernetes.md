@@ -4,6 +4,10 @@
 
 [Kubernetes 文档 | Kubernetes](https://kubernetes.io/zh-cn/docs/home/)
 
+[概述 (kubesphere.io)](https://kubesphere.io/zh/docs/v3.3/devops-user-guide/devops-overview/overview/)
+
+[征服 Docker 镜像访问限制！KubeSphere v3.4.1 成功部署全攻略](https://www.kubesphere.io/zh/blogs/breaching-docker-image-limits-to-deploy-kubesphere-3.4.1/)
+
 **Kubernetes 容器集群管理系统**（常简称为K8s）是一个开源的容器编排平台，最初由 Google 开发，现已成为 Cloud Native Computing Foundation（CNCF）的一部分。Kubernetes旨在简化容器化应用程序的部署、扩展和管理，提供了丰富的功能和工具来帮助用户构建可靠、高效的容器化环境。
 
 以下是Kubernetes的一些关键特点和核心概念：
