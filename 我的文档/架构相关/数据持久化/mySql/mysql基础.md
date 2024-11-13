@@ -38,7 +38,82 @@
 - 表数据量可能超过百万
 - 表中含有非常大的字段
 
+# 慢 SQL 日志查询
 
+## MySQL 慢查询日志查询指南
+
+MySQL 的慢查询日志（Slow Query Log）是一种用于记录执行时间超过设定阈值的 SQL 语句的日志功能。通过分析这些日志，可以帮助识别和优化数据库中的性能瓶颈。以下是关于如何配置、查看和分析 MySQL 慢查询日志的详细指南：
+
+### 1. 开启慢查询日志
+
+- **配置文件设置**：
+  - 打开 MySQL 的配置文件（通常是 `my.cnf` 或 `my.ini`）。
+  - 添加或修改以下参数：
+    ```ini
+    [mysqld]
+    slow_query_log = 1
+    slow_query_log_file = /var/log/mysql/slow-query.log
+    long_query_time = 2
+    ```
+    - `slow_query_log`：启用（1）或禁用（0）慢查询日志。
+    - `slow_query_log_file`：指定慢查询日志文件的路径。
+    - `long_query_time`：设置慢查询的时间阈值（单位为秒），超过此时间的查询将被记录。
+
+- **动态设置**：
+  - 使用以下命令动态开启慢查询日志：
+    ```sql
+    SET GLOBAL slow_query_log = 'ON';
+    SET GLOBAL long_query_time = 2;
+    ```
+    - 注意：动态设置在 MySQL 重启后会失效，需在配置文件中进行持久化。
+
+### 2. 查看慢查询日志
+
+- **日志文件**：
+  - 慢查询日志会记录在指定的文件中（如 `/var/log/mysql/slow-query.log`）。可以使用文本编辑器或命令行工具（如 `tail`, `less`）查看日志内容。
+
+- **日志格式**：
+  - 日志中包含的信息包括：
+    - 查询时间（Query_time）
+    - 锁定时间（Lock_time）
+    - 返回的行数（Rows_sent）
+    - 扫描的行数（Rows_examined）
+    - 具体的 SQL 语句。
+
+### 3. 分析慢查询日志
+
+- **使用内置工具**：
+  - `mysqldumpslow`：这是一个 MySQL 自带的工具，可以对慢查询日志进行汇总和分析。例如：
+    ```bash
+    mysqldumpslow -s t -t 10 /var/log/mysql/slow-query.log
+    ```
+    - `-s t`：按查询时间排序。
+    - `-t 10`：显示前 10 条记录。
+
+- **使用第三方工具**：
+  - `pt-query-digest`（Percona Toolkit 的一部分）：提供更详细的分析功能。
+    ```bash
+    pt-query-digest /var/log/mysql/slow-query.log --limit 10
+    ```
+    - 这将显示执行时间最长的前 10 条 SQL 语句及其统计信息。
+
+### 4. 优化慢查询
+
+- **添加索引**：
+  - 对于频繁查询的列，添加适当的索引可以显著提高查询性能。
+  - 示例：
+    ```sql
+    ALTER TABLE employees ADD INDEX idx_first_name (first_name);
+    ```
+
+- **减少查询范围**：
+  - 仅选择需要的列，避免使用 `SELECT *`。
+
+- **使用 EXPLAIN**：
+  - 使用 `EXPLAIN` 分析查询计划，识别潜在的性能瓶颈。
+
+- **优化表结构**：
+  - 根据需要调整表结构，如使用更合适的数据类型或归档旧数据。
 
 
 
