@@ -147,6 +147,27 @@ MySQL 的慢查询日志（Slow Query Log）是一种用于记录执行时间超
 
 一般可将数据变更消息发往 kafka 或其他 mq，等待消费即可。
 
+# MySQL 高可用 MHA 架构方案
+
+https://zhuanlan.zhihu.com/p/132508138
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
