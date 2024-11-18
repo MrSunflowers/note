@@ -1,15 +1,4 @@
 [TOC]
-# NoSQL数据库简介
-
-技术发展
-
-技术的分类
-
-1、解决功能性的问题：Java、Jsp、RDBMS、Tomcat、HTML、Linux、JDBC、SVN
-
-2、解决扩展性的问题：Struts、Spring、SpringMVC、Hibernate、Mybatis
-
-3、解决性能的问题：NoSQL、Java线程、Hadoop、Nginx、MQ、ElasticSearch
 
 ## NoSQL数据库
 
@@ -17,31 +6,7 @@ NoSQL数据库概述
 
 NoSQL(NoSQL = Not Only SQL )，意即“不仅仅是SQL”，泛指非关系型的数据库。
 
-NoSQL 不依赖业务逻辑方式存储，而以简单的key-value模式存储。因此大大的增加了数据库的扩展能力。
-
-- 不遵循SQL标准。
-
-- 不支持ACID。
-
-- 远超于SQL的性能。
-
-  NoSQL适用场景
-
-- 对数据高并发的读写
-
-- 海量数据的读写
-
-- 对数据高可扩展性的
-
-  NoSQL不适用场景
-
-- 需要事务支持
-
-- 基于sql的结构化查询存储，处理复杂的关系,需要即席查询。
-
-- （用不着sql的和用了sql也不行的情况，请考虑用NoSql）
-
-  ### Memcache
+### Memcache
 
 很早出现的NoSql数据库 数据都在内存中，一般不持久化 支持简单的key-value模式，支持类型单一 一般是作为缓存数据库辅助持久化的数据库
 
@@ -71,17 +36,13 @@ HBase的目标就是处理数据量非常庞大的表，可以用普通的计算
 
 ### Cassandra
 
-Apache Cassandra是一款免费的开源NoSQL数据库，其设计目的在于管理由大量商用服务器构建起来的庞大集群上的海量数据集(数据量通常达到PB级别)。在众多显著特性当中，Cassandra最为卓越的长处是对写入及读取操作进行规模调整，而且其不强调主集群的设计思路能够以相对直观的方式简化各集群的创建与扩展流程。
+Apache Cassandra是一款免费的开源 NoSQL 数据库，其设计目的在于管理由大量商用服务器构建起来的庞大集群上的海量数据集(数据量通常达到PB级别)。在众多显著特性当中，Cassandra最为卓越的长处是对写入及读取操作进行规模调整，而且其不强调主集群的设计思路能够以相对直观的方式简化各集群的创建与扩展流程。
 
 ### 图关系型数据库 neo4j
-
-
 
 主要应用：社会关系，公共交通网络，地图及网络拓谱(n\*(n-1)/2)
 
 ![](https://raw.githubusercontent.com/MrSunflowers/images/main/note/spring/202204271506840.jpeg)
-
-
 
 # Redis安装
 
@@ -93,11 +54,6 @@ Apache Cassandra是一款免费的开源NoSQL数据库，其设计目的在于�
 -   区别的是Redis会周期性的把更新的数据写入磁盘或者把修改操作写入追加的记录文件。
 - 并且在此基础上实现了master-slave(主从)同步。
 
-  应用场景
-
-  配合关系型数据库做高速缓存
--   高频次，热门访问的数据，降低数据库IO
--   分布式架构，做session共享
 
 | Redis官方网站                          | Redis中文官方网站 |
 |----------------------------------------|-------------------|
@@ -109,7 +65,7 @@ Apache Cassandra是一款免费的开源NoSQL数据库，其设计目的在于�
 -   不用考虑在windows环境下对Redis的支持
 
 安装步骤
-准备工作：下载安装最新版的gcc编译器
+准备工作：下载安装最新版的 gcc 编译器
 
 安装C 语言的编译环境
 
@@ -251,19 +207,19 @@ del key 删除指定的key数据
 
 unlink key 根据value选择非阻塞删除
 
-仅将keys从keyspace元数据中删除，真正的删除会在后续异步操作。
+仅将 keys 从 keyspace 元数据中删除，真正的删除会在后续异步操作。
 
 expire key 10 10秒钟：为给定的key设置过期时间
 
 ttl key 查看还有多少秒过期，-1表示永不过期，-2表示已过期
 
-select命令切换数据库
+select 命令切换数据库
 
-dbsize查看当前数据库的key的数量
+dbsize 查看当前数据库的key的数量
 
-flushdb清空当前库
+flushdb 清空当前库
 
-flushall通杀全部库
+flushall 通杀全部库
 
 # 常用五大数据类型
 
@@ -341,8 +297,6 @@ incrby / decrby \<key\>\<步长\>
 
 不是 i=0;两个线程分别对i进行++100次,值是多少？ 2\~200 i=0 i++ i=99     i=1     i++ i=2 | i=0    i++ i=1   i++ i=100 
 
-
-
 同时设置/获取多个 key-value对
 
 mset \<key1\>\<value1\>\<key2\>\<value2\> .....
@@ -352,8 +306,6 @@ mset \<key1\>\<value1\>\<key2\>\<value2\> .....
 mget \<key1\>\<key2\>\<key3\> .....
 
 同时获取一个或多个 value
-
-
 
 msetnx \<key1\>\<value1\>\<key2\>\<value2\> .....
 
@@ -1420,8 +1372,6 @@ cp dump2.rdb dump.rdb
 - 虽然Redis在fork时使用了写时拷贝技术,但是如果数据庞大时还是比较消耗性能。
 
 - 在备份周期在一定间隔时间做一次备份，所以如果Redis意外down掉的话，就会丢失最后一次快照后的所有修改。
-
-  
 
 ### 禁用保存策略
 
