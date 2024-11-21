@@ -2500,11 +2500,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 ## token 续期
 
-### 刷新令牌
+### 方案一:刷新令牌
 
-需要前后端协助完成，后端提供一个接口，利用原有的 token 生成一个新的 token ，前端获取到 token 后监测 token 过期时间，快要过期时向后台自动发起请求，替换旧 token
+需要前后端协助完成，在向认证中心申请 token 时，认证中心返回两个 token ，一个是认证 token 有效期 30 min，另一个是刷新 token ，有效期 60 min，当请求到达后端，如果认证 token 到期而刷新 token 没到期，则重新生成一对 token 给前端，同时防止多个请求同时到达而下发多对 token 的情况
 
-### 自动续期
+### 方案二:自动续期
+
+利用Redis的过期机制实现，将请求的token加上客户端标识（用于防止恶意伪造）的MD5作为Redis的key，通过操作Redis的key进行续期和过期
 
 ## csrf 实现
 
