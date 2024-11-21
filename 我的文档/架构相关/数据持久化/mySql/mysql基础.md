@@ -151,7 +151,7 @@ MySQL 的慢查询日志（Slow Query Log）是一种用于记录执行时间超
 
 https://zhuanlan.zhihu.com/p/132508138
 
-# join 关联
+# join 关联相关
 
 原则上在高性能应用中应明令禁止三表以上的 join 查询，需要 join 的字段数据类型必须绝对一致，且关联字段必须有索引。
 
