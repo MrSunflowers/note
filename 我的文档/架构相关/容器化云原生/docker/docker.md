@@ -610,4 +610,11 @@ docker run -it --privileged=true -v /宿主机绝对路径目录:/容器内目�
 docker run -it --privileged=true -v /宿主机绝对路径目录:/容器内目录:ro 镜像名
 ```
 
+# 网络
+
+## 创建网段
+
+在主机上创建多个 docker 应用，应用间需要互相访问，此时需要建立一个虚拟网段，使用 docker net 命令创建。
+
+
 此时如果宿主机写入内容，可以同步给容器内，容器可以读取到。
