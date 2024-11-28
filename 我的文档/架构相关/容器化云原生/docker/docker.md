@@ -618,3 +618,8 @@ docker run -it --privileged=true -v /宿主机绝对路径目录:/容器内目�
 
 
 此时如果宿主机写入内容，可以同步给容器内，容器可以读取到。
+
+# dockerFile 构建
+
+
+
