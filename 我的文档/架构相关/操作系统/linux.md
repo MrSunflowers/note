@@ -574,3 +574,19 @@ inotifywait -mrq --timefmt '%Y-%m-%d %H:%M:%S' --format '%T %w%f %e' -e create,m
 - 确保 `inotify-tools` 已经安装在您的系统上，以便使用 `inotifywait` 命令。
 
 `inotify` 是一个非常有用的工具，特别是在需要实时监控文件系统变化的场景中。通过合理配置参数，您可以灵活地监控和响应文件系统事件。
+
+
+
+# Cent OS 7
+
+## 配置阿里云 yum 源
+
+[CentOS 7- 配置阿里镜像源-阿里云开发者社区 (aliyun.com)](https://developer.aliyun.com/article/704987)
+
+## 安装 docker
+
+[docker-ce镜像_docker-ce下载地址_docker-ce安装教程-阿里巴巴开源镜像站 (aliyun.com)](https://developer.aliyun.com/mirror/docker-ce?spm=a2c6h.13651102.0.0.7a591b11y1vAs5)
+
+## docker 配置代理
+
+[快速设置 Docker 的三种网络代理配置_docker 代理-CSDN博客](https://blog.csdn.net/peng2hui1314/article/details/124267333)

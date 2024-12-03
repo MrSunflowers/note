@@ -343,9 +343,9 @@ hostnamectl set-hostname <hostname> # k8smaster / k8snode1 / k8snode2
 
 #### 在master添加hosts
 cat >> /etc/hosts << EOF
-192.168.136.139 master
-192.168.136.140 node1
-192.168.136.141 node2
+192.168.1.40 master1
+192.168.1.41 node1
+192.168.1.42 node2
 EOF
 
 #### 将桥接的IPv4流量传递到iptables的链
