@@ -315,7 +315,71 @@ nginx -V
 ```
 
 
+# Nginx 编译命令
+
+```bash
+./configure
+```
 
 
+## 常见的Nginx安装配置选项
 
+编译参数可能会根据版本的不同进行变化，使用 `./configure --help` 查看编译参数列表，常见的选项如下：
+
+- `--prefix=<path>` - 安装路径，如果没有指定，默认为 `/usr/local/nginx`。
+- `--sbin-path=<path>` - nginx 可执行命令的文件，如果没有指定，默认为 `<prefix>/sbin/nginx`。
+- `--conf-path=<path>` - 在没有使用 `-c` 参数指定的情况下 `nginx.conf` 的默认位置，如果没有指定，默认为 `<prefix>/conf/nginx.conf`。
+- `--pid-path=<path>` - nginx.pid 的路径，如果没有在 `nginx.conf` 中通过 “pid” 指令指定，默认为 `<prefix>/logs/nginx.pid`。
+- `--lock-path=<path>` - nginx.lock 文件路径，如果没有指定，默认为 `<prefix>/logs/nginx.lock`。
+- `--error-log-path=<path>` - 当没有在 `nginx.conf` 中使用 “error_log” 指令指定时的错误日志位置，如果没有指定，默认为 `<prefix>/logs/error.log`。
+- `--http-log-path=<path>` - 当没有在 `nginx.conf` 中使用 “access_log” 指令指定时的访问日志位置，如果没有指定，默认为 `<prefix>/logs/access.log`。
+- `--user=<user>` - 当没有在 `nginx.conf` 中使用 “user” 指令指定时 nginx 运行的用户，如果没有指定，默认为 “nobody”。
+- `--group=<group>` - 当没有在 `nginx.conf` 中使用 “user” 指令指定时 nginx 运行的组，如果没有指定，默认为 “nobody”。
+- `--builddir=DIR` - 设置构建目录。
+- `--with-rtsig_module` - 启用 rtsig 模块。
+
+1. **--with-select_module --without-select_module**
+   - 如果在 configure 的时候没有发现 kqueue, epoll, rtsig 或 /dev/poll 其中之一，select 模块始终为启用状态。
+
+2. **--with-poll_module --without-poll_module**
+   - 如果在 configure 的时候没有发现 kqueue, epoll, rtsig 或 /dev/poll 其中之一，poll 模块始终为启用状态。
+
+3. **--with-http_ssl_module**
+   - 启用 ngx_http_ssl_module，启用 SSL 支持并且能够处理 HTTPS 请求。需要 OpenSSL，在 Debian 系统中，对应的包为 libssl-dev。
+
+4. **--with-http_realip_module**
+   - 启用 ngx_http_realip_module。
+
+5. **--with-http_addition_module**
+   - 启用 ngx_http_addition_module。
+
+6. **--with-http_sub_module**
+   - 启用 ngx_http_sub_module。
+
+7. **--with-http_dav_module**
+   - 启用 ngx_http_dav_module。
+
+8. **--with-http_flv_module**
+   - 启用 ngx_http_flv_module。
+
+9. **--with-http_stub_status_module**
+   - 启用 “server status”（服务状态）页。
+
+10. **--without-http_charset_module**
+    - 禁用 ngx_http_charset_module。
+
+11. **--without-http_gzip_module**
+    - 禁用 ngx_http_gzip_module，如果启用，需要 zlib 包。
+
+12. **--without-http_ssi_module**
+    - 禁用 ngx_http_ssi_module。
+
+13. **--without-http_userid_module**
+    - 禁用 ngx_http_userid_module。
+
+14. **--without-http_access_module**
+    - 禁用 ngx_http_access_module。
+
+15. **--without-http_auth_basic_module**
+    - 禁用 ngx_http_auth_basic_module。
 
