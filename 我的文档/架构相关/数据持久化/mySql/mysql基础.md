@@ -423,8 +423,19 @@ EXPLAIN select * from employees ORDER BY name limit 90000,5;
 EXPLAIN select * from employees e inner join (select id from employees order by name limit 90000,5) ed on e.id = ed.id;
 ```
 
+当主键有序或排序字段唯一时，也可利用排序字段的有序性来优化
 
+主键有序:
 
+```sql
+select * from employees e where e.id >= (select id from employees by name limit 90000,1) limit 5;
+```
+
+排序字段唯一:
+
+```sql
+select * from employees e where e.name >= (select name from employees by name limit 90000,1) limit 5;
+```
 
 
 
