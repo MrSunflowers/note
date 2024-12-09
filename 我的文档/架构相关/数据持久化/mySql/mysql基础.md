@@ -381,11 +381,47 @@ EXPLAIN SELECT e.name, d.department_name FROM employees e JOIN departments d ON 
   - 在连接列上创建适当的索引，以优化连接操作。
   - 尽量减少连接表的行数，例如通过使用子查询或视图来预先过滤数据。
 
-## 案例一
+## 索引覆盖
 
+### 分页查询优化
 
+常见的 MySQL 分页查询语句如下
 
+```sql
+select * from employees limit 10000,10;
+```
 
+上面表示从 employees 表中取出从 10001 行开始的 10 行记录，但是实际上 MySQL 是先查出10010行记录，然后再把前面的10000行记录删掉。可想而知，如果数据量特别大的情况下，这种方式的效率会很低。
+
+从执行计划也可以看出上述 SQL 是扫描全表的 ALL
+
+优化方案是利用索引覆盖，来指定一个索引让 MySQL 使用，例如使用主键索引
+
+优化后的 SQL
+
+```sql
+EXPLAIN select * from employees e inner join (select id from employees limit 90000,5) ed on e.id = ed.id;
+```
+
+从执行计划上可以看到会先执行子查询，而子查询因为查询的列只有主键id，不需要提取其他数据，所以会走覆盖索引，直接使用主键索引来获取主键返回。然后再根据id查外面的查询。因为分页的话一页一般都是10条数据，数据量很小，所以外查询的效率也并不低。
+
+同时 INNER JOIN 是 JOIN 类型中效率最高的，因为它只处理匹配的行，减少了需要处理的数据量。
+
+### 排序优化
+
+对于需要排序的分页查询，排序字段必须创建索引，优化思路和上面的一样，只是使用的索引从主键索引换到了排序字段的索引，因为 InnoDB 的索引结构上既有索引字段，也有回表用的主键字段。
+
+优化前的 SQL
+
+```sql
+EXPLAIN select * from employees ORDER BY name limit 90000,5;
+```
+
+优化后的 SQL
+
+```sql
+EXPLAIN select * from employees e inner join (select id from employees order by name limit 90000,5) ed on e.id = ed.id;
+```
 
 
 
