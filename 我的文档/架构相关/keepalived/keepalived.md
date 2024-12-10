@@ -265,6 +265,7 @@ virtual_server 10.10.10.3 1358 {
 - `advert_int`：设置 VRRP 广告包的发送间隔（秒）。
 - `authentication`：定义 VRRP 实例的认证方式，这里使用简单密码认证，密码为 `1111`。防止其他未经授权的keepalived接入集群。
 - `virtual_ipaddress`：定义由 VRRP 实例管理的虚拟 IP 地址列表。
+- `nopreempt`: 非抢占模式，默认情况下，当主机宕机恢复时，IP 会漂移回主机节点，频繁的 IP 漂移会使网络不稳定。增加该参数阻止默认行为，主机宕机导致IP漂移后，备机成为主机，主机恢复时不在漂移回主机。
 
 ## virtual_server 部分
 
@@ -631,6 +632,99 @@ example.com. IN A 192.168.1.101
 
 3. **一致性**：
    - 在多台服务器之间保持 Keepalived 配置的一致性，避免配置错误导致的服务不可用。
+
+# nopreempt 与 IP 漂移导致的网络抖动
+
+## `nopreempt` 配置项的作用与示例
+
+**`nopreempt`** 是 Keepalived 中的一个配置选项，用于控制 VRRP 路由器的抢占行为。默认情况下，Keepalived 的 Master 路由器在故障恢复后会重新成为 Master，而 Backup 路由器则会在 Master 故障时接管服务。然而，在某些场景下，我们希望即使 Master 路由器恢复正常，Backup 路由器仍然保持 Master 状态，不进行抢占。这种情况下，就可以使用 `nopreempt` 选项。
+
+## `nopreempt` 的作用
+
+- **防止抢占**：启用 `nopreempt` 后，当 Master 路由器恢复后，不会自动重新成为 Master，而是继续由当前的 Backup 路由器保持 Master 状态。
+- **保持稳定性**：在某些情况下，频繁的抢占可能会导致网络抖动或服务中断。使用 `nopreempt` 可以避免这种情况，保持服务的稳定性。
+- **适用于特定场景**：例如，当 Backup 路由器已经承载了一段时间的流量，并且不希望因为 Master 恢复而切换回 Master 时，`nopreempt` 就非常有用。
+
+## 配置示例
+
+以下是一个使用 `nopreempt` 的 Keepalived 配置示例。假设有两台 NGINX 服务器，分别配置为 Master 和 Backup。
+
+### 服务器 1（192.168.1.10）作为 Master，不启用抢占
+
+```conf
+vrrp_instance VI_1 {
+    state MASTER
+    interface eth0
+    virtual_router_id 51
+    priority 100
+    nopreempt          # 禁用抢占
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+
+    virtual_ipaddress {
+        192.168.1.100
+    }
+}
+```
+
+**解释**：
+- `state MASTER`：指定当前服务器为 Master 状态。
+- `priority 100`：设置优先级为 100。
+- `nopreempt`：禁用抢占，即使 Master 恢复，也不会重新成为 Master。
+- 其他配置项保持不变。
+
+### 服务器 2（192.168.1.11）作为 Backup，启用抢占
+
+```conf
+vrrp_instance VI_1 {
+    state BACKUP
+    interface eth0
+    virtual_router_id 51
+    priority 90
+    advert_int 1
+
+    authentication {
+        auth_type PASS
+        auth_pass 1111
+    }
+
+    virtual_ipaddress {
+        192.168.1.100
+    }
+}
+```
+
+**解释**：
+- `state BACKUP`：指定当前服务器为 Backup 状态。
+- `priority 90`：设置优先级为 90，低于 Master 的优先级。
+- 其他配置项保持不变。
+
+## 场景应用
+
+1. **初始状态**：
+   - 服务器 1（Master）拥有 VIP `192.168.1.100`，处理流量。
+   - 服务器 2（Backup）作为冗余。
+
+2. **Master 故障**：
+   - 服务器 1 故障，服务器 2 检测到 Master 不可用，接管 VIP `192.168.1.100`，继续处理流量。
+
+3. **Master 恢复**：
+   - 服务器 1 恢复正常，但由于 `nopreempt` 的配置，服务器 2 仍然保持 Master 状态，不会将 VIP 切换回服务器 1。
+
+## 优点
+
+- **避免频繁切换**：在某些情况下，频繁的 VIP 切换可能会导致网络抖动或服务中断。`nopreempt` 可以避免这种情况。
+- **保持服务稳定性**：在 Backup 路由器已经承载了一段时间的流量后，保持其 Master 状态可以提高服务的稳定性。
+
+## 注意事项
+
+- **优先级配置**：确保 Backup 路由器的优先级低于 Master，否则 `nopreempt` 可能不会生效。
+- **适用场景**： `nopreempt` 主要适用于不希望频繁切换 VIP 的场景。在需要频繁切换的场景下，可能需要禁用 `nopreempt`。
+- **一致性配置**：在所有服务器上保持 Keepalived 配置的一致性，避免配置错误导致的服务不可用。
 
 
 
