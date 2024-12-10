@@ -259,11 +259,11 @@ virtual_server 10.10.10.3 1358 {
 ## vrrp_instance VI_1 部分
 
 - `state`：设置该 VRRP 实例的状态，这里是 `MASTER`，表示这个实例是主节点。
-- `interface`：指定 VRRP 实例使用的网络接口，这里是 `eth0`。
-- `virtual_router_id`：设置虚拟路由器的 ID，这里为 51。
-- `priority`：设置该实例的优先级，这里是 100。
+- `interface`：指定 VRRP 实例使用的网卡名称，这里是 `eth0`。
+- `virtual_router_id`：设置虚拟路由器的 ID，这里为 51。一个keepalived可以管理多组VIP，每个VIP可以关联多个主节点和多个从节点，这个编号就代表VIP的分组编号，一套VIP的主机和备机使用同一个编号。
+- `priority`：设置该实例的优先级，这里是 100。数字越大优先级越高，主机应设置为 100
 - `advert_int`：设置 VRRP 广告包的发送间隔（秒）。
-- `authentication`：定义 VRRP 实例的认证方式，这里使用简单密码认证，密码为 `1111`。
+- `authentication`：定义 VRRP 实例的认证方式，这里使用简单密码认证，密码为 `1111`。防止其他未经授权的keepalived接入集群。
 - `virtual_ipaddress`：定义由 VRRP 实例管理的虚拟 IP 地址列表。
 
 ## virtual_server 部分
