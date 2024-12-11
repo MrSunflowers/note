@@ -356,25 +356,130 @@ EXPLAIN SELECT e.name, d.department_name FROM employees e JOIN departments d ON 
 - `rows`为100和1，表示估计扫描的行数。
 - `Extra`为`Using index condition`，表示使用索引条件进行过滤。
 
+## 关联查询
+
+### NLJ
+
+### MySQL 关联查询中的 NLJ（Nested Loop Join）
+
+**NLJ（Nested Loop Join，嵌套循环连接）** 是 MySQL 中一种基础的表连接算法，用于在执行多表关联查询时处理表之间的连接操作。NLJ 通过嵌套循环的方式逐行比较两个表中的数据，以找到满足连接条件的记录。尽管 NLJ 是最基本的连接算法，但在某些情况下，它仍然是一种有效且常用的连接方式。
+
+---
+
+### 1. NLJ 的基本原理
+
+**嵌套循环连接（NLJ）** 的工作原理类似于嵌套的 `for` 循环。具体步骤如下：
+
+1. **外层循环**：遍历第一个表（通常称为“驱动表”或“外部表”）的每一行。
+2. **内层循环**：对于外层循环中的每一行，遍历第二个表（通常称为“被驱动表”或“内部表”）的每一行。
+3. **匹配条件**：检查每一对来自两个表的行是否满足连接条件（例如，`JOIN` 条件）。
+4. **输出结果**：如果满足条件，则将两行数据组合起来并输出。
+
+**示例**：
+假设有两个表 `employees` 和 `departments`，我们希望查询每个员工所在的部门：
+
+```sql
+SELECT employees.name, departments.department_name
+FROM employees
+JOIN departments ON employees.department_id = departments.id;
+```
+
+在 NLJ 中，MySQL 会执行以下操作：
+- 遍历 `employees` 表的每一行。
+- 对于 `employees` 表中的每一行，遍历 `departments` 表的每一行。
+- 如果 `employees.department_id` 等于 `departments.id`，则将两行数据组合并返回。
+
+---
+
+### 2. NLJ 的优缺点
+
+#### 优点：
+- **实现简单**：NLJ 是最基础的连接算法，逻辑简单，易于实现。
+- **适用于小表连接**：当连接的两个表都很小，或者其中一个表非常小（可以完全加载到内存中）时，NLJ 的性能表现良好。
+- **不需要额外的内存或索引支持**：NLJ 不依赖于索引，可以在没有合适索引的情况下使用。
+
+#### 缺点：
+- **性能问题**：当连接的表很大时，NLJ 的性能会急剧下降，因为它需要进行笛卡尔积级别的比较（时间复杂度为 O(n*m)）。
+- **无法利用索引优化**：NLJ 通常不会利用索引进行优化，除非在某些特殊情况下（如索引嵌套循环连接，详见下文）。
+
+---
+
+### 3. NLJ 的变种
+
+在 MySQL 中，NLJ 有几种常见的变种，用于优化特定场景下的连接操作：
+
+#### a. 索引嵌套循环连接（Index Nested Loop Join，INLJ）
+- **原理**：如果连接条件中的列有索引，MySQL 可以利用索引来加速内层循环的查找过程。
+- **优点**：通过索引查找，NLJ 的性能可以显著提高，因为索引查找的时间复杂度为 O(log n)，而不是 O(n)。
+- **适用场景**：当连接条件中的列有索引时，MySQL 会自动选择 INLJ。
+
+#### b. 块嵌套循环连接（Block Nested Loop Join，BNLJ）
+- **原理**：BNLJ 通过将外部表的数据分成块，并使用连接缓冲区来减少内层循环的扫描次数。
+- **优点**：BNLJ 可以减少 I/O 操作，提高连接效率，尤其是在外部表较大时。
+- **适用场景**：当连接的两个表都较大且没有合适的索引时，MySQL 可能会选择 BNLJ。
+
+---
+
+### 4. 如何优化 NLJ
+
+- **创建合适的索引**：为连接条件中的列创建索引，可以将 NLJ 优化为索引嵌套循环连接（INLJ），从而显著提高性能。
+- **减少连接表的大小**：尽量减少驱动表和被驱动表的数据量，例如，通过在连接前过滤数据。
+- **使用覆盖索引**：如果查询的列都包含在索引中，可以避免回表操作，进一步提高性能。
+
+---
+
+### 5. 示例
+
+假设有以下两个表：
+
+```sql
+CREATE TABLE employees (
+    id INT PRIMARY KEY,
+    name VARCHAR(100),
+    department_id INT,
+    INDEX (department_id)
+);
+
+CREATE TABLE departments (
+    id INT PRIMARY KEY,
+    department_name VARCHAR(100)
+);
+```
+
+执行以下查询：
+
+```sql
+SELECT employees.name, departments.department_name
+FROM employees
+JOIN departments ON employees.department_id = departments.id;
+```
+
+- **使用 NLJ**：MySQL 会遍历 `employees` 表的每一行，并使用 `department_id` 在 `departments` 表中查找匹配的部门。
+- **优化为 INLJ**：由于 `employees.department_id` 有索引，MySQL 会使用索引查找来加速内层循环的查找过程，从而提高查询性能。
+
+---
+
+NLJ 是 MySQL 中最基本的表连接算法，适用于小表或某些特定场景。在大多数情况下，MySQL 会自动选择最合适的连接算法（如 INLJ、BNLJ）来优化查询性能。为了提高 NLJ 的效率，开发者可以通过创建合适的索引、减少数据量等方法进行优化。
+
 ## 关联查询的执行效率与选择
 
 在MySQL中，关联查询（JOIN）是一种常见的操作，用于从多个表中检索相关数据。常见的JOIN类型包括内连接（INNER JOIN）、左连接（LEFT JOIN）等。以下是对这些JOIN类型的执行效率及其选择的详细分析：
 
-### 1. 内连接（INNER JOIN）
+### 内连接（INNER JOIN）
 
 **特点**:
 - **定义**: 只返回两个表中满足连接条件的行。
 - **执行效率**: 通常是JOIN类型中效率最高的，因为它只处理匹配的行，减少了需要处理的数据量。
 - **适用场景**: 当需要两个表中都存在匹配的数据时使用。例如，获取客户及其订单信息。
 
-### 2. 左连接（LEFT JOIN）
+### 左连接（LEFT JOIN）
 
 **特点**:
 - **定义**: 返回左表中的所有行，以及右表中满足连接条件的行。如果右表中没有匹配的行，则结果中右表的列将填充为NULL。
 - **执行效率**: 通常比INNER JOIN效率稍低，因为它需要扫描左表的所有行，并尝试匹配右表中的行。
 - **适用场景**: 当需要保留左表中的所有记录，即使右表中没有匹配的数据时使用。例如，获取所有客户及其可能的订单信息。
 
-### 3. 选择与优化建议
+### 选择与优化建议
 
 - **选择合适的JOIN类型**:
   - **INNER JOIN**适用于需要两个表中都存在匹配数据的场景，通常性能更优。
