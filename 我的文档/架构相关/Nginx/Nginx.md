@@ -1,8 +1,17 @@
 [TOC]
 
+# Nginx 理论基础
+
+在目前的计算机硬件水平下，单体 nginx 作为代理服务器的并发访问量可以达到 10W+。F5 为钞能力，且本身即为高可用架构，理论可以比 nginx 并发能力要高的多。
+
+- nginx 可以直接支持 Rails 和 PHP 的程序
+- nginx 可以邮件代理服务器
+
+nginx 功能及指令参照：
+
 Nginx 文档 https://nginx.org/en/docs/
 
-# 1.Nginx目录结构
+# Nginx 目录结构
 
 ```
 [root@localhost ~]# tree /usr/local/nginx
@@ -19,7 +28,7 @@ Nginx 文档 https://nginx.org/en/docs/
 │   ├── mime.types.default
 │   ├── nginx.conf                   #这是Nginx默认的主配置文件，日常使用和修改的文件
 │   ├── nginx.conf.default
-│   ├── scgi_params                  # scgi相关参数文件
+│   ├── scgi_params                  # scgi相关参数文件,PHP相关配置
 │   ├── scgi_params.default  
 │   ├── uwsgi_params                 # uwsgi相关参数文件
 │   ├── uwsgi_params.default
@@ -48,13 +57,11 @@ Nginx 文档 https://nginx.org/en/docs/
 - error.log 存放出错的信息，nginx.pid 存放的是当前 nginx 的 pid。
 - sbin 存放的是可执行文件，可以用 ./nginx启动 nginx
 
-# 2.Nginx基本运行原理
+# Nginx 基本运行原理
 
 Nginx 的进程是使用经典的「Master-Worker」模型, Nginx 在启动后，会有一个 master 进程和多个 worker 进程。master 进程主要用来管理 worker 进程，包含：接收来自外界的信号，向各 worker 进程发送信号，监控 worker 进程的运行状态，当 worker 进程退出后(异常情况下)，会自动重新启动新的 worker 进程。worker 进程主要处理基本的网络事件，多个 worker 进程之间是对等的，他们同等竞争来自客户端的请求，各进程互相之间是独立的。一个请求，只可能在一个 worker 进程中处理，一个 worker 进程，不可能处理其它进程的请求。 worker 进程的个数是可以设置的，一般会设置与机器 cpu 核数一致，这里面的原因与 nginx 的进程模型以及事件处理模型是分不开的。
 
-在目前的计算机硬件水平下，单体 nginx 作为代理服务器的并发访问量可以达到 10W+
-
-# 3.Nginx的基本配置文件
+# Nginx 的基本配置文件
 
 刚安装好的 nginx.conf 如下
 
@@ -226,7 +233,7 @@ http {
 }
 ```
 
-# 4.域名解析（理论）
+# 域名解析（理论）
 
 虚拟主机使用特殊的软硬件技术，把一台运行在因特网上的服务器主机分成一台台“虚拟”的主机，每一台虚拟主机都具有独立的域名，具有完整的 Internet 服务器（WWW、FTP、Email等）功能，虚拟主机之间完全独立，并可由用户自行管理，在外界看来，每一台虚拟主机和一台独立的主机完全一样。
 
@@ -288,7 +295,7 @@ HTTP 协议通常承载于 TCP 协议之上，有时也承载于 TLS 或 SSL 协
 
 4）客户端接收服务器所返回的信息通过浏览器显示在用户的显示屏上，然后客户机与服务器断开连接。如果在以上过程中的某一步出现错误，那么产生错误的信息将返回到客户端，有显示屏输出。对于用户来说，这些过程是由HTTP自己完成的，用户只要用鼠标点击，等待信息显示就可以了。
 
-# 5.虚拟主机（配置）
+# 虚拟主机（配置）
 
 **虚拟主机是为了在同一台物理机器上运行多个不同的网站，提高资源利用率引入的技术。**
 
@@ -633,7 +640,7 @@ $ 匹配字符串的结束
 
 (?#comment) 注释,这种类型的分组不对正则表达式的处理产生任何影响，用于提供注释让人阅读
 
-# 6.反向代理（配置）
+# 反向代理（配置）
 
 反向代理方式是指以代理服务器来接受Internet上的连接请求，然后将请求转发给内部网络上的服务器；并将从服务器上得到的结果返回给Internet上请求连接的客户端，此时代理服务器对外就表现为一个服务器。
 
@@ -1431,7 +1438,7 @@ location / {
 
 请注意，虽然 `return` 指令非常强大，但应谨慎使用，以避免配置错误导致意外的重定向或错误响应。特别是在处理重定向时，确保使用正确的 HTTP 状态码，以符合 HTTP 协议的标准。
 
-# 7.动静分离（静态资源前置）
+# 动静分离（静态资源前置）
 
 为了提高网站的响应速度，减轻程序服务器（Tomcat，Jboss等）的负载，对于静态资源，如图片、js、css等文件，可以在反向代理服务器中进行缓存，这样浏览器在请求一个静态资源时，代理服务器就可以直接处理，而不用将请求转发给后端服务器。对于用户请求的动态文件，如 servlet、jsp，则转发给 Tomcat，Jboss 服务器处理，这就是动静分离。即动态文件与静态文件的分离。
 
@@ -1782,7 +1789,7 @@ rewrite ^/([0-9]).html$ /index.html?testParam=$1 break; //$1表示第一个匹�
 
 ![image-20231107212800747](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311072128798.png)
 
-# 8.内网隔离
+# 内网隔离
 
 在真实的线上环境可以利用防火墙配置，使我们的应用服务器只允许 网关 nginx 的 IP 和 端口 可以访问，做到一个内外网分离
 
@@ -1848,7 +1855,7 @@ firewall-cmd --list-all --zone=public
 
 确保在执行这些命令时你具有足够的权限，通常需要 root 权限。如果你的系统使用的是不同的防火墙管理工具（如 iptables），则需要使用相应的命令和语法来查看规则。
 
-# 9.防盗链
+# 防盗链
 
 盗链是指服务提供商自己不提供服务的内容，通过技术手段绕过其它有利益的最终用户界面（如广告），直接在自己的网站上向最终用户提供其它服务提供商的服务内容，骗取最终用户的浏览和点击率。受益者不提供资源或提供很少的资源，而真正的服务提供商却得不到任何的收益。
 
@@ -1984,7 +1991,7 @@ server {
 # www.test.org.cn/nginx/：该页面发起的请求可以访问
 ```
 
-# 10.配置错误提示页面
+# 配置错误提示页面
 
 在 Nginx 中配置错误提示页面允许你自定义当用户遇到特定类型的 HTTP 错误时看到的页面。这不仅提升了用户体验，还可以提供更清晰的错误信息、帮助用户理解发生了什么问题，以及如何解决。常见的错误提示页面包括 404（未找到页面）、403（禁止访问）、500（服务器内部错误）等。
 
@@ -2036,7 +2043,7 @@ server {
 
 ![image-20231109204701059](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311092047142.png)
 
-# 11.高可用配置，nginx 集群
+# 高可用配置，nginx 集群
 
 高可用场景及解决方案
 
@@ -2363,7 +2370,7 @@ sudo service keepalived restart
 
 
 
-# 12.https 签名
+# https 签名
 
 参考 《凤凰架构》-周志明
 
@@ -2480,7 +2487,7 @@ sudo service keepalived restart
 
 ### 自签名 
 
-# 13.KeepAlive
+# KeepAlive
 
 `KeepAlive` 是 HTTP 协议中的一个特性，它允许在同一个 TCP 连接上进行多个 HTTP 请求和响应。在没有 `KeepAlive` 的情况下，每个 HTTP 请求都需要建立一个新的 TCP 连接，这会增加延迟并消耗更多资源。启用 `KeepAlive` 可以减少连接建立和关闭的开销，提高网站的响应速度和服务器的处理能力。
 
@@ -5677,56 +5684,163 @@ error_log /path/to/log_file [level];
 
 2.Linux 的 Logrotate 日志工具，系统自带，不需要安装
 
+# Nginx 模块概述
 
+Nginx 将各个功能使用模块的方式进行分离。
 
+Nginx 的模块主要分为以下几类：
 
+- **核心模块（Core Modules）**：
+  - **功能**：提供 Nginx 的基本功能，如进程管理、事件处理、内存管理等。
+  - **示例模块**：`ngx_core_module`、`ngx_events_module`、`ngx_http_module` 等。
 
+- **标准 HTTP 模块（Standard HTTP Modules）**：
+  - **功能**：处理 HTTP 请求和响应相关的功能，如静态文件服务、压缩、缓存、认证等。
+  - **示例模块**：
+    - `ngx_http_core_module`：处理 HTTP 核心功能，如虚拟主机、请求处理等。
+    - `ngx_http_access_module`：基于 IP 地址的访问控制。
+    - `ngx_http_gzip_module`：HTTP 响应内容的压缩。
+    - `ngx_http_proxy_module`：反向代理功能。
+    - `ngx_http_upstream_module`：负载均衡配置。
 
+- **可选 HTTP 模块（Optional HTTP Modules）**：
+  - **功能**：提供额外的 HTTP 功能，如流媒体处理、WebDAV 支持、GeoIP 定位等。
+  - **示例模块**：
+    - `ngx_http_flv_module` 和 `ngx_http_mp4_module`：流媒体支持。
+    - `ngx_http_dav_module`：WebDAV 支持。
+    - `ngx_http_geoip_module`：基于地理位置的访问控制。
 
+- **邮件模块（Mail Modules）**：
+  - **功能**：处理邮件相关的协议，如 SMTP、POP3、IMAP 等。
+  - **示例模块**：
+    - `ngx_mail_core_module`：邮件核心功能。
+    - `ngx_mail_proxy_module`：邮件代理。
+    - `ngx_mail_imap_module` 和 `ngx_mail_pop3_module`：IMAP 和 POP3 协议支持。
 
+- **第三方模块（Third-Party Modules）**：
+  - **功能**：由社区或第三方开发者提供的模块，扩展 Nginx 的功能。
+  - **示例模块**：
+    - `ngx_http_lua_module`：集成 Lua 脚本语言。
+    - `ngx_http_vod_module`：视频点播支持。
+    - `ngx_http_redis_module`：Redis 缓存支持。
 
+## 模块的工作原理
 
+Nginx 的模块在处理请求时，按照一定的顺序执行各个模块的回调函数，这个顺序可类比为链表，也类似于 Java web 中的过滤器，每个模块负责处理请求的不同阶段，如读取请求头、处理请求体、生成响应等。Nginx 的事件驱动架构和异步非阻塞特性，使得其能够高效地处理大量的并发连接。
 
+## 模块的加载与启用
 
+Nginx 在启动时，会根据配置文件中的指令加载相应的模块。用户可以通过在配置文件中添加或移除模块指令来启用或禁用模块。例如：
 
+```nginx
+load_module modules/ngx_http_lua_module.so;
+```
 
+上述指令用于加载 Lua 模块。
 
+## 模块文档
 
+参考官方文档
 
+## Nginx 核心模块（Core Modules）
 
+在 Nginx 的模块化架构中，**核心模块（Core Modules）** 是最基础的组件，类似于操作系统的内核。它们提供了 Nginx 运行所需的基本功能，其他所有模块都依赖于核心模块来正常工作。因此，核心模块是 Nginx 的核心部分，**无法被禁用**，否则 Nginx 将无法正常工作。
 
+### 核心模块的主要功能
 
+核心模块负责处理以下关键功能：
 
+1. **进程管理（Process Management）**：
+   - **Master Process（主进程）**：负责启动和管理 Worker 进程，读取并应用配置文件，处理信号等。
+   - **Worker Process（工作进程）**：实际处理客户端请求的进程。每个 Worker 进程都是单线程的，通过事件驱动机制高效处理大量并发连接。
 
+2. **事件处理（Event Handling）**：
+   - **事件驱动架构**：Nginx 采用异步非阻塞的事件驱动模型，通过高效的 I/O 多路复用（如 `epoll`、`kqueue` 等）来处理大量并发连接。
+   - **连接处理**：管理客户端连接的建立、读取、写入和关闭等操作。
 
+3. **内存管理（Memory Management）**：
+   - **内存分配与回收**：高效管理内存资源，避免内存泄漏和碎片化。
+   - **缓冲区管理**：处理请求和响应的数据缓冲，确保数据传输的高效性。
 
+4. **配置文件解析（Configuration Parsing）**：
+   - **解析配置文件**：读取并解析 `nginx.conf` 配置文件，初始化各个模块的配置参数。
+   - **动态重载配置**：支持在不重启服务的情况下，重新加载配置文件，应用新的配置。
 
+5. **信号处理（Signal Handling）**：
+   - **处理系统信号**：如 `SIGTERM`、`SIGINT` 等，用于优雅地关闭或重启 Nginx 服务。
+   - **热重启（Hot Restart）**：在接收到特定信号时，Nginx 可以进行热重启，即在不中断现有连接的情况下，重新加载配置或升级可执行文件。
 
+6. **日志记录（Logging）**：
+   - **访问日志**：记录客户端的请求信息，用于监控和分析。
+   - **错误日志**：记录 Nginx 运行中的错误和异常信息，便于问题排查。
 
+### 核心模块的示例
 
+以下是一些常见的核心模块：
 
+- **`ngx_core_module`**：
+  - 提供 Nginx 的核心功能，如进程管理、内存管理等。
 
+- **`ngx_events_module`**：
+  - 管理事件驱动架构，处理各种 I/O 事件。
 
+- **`ngx_http_module`**：
+  - 提供 HTTP 协议处理的基础功能，是其他 HTTP 模块的基础。
 
+- **`ngx_stream_module`**（可选）：
+  - 提供 Stream 协议处理的基础功能，如 TCP/UDP 代理等。
 
+## 核心模块指令
+ 
+这张图片展示了 Nginx 常用的核心模块指令，特别是 `error_log` 指令的使用方法。以下是详细说明：
 
+### Nginx 常用的核心模块指令
 
+常用指令：
 
+- `error_log`
+- `include`
+- `pid`
+- `user`
+- `worker_cpu_affinity`
+- `worker_processes`
 
+#### `error_log` 指令
 
+`error_log` 用于配置 Nginx 的错误日志记录。日志有6个级别：
 
+- `debug`
+- `info`
+- `notice`
+- `warn`
+- `error`
+- `crit` 致命的错误
 
+Nginx 支持将不同虚拟主机的日志记录在不同的位置。例如：
 
+```nginx
+http {
+    error_log logs/http_error.log error;
+    server {
+        server_name one;
+        access_log logs/one_access.log;
+        error_log logs/one_error.log error;
+    }
 
+    server {
+        server_name two;
+        access_log logs/two_access.log;
+        error_log logs/two_error.log error;
+    }
+}
+```
 
+禁用日志
 
+- `error_log off` 不是禁用日志，而是创建一个名为 `off` 的日志。
+- 要禁用日志，可以这样写：`error_log /dev/null crit;`
 
-
-
-
-
-
-
+通过这些配置，可以灵活地管理和记录 Nginx 的日志信息，以便于监控和问题排查。
 
 
 # 常见问题
@@ -5794,5 +5908,24 @@ error_log /path/to/log_file [level];
 
 无论采用哪种方法，关键在于确保配置更新的流程是可重复的、可靠的，并且能够快速回滚到之前的配置状态，以防更新后的配置出现问题。同时，应该在更新配置之前进行充分的测试，以确保变更不会影响服务的正常运行。
 
+# 常用内置变量
 
+# nginx 配置优化
 
+## worker_connections 与 worker_processes
+
+1. **worker_processes**：
+   - 通常配置成CPU的总核数，或者其2倍，性能会更好。这样可以减少进程间切换带来的消耗。
+
+2. **worker_cpu_affinity**：
+   - 可以同时使用worker_cpu_affinity来绑定CPU，使得每个worker进程独占一个CPU，实现完全的并发，性能更好。不过这个只在Linux系统有效。
+
+3. **worker_rlimit_nofile**：
+   - 描述一个nginx进程打开的最多文件数目。配置成跟Linux内核下文件打开数一致就可以了。可以通过`ulimit -n`来查看，新装的系统默认是1024，CentOS中可以如下方式进行修改：
+     ```bash
+     在/etc/security/limits.conf最后增加：
+     * soft nofile 65535
+     * hard nofile 65535
+     * soft nproc 65535
+     * hard nproc 65535
+     ```

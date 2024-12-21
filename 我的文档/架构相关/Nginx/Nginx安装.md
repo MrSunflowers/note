@@ -170,28 +170,33 @@ sudo systemctl disable firewalld
 
 # Nginx的基本运行
 
-测试配置文件：
+## 测试配置文件：
 
-安装路径下的/nginx/sbin/nginx -t 
+安装路径下的 /nginx/sbin/nginx -t 
 
-启动：
+## 启动：
 
-安装路径下的/nginx/sbin/nginx 
+安装路径下的 /nginx/sbin/nginx 
 
-停止
+## 停止
 
-安装路径下的/nginx/sbin/nginx -s stop 
+安装路径下的 /nginx/sbin/nginx -s stop 
 或者是：nginx -s quit
 
-重启
+## 重启
 
 安装路径下的/nginx/sbin/nginx -s reload 
 
-查看进程
+## 查看进程
 
-ps -ef grep nginx
+ps -ef | grep nginx
+
+## 指定加载的配置文件
+
+nginx -c nginx.conf
 
 安装过后，如果从外面访问不了，多半是被防火墙挡住了，可以关闭掉防火墙：
+
 /sbin/service iptables stop
 
 # 第三方模块平滑升级
