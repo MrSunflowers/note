@@ -1693,7 +1693,66 @@ location /api/ {
 }
 ```
 
-## URLRewrite
+### root
+
+在 Nginx 的配置中，`root` 指令用于指定请求 URL 的本地文件根目录。它是一个非常重要的指令，常用于静态文件服务的配置。以下是关于 `root` 指令的详细说明：
+
+#### 基本用法
+
+- **语法**：`root path;`
+- **作用域**：可以在 `http`、`server`、`location` 等配置块中使用。
+- **默认值**：无
+
+#### 功能
+
+`root` 指令用于定义请求 URL 的本地文件根目录。当客户端请求一个文件时，Nginx 会根据 `root` 指令指定的路径来查找文件。例如：
+
+```nginx
+location /static/ {
+    root /var/www/html;
+}
+```
+
+在这个例子中，如果客户端请求 `/static/image.png`，Nginx 会在 `/var/www/html/static/image.png` 查找该文件。
+
+#### 使用注意事项
+
+1. **路径拼接**：`root` 指令会将 `location` 块中指定的路径附加到 `root` 路径后面。例如，`location /static/` 和 `root /var/www/html` 会组合成 `/var/www/html/static/`。
+
+2. **斜杠的使用**：在 `location` 块中，`root` 指令后面的路径是否带斜杠对本地路径的访问没有影响。例如，`root /var/www/html;` 和 `root /var/www/html/;` 是等效的。
+
+3. **优先级**：如果 `location` 块中没有指定 `root`，Nginx 会使用外层的 `server` 或 `http` 块中的 `root` 指令。
+
+#### 示例配置
+
+以下是一个简单的 Nginx 配置示例，展示了如何使用 `root` 指令：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    root /var/www/html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+
+    location /images/ {
+        root /var/www/html; # 这里的 root 会覆盖外面的 root
+    }
+	
+	location /root/ {
+	    # 这里未配置任何信息，代表以 /root/ 开头的资源都会去 root 下查找
+	}
+}
+```
+
+在这个配置中：
+- 对于根 URL (`/`)，Nginx 会在 `/var/www/html/` 目录下查找文件。
+- 对于 `/images/` URL，Nginx 会在 `/var/www/html/images/` 目录下查找文件。
+
+# URLRewrite
 
 rewrite是实现URL重写的关键指令，根据regex(正则表达式)部分内容，重定向到repacement，结尾是flag标记。
 
@@ -1717,7 +1776,7 @@ redirect #返回302临时重定向，浏览器地址会显示跳转后的URL地�
 permanent #返回301永久重定向，浏览器地址栏会显示跳转后的URL地址
 ```
 
-### 重写指令的基本语法
+## 重写指令的基本语法
 
 `rewrite` 指令的基本语法如下：
 
@@ -1733,7 +1792,7 @@ rewrite regex replacement [flag];
   - `redirect`：返回一个临时的 HTTP 302 重定向响应。
   - `permanent`：返回一个永久的 HTTP 301 重定向响应。
 
-### 一个简单的 URL 重写示例
+## 一个简单的 URL 重写示例
 
 假设你想要将所有对旧博客文章的请求重定向到新的博客系统，你可以使用如下配置：
 
@@ -1750,14 +1809,14 @@ server {
 
 在这个例子中，任何以 `/old-blog/` 开头的请求都会被重写为以 `/new-blog/` 开头的路径，并返回一个永久重定向（HTTP 301）。
 
-### 使用 `last` 和 `break` 标志
+## 使用 `last` 和 `break` 标志
 
 `last` 和 `break` 标志用于控制重写后的处理流程：
 
 - **last**：重写后，Nginx 会重新开始处理重写后的 URI，就像这个请求刚刚到达一样。这通常用于将请求重定向到不同的 `location` 块。
 - **break**：重写后，Nginx 会停止处理当前的 `rewrite` 规则集，并继续处理当前的请求。这通常用于在同一个 `location` 块内完成重写。
 
-### 注意事项
+## 注意事项
 
 - 确保重写规则不会导致循环重定向，这可能会导致浏览器陷入无限重定向的循环。
 - 重写规则应该谨慎使用，以避免破坏搜索引擎优化（SEO）。
@@ -1765,7 +1824,7 @@ server {
 
 通过合理使用 `rewrite` 指令，你可以灵活地控制 Nginx 的请求处理流程，满足各种复杂的 URL 重写需求。
 
-### URLRewrite 的优缺点
+## URLRewrite 的优缺点
 
 优点：掩藏真实的url以及url中可能暴露的参数，以及隐藏web使用的编程语言，提高安全性便于搜索引擎收录
 
@@ -1788,6 +1847,178 @@ rewrite ^/([0-9]).html$ /index.html?testParam=$1 break; //$1表示第一个匹�
 使用负载均衡的方式访问：
 
 ![image-20231107212800747](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202311072128798.png)
+
+## 捕获子表达式
+
+在 Nginx 的 URL Rewrite 中，捕获子表达式（capturing groups）是非常有用的工具，用于从请求的 URL 中提取特定的部分，然后在重写规则中使用这些提取的数据。以下是关于捕获子表达式在 Nginx URL Rewrite 中的详细使用说明：
+
+### 基本语法
+
+捕获子表达式使用圆括号 `()` 来定义。例如：
+
+```nginx
+^(.*)/(hello|sir)$
+```
+
+在这个正则表达式中：
+- `(.*)` 是一个捕获组，用于捕获任意数量的任意字符。
+- `(hello|sir)` 是另一个捕获组，用于匹配 "hello" 或 "sir"。
+
+### 示例
+
+假设你有一个 URL，例如 `http://example.com/hi/sir`，你希望将其重写为 `http://example.com/greeting?greet=hi&title=sir`。可以使用捕获子表达式来实现：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        rewrite ^/(.*)/(hello|sir)$ /greeting?greet=$1&title=$2 last;
+    }
+
+    location /greeting {
+        return 200 "Greeting: $arg_greet, Title: $arg_title";
+    }
+}
+```
+
+在这个例子中：
+1. `rewrite ^/(.*)/(hello|sir)$ /greeting?greet=$1&title=$2 last;`：
+   - `^(.*)/(hello|sir)$` 是正则表达式，用于匹配路径中的 `/hi/sir` 部分。
+   - `/(.*)/(hello|sir)` 中的 `(.*)` 和 `(hello|sir)` 是捕获组，分别捕获 "hi" 和 "sir"。
+   - `/greeting?greet=$1&title=$2` 是重写后的 URL，其中 `$1` 和 `$2` 分别引用第一个和第二个捕获组捕获到的内容。
+
+2. `location /greeting`：
+   - 返回一个响应，显示捕获到的数据。
+
+### 使用捕获的数据
+
+捕获到的数据可以在重写后的 URL 中使用，也可以用于后续的处理。例如，在上面的例子中，`$1` 和 `$2` 分别捕获了 "hi" 和 "sir"，并在重写后的 URL 中作为查询参数传递。
+
+### 更复杂的例子
+
+假设你有一个 URL，例如 `http://example.com/user/123/profile`，你希望将其重写为 `http://example.com/profile?user_id=123`。可以使用捕获子表达式来实现：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        rewrite ^/user/(\d+)/profile$ /profile?user_id=$1 last;
+    }
+
+    location /profile {
+        return 200 "User ID: $arg_user_id";
+    }
+}
+```
+
+在这个例子中：
+1. `rewrite ^/user/(\d+)/profile$ /profile?user_id=$1 last;`：
+   - `^/user/(\d+)/profile$` 是正则表达式，用于匹配路径中的 `/user/123/profile` 部分。
+   - `(\d+)` 是一个捕获组，用于捕获数字部分。
+   - `/profile?user_id=$1` 是重写后的 URL，其中 `$1` 引用第一个捕获组捕获到的内容。
+
+2. `location /profile`：
+   - 返回一个响应，显示捕获到的数据。
+
+## 条件结构 if
+
+在 Nginx 的 Rewrite 模块中，条件结构的基本语法用于实现复杂的 URL 重写和请求处理逻辑。以下是条件结构的基本语法和相关操作符的详细说明：
+
+### 基本语法
+
+1. **没有操作符**：
+   - 用于判断指定的字符串或变量是否为空，或者是否为非零开头的字符串。如果条件成立，取值为 true。
+   - 示例：`if($request_method = POST) {...}`
+
+2. **= 和 !=**：
+   - `=` 用于判断相等。
+   - `!=` 用于判断不相等。
+   - 示例：`if($request_method = POST) {...}`
+
+3. **~ 和 !~**：
+   - `~` 用于匹配指定的正则表达式。
+   - `!~` 用于不匹配指定的正则表达式。
+   - 示例：`if($uri ~* "\.jsp$") {...}`
+
+4. **~* 和 !~***：
+   - `~*` 用于不区分大小写匹配指定的正则表达式。
+   - `!~*` 用于不匹配不区分大小写的正则表达式。
+   - 示例：`if($uri ~* "\.jsp$") {...}`
+
+5. **-f 和 !-f**：
+   - `-f` 用于测试指定文件是否存在。
+   - `!-f` 用于测试指定文件不存在。
+   - 示例：`if(-f $request_filename) {...}`
+
+6. **-d 和 !-d**：
+   - `-d` 用于测试指定目录是否存在。
+   - `!-d` 用于测试指定目录不存在。
+   - 示例：`if(-d $request_filename) {...}`
+
+7. **-e 和 !-e**：
+   - `-e` 用于测试指定文件、目录或者符号链接是否存在。
+   - `!-e` 用于测试指定文件、目录或者符号链接不存在。
+   - 示例：`if(-e $request_filename) {...}`
+
+8. **-x 和 !-x**：
+   - `-x` 用于测试指定文件是否存在和是否可以执行。
+   - `!-x` 用于测试指定文件不存在或不可执行。
+   - 示例：`if(-x $request_filename) {...}`
+
+9. **break**：
+   - 用于跳出 if 块。
+   - 示例：`if(...) { break; }`
+
+10. **return**：
+    - 用于终止处理，并返回一个指定的 HTTP 状态码。
+    - 示例：`if(...) { return 403; }`
+
+11. **set**：
+    - 用于初始化或者重定义一个变量。
+    - 示例：`set $variable "value";`
+
+### 示例配置
+
+以下是一个完整的 Nginx 配置示例，展示如何使用条件结构进行 URL 重写：
+
+```nginx
+server {
+    listen 80;
+    server_name example.com;
+
+    location / {
+        if ($request_method = POST) {
+            return 405;
+        }
+
+        if ($uri ~* "\.jsp$") {
+            rewrite ^/(.*)\.jsp$ /$1.php last;
+        }
+
+        if (!-f $request_filename) {
+            return 404;
+        }
+
+        if (-d $request_filename) {
+            return 403;
+        }
+
+        set $redirect_to "https://www.example.com";
+        return 301 $redirect_to;
+    }
+}
+```
+
+在这个示例中：
+- 如果请求方法是 POST，返回 405 状态码。
+- 如果请求的 URI 以 `.jsp` 结尾，重写为 `.php` 并继续处理。
+- 如果请求的文件不存在，返回 404 状态码。
+- 如果请求的文件是一个目录，返回 403 状态码。
+- 最后，重定向到指定的 URL。
 
 # 内网隔离
 
@@ -2785,7 +3016,7 @@ http {
 
 ### client_header_buffer_size
 
-`client_header_buffer_size` 是 NGINX 中用于设置用于存储客户端请求头的缓冲区大小的指令。这个缓冲区用于读取客户端发送的 HTTP 请求头。正确配置这个缓冲区的大小对于确保 NGINX 能够高效地处理各种大小的请求头非常重要。默认32位8K。 64位平台16K。
+`client_header_buffer_size` 是 NGINX 中用于设置用于存储客户端请求头的缓冲区大小的指令。这个缓冲区用于读取客户端发送的 HTTP 请求头。正确配置这个缓冲区的大小对于确保 NGINX 能够高效地处理各种大小的请求头非常重要。默认32位8K。 64位平台16K。通常为系统分页大小的整数倍，可以通过 `getconf PAGESIZE` 命令来查看系统分页大小
 
 作用
 
@@ -5738,6 +5969,35 @@ load_module modules/ngx_http_lua_module.so;
 
 上述指令用于加载 Lua 模块。
 
+## 其他模块
+
+1. **Http Index 模块**：
+   - 用于指定默认主页文件，当请求的 URI 是一个目录时，Nginx 会尝试返回这个目录下的默认主页文件。
+
+2. **Http Referer 模块**：
+   - 用于检查请求的 Referer 头信息，可以用来防盗链，即防止其他网站直接引用你的资源。
+
+3. **Http Limit Zone 模块**：
+   - 用于会话的连接数控制，例如限制每个 IP 的并发连接数，防止恶意请求。
+
+4. **Http Access 模块**：
+   - 用于简单的访问控制，可以根据 IP 地址或其他条件限制访问。
+
+5. **Http Charset 模块**：
+   - 用于设置响应的字符集，确保客户端正确解析响应内容。
+
+6. **Gzip 模块**：
+   - 用于启用 gzip 压缩，减少传输的数据量，提高传输效率。
+
+7. **Http Browser 模块**：
+   - 用于根据请求头中的 User-agent 创建一些变量，以便为不同的浏览器创建不同的内容。
+
+8. **Memcached 模块**：
+   - 用于将 Nginx 作为 Memcached 的客户端，连接 Memcached 进行缓存操作。
+
+9. **Http Addition 模块**：
+   - 可以在当前 location 内容之前或之后添加内容，用于动态生成响应内容。
+
 ## 模块文档
 
 参考官方文档
@@ -5929,3 +6189,20 @@ http {
      * soft nproc 65535
      * hard nproc 65535
      ```
+4. **worker_connections**：每个进程允许的最大连接数，默认值是 1024。可以根据需要设置更大的值。
+   - **并发总数**：理论上并发总数是 `worker_processes` 和 `worker_connections` 的乘积。
+   - **内存限制**：`worker_connections` 的设置与物理内存大小有关，因为系统可以打开的最大文件数和内存大小成正比。一般1GB内存的机器上可以打开的文件数大约是10万左右。
+   - **设置建议**：根据 `worker_processes` 进程数目和系统可以打开的最大文件总数进行适当设置。
+
+5. **access日志优化**：如果使用了其他统计软件，可以关闭日志，来减少磁盘写，或者写入内存文件，提高I/O效率。
+
+6. **Buffers size优化**：如果buffer size太小就会导致nginx使用临时文件存储response，这会引起磁盘读写IO，流量越大问题越明显。
+   - `client_body_buffer_size` 处理客户端请求体buffer大小，用来处理POST提交数据，上传文件等。`client_body_buffer_size` 需要足够大以容纳需要上传的POST数据。同理还有后端的buffer数据。
+
+7. **worker_priority进程优先级设置**：Linux系统中，优先级高的进程会占用更多的系统资源，这里配置的是进程的静态优先级，取值范围-20到+19，-20级别最高。因此可以把这个值设置小一点，但不建议比内核进程的值低（通常为-5）。
+
+5. **合理设置静态资源的浏览器缓存时间**，尽量用浏览器缓存。
+
+6. **负载均衡锁accept_mutex**，建议开启，默认就是开启的。
+
+7. **如果使用SSL的话，而且服务器上有SSL硬件加速设备的话，请开启硬件加速。**
