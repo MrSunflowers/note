@@ -797,6 +797,255 @@ select * from employees e where e.name >= (select name from employees by name li
 
 全局索引法是一种有效的分库分表优化技术，通过在全局范围内维护索引，使得非分片键的查询能够快速定位到数据所在的分片，从而提高查询效率。然而，全局索引法也需要在存储空间和系统维护复杂性上进行权衡。在实际应用中，需要根据具体的业务需求和数据规模，选择合适的全局索引策略和优化方法。
 
+# JSON 与 虚拟列 
+
+MySQL 从 5.7 版本开始支持 JSON 数据类型，并在后续版本中不断增强其功能。同时，MySQL 提供了虚拟列（Generated Columns）的概念，允许基于其他列的数据自动计算生成新列。将 JSON 数据与虚拟列结合使用，可以极大地提升数据库的灵活性和查询效率。以下将详细介绍 MySQL 中的 JSON 数据类型、虚拟列以及两者结合的应用场景和最佳实践。
+
+## JSON 数据类型
+
+MySQL 5.7 及以上版本引入了原生的 JSON 数据类型，用于存储 JSON 格式的数据。与存储 JSON 字符串相比，原生 JSON 数据类型具有以下优势：
+
+- **自动验证 JSON 格式**：存储时自动检查 JSON 数据的有效性，避免存储无效的 JSON 字符串。
+- **优化存储结构**：MySQL 会以优化的二进制格式存储 JSON 数据，提升存储和访问效率。
+- **支持丰富的 JSON 函数**：提供大量内置函数用于操作 JSON 数据，如查询、修改、创建等。
+
+### 常用 JSON 函数
+
+以下是一些常用的 MySQL JSON 函数：
+
+- **创建 JSON 对象/数组**
+
+  ```sql
+  -- 创建 JSON 对象
+  JSON_OBJECT('key1', 'value1', 'key2', 'value2')
+  
+  -- 创建 JSON 数组
+  JSON_ARRAY('value1', 'value2', 'value3')
+  ```
+
+- **查询 JSON 数据**
+
+  ```sql
+  -- 从指定的 json 列中提取 json 某个字段的值
+  JSON_EXTRACT(json_column, '$.path.to.element') 
+  -- 简写方式
+  json_column->'$.path.to.element'
+  
+  -- 获取指定路径的值并转换为特定类型
+  JSON_UNQUOTE(json_column->'$.path.to.element') 
+  -- 或者使用 ->> 操作符
+  json_column->>'$.path.to.element'
+  ```
+
+- **修改 JSON 数据**
+
+  ```sql
+  -- 插入或更新 JSON 对象中的值
+  JSON_SET(json_column, '$.path.to.element', 'new_value')
+  
+  -- 插入 JSON 对象中的值（如果路径不存在）
+  JSON_INSERT(json_column, '$.path.to.element', 'new_value')
+  
+  -- 删除 JSON 对象中的值
+  JSON_REMOVE(json_column, '$.path.to.element')
+  ```
+
+- **其他常用函数**
+
+  ```sql
+  -- 判断 JSON 数据是否为特定类型
+  JSON_TYPE(json_column) = 'OBJECT' -- 或 'ARRAY', 'STRING', 'INTEGER', 'BOOLEAN', 'NULL'
+  
+  -- 获取 JSON 数组的长度
+  JSON_LENGTH(json_column)
+  
+  -- 获取 JSON 对象的所有键
+  JSON_KEYS(json_column)
+  
+  -- 合并两个 JSON 对象
+  JSON_MERGE(json_column1, json_column2)
+  ```
+
+### JSON 数据类型的限制
+
+- **不支持索引**：直接对 JSON 列创建索引是无效的，无法利用索引加速查询。
+- **查询性能较低**：由于 JSON 数据存储为二进制格式，查询时需要进行解析，导致查询性能不如传统关系型数据。
+- **存储空间较大**：相比于存储相同数据的传统列，JSON 列可能占用更多存储空间。
+
+## 虚拟列（Generated Columns）
+
+虚拟列是 MySQL 中的一种特殊列，其值由表达式自动计算生成，而不是直接存储在表中。虚拟列分为两种类型：
+
+- **虚拟（Virtual）列**：在查询时动态计算，不占用存储空间。
+- **存储（Stored）列**：在数据插入或更新时计算并存储，类似于普通列，占用存储空间。
+
+语法示例：
+
+```sql
+CREATE TABLE example (
+    id INT PRIMARY KEY,
+    data JSON,
+    -- 虚拟列
+    json_value VARCHAR(255) GENERATED ALWAYS AS (data->>'$.path.to.element') VIRTUAL,
+    -- 存储列
+    json_value_stored VARCHAR(255) GENERATED ALWAYS AS (data->>'$.path.to.element') STORED
+);
+```
+
+虚拟列的优势
+
+- **简化查询语句**：可以将复杂的计算逻辑封装在虚拟列中，简化查询语句。
+- **提高查询性能**：对于存储列，可以创建索引，从而加速查询。
+- **增强数据完整性**：可以基于其他列的数据进行约束检查，确保数据的一致性。
+
+虚拟列的限制
+
+- **不支持存储函数**：虚拟列的表达式中不能使用存储函数，只能使用内置函数和操作符。
+- **不支持触发器**：虚拟列不支持触发器，无法在数据变化时触发特定操作。
+- **存储列占用存储空间**：存储列会占用额外的存储空间，需要权衡使用。
+
+## JSON 与 虚拟列结合使用
+
+将 JSON 数据与虚拟列结合使用，可以充分发挥两者的优势，弥补各自的不足。以下是一些常见的应用场景：
+
+### 提取 JSON 数据并创建索引
+
+由于 JSON 列无法直接创建索引，可以通过虚拟列提取 JSON 数据中的特定字段，并为其创建索引，从而加速查询。
+
+**示例：**
+
+假设有一个 `users` 表，其中包含一个 `profile` JSON 列：
+
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    profile JSON
+);
+```
+
+要查询 `profile` 中 `age` 字段大于 30 的用户，可以先创建虚拟列并为其创建索引：
+
+```sql
+ALTER TABLE users 
+ADD COLUMN age INT GENERATED ALWAYS AS (profile->>'$.age') STORED,
+ADD INDEX idx_age (age);
+```
+
+然后执行查询：
+
+```sql
+SELECT * FROM users WHERE age > 30;
+```
+
+**优势：**
+
+- 避免使用 `JSON_EXTRACT` 函数进行查询，提升查询性能。
+- 利用索引加速查询。
+
+### 简化查询语句
+
+使用虚拟列可以将复杂的 JSON 查询逻辑封装起来，简化查询语句。
+
+**示例：**
+
+查询用户的姓名和邮箱：
+
+```sql
+SELECT 
+    (profile->>'$.name') AS name,
+    (profile->>'$.email') AS email
+FROM users;
+```
+
+可以创建虚拟列：
+
+```sql
+ALTER TABLE users 
+ADD COLUMN name VARCHAR(255) GENERATED ALWAYS AS (profile->>'$.name') VIRTUAL,
+ADD COLUMN email VARCHAR(255) GENERATED ALWAYS AS (profile->>'$.email') VIRTUAL;
+```
+
+然后简化查询：
+
+```sql
+SELECT name, email FROM users;
+```
+
+### 增强数据完整性
+
+使用虚拟列可以对 JSON 数据进行约束检查，确保数据的一致性。
+
+**示例：**
+
+确保 `profile` 中的 `age` 字段为正整数：
+
+```sql
+ALTER TABLE users 
+ADD COLUMN age INT GENERATED ALWAYS AS (profile->>'$.age') STORED,
+ADD CHECK (age > 0);
+```
+
+## 最佳实践
+
+1. **选择合适的列类型**：对于需要频繁查询和操作的 JSON 字段，考虑将其提取为虚拟列并创建索引。
+2. **避免过度使用 JSON**：虽然 JSON 提供了灵活性，但过度使用可能导致数据冗余和查询复杂化。对于结构化数据，建议使用传统的关系型列。
+3. **合理使用虚拟列**：虚拟列可以简化查询，但过多的虚拟列会增加维护难度。应根据实际需求合理设计虚拟列。
+4. **利用存储列优化性能**：对于需要频繁访问的 JSON 字段，可以将其提取为存储列并创建索引，以提升查询性能。
+5. **结合使用 JSON 函数和虚拟列**：灵活运用 JSON 函数和虚拟列，可以实现复杂的数据操作和查询需求。
+
+## 示例
+
+**场景：** 存储用户信息，其中包含地址信息。
+
+**表结构：**
+
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    name VARCHAR(255),
+    address JSON
+);
+```
+
+**插入数据：**
+
+```sql
+INSERT INTO users (id, name, address) VALUES 
+(1, 'Alice', JSON_OBJECT('street', '123 Main St', 'city', 'New York', 'zip', '10001')),
+(2, 'Bob', JSON_OBJECT('street', '456 Maple Ave', 'city', 'Los Angeles', 'zip', '90001'));
+```
+
+**创建虚拟列并创建索引：**
+
+```sql
+ALTER TABLE users 
+ADD COLUMN city VARCHAR(255) GENERATED ALWAYS AS (address->>'$.city') STORED,
+ADD INDEX idx_city (city);
+```
+
+**查询用户所在城市为 "New York" 的用户：**
+
+```sql
+SELECT * FROM users WHERE city = 'New York';
+```
+
+**结果：**
+
+```
++----+-------+--------------------------------------------------------------------+
+| id | name  | address                                                            |
++----+-------+--------------------------------------------------------------------+
+|  1 | Alice | {"street": "123 Main St", "city": "New York", "zip": "10001"}      |
++----+-------+--------------------------------------------------------------------+
+```
+
+MySQL 的 JSON 数据类型和虚拟列为开发者提供了强大的工具来处理半结构化和结构化数据。通过合理地结合使用 JSON 和虚拟列，可以实现高效的数据存储、查询和操作。然而，在实际应用中，需要根据具体需求权衡使用 JSON 和传统关系型列的优缺点，并结合虚拟列的优势进行优化设计。
+
+## 参考资料
+
+- [MySQL 官方文档 - JSON 函数](https://dev.mysql.com/doc/refman/8.0/en/json-function-reference.html)
+- [MySQL 官方文档 - Generated Columns](https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html) 
+
 
 
 
