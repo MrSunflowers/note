@@ -72,7 +72,7 @@ option, or install the PCRE library into the system, or build the PCRE library
 statically from the source with nginx by using --with-pcre=<path> option.
 ```
 
-安装perl库
+安装pcre库
 
 ```
 yum install -y pcre pcre-devel
