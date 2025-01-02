@@ -5442,3 +5442,316 @@ Trie 的核心思想是空间换时间，利用字符串的公共前缀来降低
 Elasticsearch 8 基于 jdk 17 构建
 
 [](https://www.bilibili.com/video/BV1hh411D7sb?t=80.0&p=65)
+
+# 拓展
+
+## 智能提示 Completion Suggester
+
+Elasticsearch（ES）中的 **Completion Suggester（智能提示）** 是一种强大的功能，用于提供实时的、自动补全建议。它通常用于**搜索框中的自动补全功能**，以提高用户体验。
+
+Completion Suggester 是 Elasticsearch 提供的一种建议器（suggester），专门用于实现高效的自动补全功能。与其他建议器（如 `term` 或 `phrase`）不同，Completion Suggester 更适合用于实时、高性能的场景，如搜索框中的自动补全建议。
+
+### 主要功能
+
+- **高性能**：Completion Suggester 使用专门的数据结构（FST，Finite State Transducer）来存储和查询建议，而不是倒排索引，使得查询速度非常快。
+- **前缀匹配**：它基于前缀匹配，即用户输入的前几个字符来提供建议。
+- **上下文感知**：可以结合上下文（如地理位置、用户偏好等）来提供更相关的建议。
+- **支持权重和排序**：可以为每个建议设置权重，以便在结果中按优先级排序。
+
+### 使用方法
+
+#### 创建索引时定义 Completion Suggester 字段
+
+首先，需要在索引映射（mapping）中定义一个 `completion` 类型的字段。例如示例中的 suggest 字段：
+
+```json
+PUT /my_index
+{
+  "mappings": {
+    "properties": {
+      "title": {
+        "type": "text",
+        "analyzer": "standard"
+      },
+      "suggest": {
+        "type": "completion"
+      }
+    }
+  }
+}
+```
+
+上述语句用于创建一个名为 `my_index` 的索引，并在其中定义了两个字段：`title` 和 `suggest`。
+
+`title` 字段
+
+- **类型 (`type`)**: `text`
+  - `text` 类型用于全文搜索，会对字段内容进行分词（tokenization）和分析（analysis）。
+  
+- **分析器 (`analyzer`)**: `standard`
+  - `standard` 分析器是 Elasticsearch 默认的分析器，它会进行以下操作：
+    - **分词**：将文本拆分成单独的词项（tokens）。
+    - **小写转换**：将所有字符转换为小写。
+    - **去除标点符号**：移除大部分标点符号。
+  
+  - **适用场景**: 适用于需要全文搜索的场景，如文章内容、产品描述等。
+
+`suggest` 字段
+
+- **类型 (`type`)**: `completion`
+  - `completion` 类型是 Elasticsearch 提供的一种专门用于自动补全建议的字段类型。它使用 **有限状态转换器（FST）** 来高效地存储和查询建议数据。
+  - **适用场景**: 适用于需要高性能自动补全功能的场景，如搜索框中的建议词条。
+  
+一般在实际使用中，应单独建立一个冗余字段用于该类型的检索，比如 name 和 name_search，它们存储的内容相同，只是后者专门用于前缀检索
+
+#### 索引数据
+
+在索引数据时，需要为 `completion` 类型的字段提供建议内容。例如：
+
+```json
+POST /my_index/_doc
+{
+  "title": "Elasticsearch Basics",
+  "suggest": {
+    "input": ["Elasticsearch", "Basics"],
+    "weight": 10
+  }
+}
+
+POST /my_index/_doc
+{
+  "title": "Advanced Elasticsearch",
+  "suggest": {
+    "input": ["Advanced", "Elasticsearch"],
+    "weight": 5
+  }
+}
+```
+
+上述 JSON 代码展示了如何在 Elasticsearch 中使用 **Completion Suggester** 来索引建议数据。，每个文档都包含 `title` 和 `suggest` 字段：
+
+```json
+POST /my_index/_doc
+{
+  "title": "Elasticsearch Basics",
+  "suggest": {
+    "input": ["Elasticsearch", "Basics"],
+    "weight": 10
+  }
+}
+```
+
+```json
+POST /my_index/_doc
+{
+  "title": "Advanced Elasticsearch",
+  "suggest": {
+    "input": ["Advanced", "Elasticsearch"],
+    "weight": 5
+  }
+}
+```
+
+字段解析
+
+- **`title`**：这是一个普通的 `text` 类型字段，用于存储文档的标题。
+- **`suggest`**：这是一个 `completion` 类型的字段，用于存储建议数据。
+  - **`input`**：一个字符串数组，包含用于自动补全的建议词。在这里，第一个文档的建议词是 `"Elasticsearch"` 和 `"Basics"`，第二个文档的建议词是 `"Advanced"` 和 `"Elasticsearch"`。
+  - **`weight`**：一个整数值，用于表示建议的权重。权重越高，建议在结果中的优先级越高。在第一个文档中，权重为 `10`，在第二个文档中，权重为 `5`。
+
+#### 查询
+
+使用 `suggest` API 来获取建议。例如：
+
+```json
+POST /my_index/_search
+{
+  "suggest": {
+    "my-suggest-1": {
+      "text": "ela",
+      "completion": {
+        "field": "suggest",
+        "size": 10
+      }
+    }
+  }
+}
+```
+
+**响应示例**：
+
+```json
+{
+  ...
+  "suggest": {
+    "my-suggest-1": [
+      {
+        "text": "ela",
+        "offset": 0,
+        "length": 3,
+        "options": [
+          {
+            "text": "Elasticsearch",
+            "score": 1,
+            "source": {
+              "title": "Elasticsearch Basics",
+              "suggest": {
+                "input": ["Elasticsearch", "Basics"],
+                "weight": 10
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+请求体
+
+```json
+{
+  "suggest": {
+    "my-suggest-1": {
+      "text": "ela",
+      "completion": {
+        "field": "suggest",
+        "size": 10
+      }
+    }
+  }
+}
+```
+
+- `suggest` 是一个用于搜索的 API，同 `query`。
+- `my-suggest-1` 这是建议器的名称，可以是任意的字符串标识符，用于区分不同的建议请求。
+- `text` 参数指定了用户输入的文本，用于匹配建议词。在这里，输入为 `"ela"`。
+
+`completion` 参数指定使用 **Completion Suggester** 来提供建议。
+
+- **`field`**：指定前缀匹配的字段名，这里是 `suggest`。
+- **`size`**：指定返回的建议数量，这里是 `10`。
+
+响应结构解析
+
+```json
+{
+  ...
+  "suggest": {
+    "my-suggest-1": [
+      {
+        "text": "ela",
+        "offset": 0,
+        "length": 3,
+        "options": [
+          {
+            "text": "Elasticsearch",
+            "score": 1,
+            "source": {
+              "title": "Elasticsearch Basics",
+              "suggest": {
+                "input": ["Elasticsearch", "Basics"],
+                "weight": 10
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+-`suggest` 字段包含了所有的建议结果。
+- `my-suggest-1` 这是与请求中定义的建议器名称对应的建议结果。
+
+每个建议项包含以下字段：
+
+- **`text`**：用户输入的文本，这里是 `"ela"`。
+- **`offset`**：输入文本中建议词的起始位置（基于字符索引），这里是 `0`。
+- **`length`**：建议词的长度，这里是 `3`（即 `"ela"` 的长度）。
+- **`options`**：建议词的列表。
+
+`options` 字段包含了所有匹配的词。每个词包含以下字段：
+
+- **`text`**：文本，这里是 `"Elasticsearch"`。
+- **`score`**：建议的得分，用于排序。得分越高，建议的相关性越高。
+- **`source`**：包含生成建议的原始文档信息。
+  - **`title`**：原始文档的标题，这里是 `"Elasticsearch Basics"`。
+  - **`suggest`**：原始文档中 `suggest` 字段的内容，包括 `input` 和 `weight`。
+
+响应示例中，`"ela"` 匹配了 `"Elasticsearch"` 这个建议词。响应中只有一个建议项，因为只有一个匹配的建议词。
+
+#### 参数详解
+
+- **`field`**：指定用于建议的字段名。
+- **`size`**：返回的建议数量。
+- **`fuzzy`**：启用模糊匹配，可以容忍拼写错误。
+  - **`fuzziness`**：模糊程度（如 `AUTO`）。
+  - **`prefix_length`**：前缀长度，不进行模糊匹配的前缀长度。
+  - **`transpositions`**：是否允许字符转置（如 `ab` -> `ba`）。
+- **`contexts`**：结合上下文信息提供建议。
+  - **`name`**：上下文名称。
+  - **`path`**：上下文字段路径。
+  - **`value`**：上下文值。
+
+#### 示例：启用模糊匹配
+
+```json
+POST /my_index/_search
+{
+  "suggest": {
+    "my-suggest-1": {
+      "text": "elstic",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "fuzzy": {
+          "fuzziness": "AUTO"
+        }
+      }
+    }
+  }
+}
+```
+
+### 高级用法
+
+#### 结合上下文
+
+可以通过 `contexts` 参数结合上下文信息来提供更相关的建议。例如，结合地理位置信息：
+
+```json
+POST /my_index/_search
+{
+  "suggest": {
+    "my-suggest-1": {
+      "text": "ela",
+      "completion": {
+        "field": "suggest",
+        "size": 10,
+        "contexts": {
+          "location": "北京"
+        }
+      }
+    }
+  }
+}
+```
+
+#### 权重排序
+
+在索引数据时，可以通过 `weight` 参数为每个建议设置权重，查询时建议会根据权重进行排序。
+
+## 7. 最佳实践
+
+- **选择合适的字段类型**：使用 `completion` 类型字段来存储建议数据，而不是使用 `text` 或 `keyword` 类型。
+- **限制建议数量**：根据实际需求设置合理的 `size` 参数，避免返回过多建议。
+- **使用上下文**：结合上下文信息可以提供更精准的建议，提升用户体验。
+- **预处理输入**：对用户输入进行预处理（如去除特殊字符、统一大小写等）以提高匹配准确性。
+- **缓存建议**：对于频繁访问的建议，可以考虑使用缓存机制以提高性能。
+
+
+
+
