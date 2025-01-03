@@ -1,3 +1,5 @@
+**只要你的系统使用了分布式事务，你的业务流量一定不大**
+
 # sata
 
 Seata 是一款开源的分布式事务解决方案，旨在在微服务架构下提供高性能和简单易用的分布式事务服务。Seata 提供了四种主要的分布式事务模式，分别是 AT（Automatic Transaction）、TCC（Try-Confirm-Cancel）、SAGA 和 XA 模式。
