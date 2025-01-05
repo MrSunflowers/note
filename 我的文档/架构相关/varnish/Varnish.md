@@ -90,122 +90,339 @@ Varnish 的工作流程可以分为以下几个主要阶段：
 
 # VCL 配置详解
 
-VCL 是 Varnish 的核心配置语言，允许管理员自定义缓存策略和请求处理逻辑。以下是 VCL 的主要阶段和功能：
+VCL（Varnish Configuration Language）是 Varnish 的配置语言，语法简单，功能强大，类似于 C 和 Perl。主要用于配置如何处理请求和内容的缓存策略，同时允许管理员自定义缓存策略和请求处理逻辑。
 
-## vcl_recv
+VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配置文件一般由三部分构成
 
-`vcl_recv` 是 VCL 的第一个阶段，用于处理接收到的客户端请求。在这个阶段，管理员可以：
+- 后端服务器配置信息：包括 Backend，Director 等
+- 资源访问限制配置信息：acl 信息
+- 请求流程配置控制：sub 子程序信息
 
-- **修改请求**：如添加或修改请求头部信息。
-- **选择后端服务器**：根据请求的不同，选择不同的后端服务器。
-- **决定是否缓存**：如某些特定的请求不需要缓存，可以直接转发给后端服务器。
+## VCL 基本语法
+
+**用花括号做界定符，使用分号表示声明结束。注释用 //, #, /* */**：
+- 花括号 `{}` 用于界定代码块。
+- 分号 `;` 用于结束语句。
+- 注释可以使用 `//`（单行注释）、`#`（单行注释）或 `/* */`（多行注释）。
+
+**赋值(=), 比较(==), 和一些布尔值(!, &&, ||), !(取反)等类似C语法**：
+- 赋值使用 `=`。
+- 比较使用 `==`。
+- 布尔操作符包括 `!`（取反）、`&&`（逻辑与）、`||`（逻辑或）。
+
+**支持正则表达式, ACL匹配使用 ~ 操作**：
+- 正则表达式和 ACL（访问控制列表）匹配使用 `~` 操作符。
+
+**不同于C的地方，反斜杠(\)在VCL中没有特殊的含义。只是用来匹配URLs**：
+- 在 VCL 中，反斜杠 `\` 没有特殊含义，仅用于匹配 URLs。
+
+**VCL没有用户定义的变量，只能给backend, request, document这些对象的变量赋值。大部分是手工输入的，而且给这些变量分配值的时候，必须有一个VCL兼容的单位**：
+- VCL 不支持用户定义的变量，变量的赋值需要针对特定对象（如 backend, request, document）。
+
+**VCL有if, 但是没有循环**：
+- VCL 支持 `if` 条件语句，但不支持循环结构。
+
+**可以使用set来给request的header添加值, unset, 或 remove 来删除某个header**：
+- 使用 `set` 可以给请求的 header 添加值。
+- 使用 `unset` 或 `remove` 可以删除某个 header。
+
+### 代码块与语句结束
+
+- **代码块界定符**：使用花括号 `{}` 来界定代码块，例如子程序的定义。
+  
+  ```vcl
+  sub vcl_recv {
+      // 子程序代码
+  }
+  ```
+
+- **语句结束符**：使用分号 `;` 来表示语句的结束。
+
+  ```vcl
+  set req.http.X-Custom-Header = "CustomValue";
+  ```
+
+### 注释
+
+- **单行注释**：使用 `//` 或 `#` 进行单行注释。
+  
+  ```vcl
+  // 这是一个单行注释
+  # 这也是单行注释
+  ```
+
+- **多行注释**：使用 `/* */` 进行多行注释。
+  
+  ```vcl
+  /*
+     这是一个多行注释
+     可以跨多行
+  */
+  ```
+
+### 变量与赋值
+
+- **内置变量**：VCL 提供了丰富的内置变量，用于访问和修改请求、响应和缓存相关的数据。例如：
+  
+  - `req.*`：客户端请求相关变量，如 `req.url`, `req.http.User-Agent` 等。
+  - `beresp.*`：后端响应相关变量，如 `beresp.status`, `beresp.http.Content-Type` 等。
+  - `obj.*`：缓存对象相关变量。
+  - `now`：当前时间。
+
+- **赋值操作**：使用 `set` 关键字进行赋值。
+  
+  ```vcl
+  set req.http.X-Custom-Header = "CustomValue";
+  set beresp.ttl = 1h;
+  ```
+
+- **删除变量**：使用 `unset` 或 `remove` 关键字删除变量。
+  
+  ```vcl
+  unset req.http.Cookie;
+  remove resp.http.Server;
+  ```
+
+### 条件语句
+
+- **if 语句**：VCL 支持 `if` 条件语句，用于根据条件执行不同的代码块。
+  
+  ```vcl
+  if (req.method == "GET" || req.method == "HEAD") {
+      // 处理 GET 或 HEAD 请求
+  } else {
+      // 处理其他类型的请求
+  }
+  ```
+
+- **逻辑操作符**：支持 `==`（等于）、`!=`（不等于）、`&&`（逻辑与）、`||`（逻辑或）、`!`（逻辑非）等。
+  
+  ```vcl
+  if (req.http.User-Agent ~ "Mobile" && req.http.Cookie !~ "session") {
+      // 处理移动设备且没有会话 Cookie 的请求
+  }
+  ```
+
+### 正则表达式与 ACL 匹配
+
+- **正则表达式匹配**：使用 `~` 操作符进行正则表达式匹配，`!~` 表示不匹配。
+  
+  ```vcl
+  if (req.url ~ "^/admin/") {
+      // 处理以 /admin/ 开头的 URL
+  }
+
+  if (req.http.User-Agent !~ "MSIE") {
+      // 处理非 IE 浏览器的请求
+  }
+  ```
+
+- **ACL 匹配**：使用 `acl` 关键字定义访问控制列表，并使用 `~` 操作符进行匹配。
+  
+  ```vcl
+  acl localnet {
+      "127.0.0.1"/8;
+      "192.168.0.0"/16;
+  }
+
+  if (client.ip ~ localnet) {
+      // 处理本地网络请求
+  }
+  ```
+
+### 函数调用
+
+- **内置函数**：VCL 提供了许多内置函数，用于实现复杂的逻辑。例如：
+  
+  - `return (<action>)`：控制 VCL 执行流程，如 `return (pass)`, `return (hash)`, `return (deliver)` 等。
+  - `synthetic("<字符串>")`：生成自定义响应内容。
+  - `hash_data(<字符串>)`：添加数据到缓存键中。
+  - `std.log("<字符串>")`：记录日志信息。
+
+  ```vcl
+  sub vcl_recv {
+      if (req.url ~ "^/admin") {
+          return (pass);
+      }
+      std.log("Request URL: " + req.url);
+  }
+
+  sub vcl_deliver {
+      synthetic("Hello, World!");
+  }
+  ```
+
+### 循环结构
+
+- **不支持循环**：VCL 不支持循环结构（如 `for`, `while`），只能使用条件语句和函数调用来处理逻辑。
+
+### 变量作用域
+
+- **子程序内变量**：变量在子程序内有效，子程序之间不共享变量。
+  
+  ```vcl
+  sub vcl_recv {
+      set req.http.X-Custom-Header = "CustomValue";
+  }
+
+  sub vcl_deliver {
+      // 无法访问 req.http.X-Custom-Header
+  }
+  ```
+
+### 子程序定义
+
+- **子程序名称**：常见的子程序名称包括 `vcl_recv`, `vcl_hash`, `vcl_pass`, `vcl_purge`, `vcl_backend_fetch`, `vcl_backend_response`, `vcl_deliver`, `vcl_fini` 等。
+
+  ```vcl
+  sub vcl_recv {
+      // 处理接收到的请求
+  }
+
+  sub vcl_backend_response {
+      // 处理从后端服务器接收到的响应
+  }
+  ```
+
+### 导入其他 VCL 文件
+
+- **import 语句**：使用 `import` 关键字导入其他 VCL 文件或标准库。
+  
+  ```vcl
+  import std;
+
+  sub vcl_recv {
+      std.log("Request received");
+  }
+  ```
+
+### 示例：完整的 VCL 配置
+
+以下是一个完整的 VCL 配置示例，展示了上述语法和特性的应用：
 
 ```vcl
-sub vcl_recv {
-    # 修改请求头部
-    set req.http.X-Forwarded-For = client.ip;
+vcl 4.0;
 
-    # 某些特定请求不缓存
+import std;
+
+backend default {
+    .host = "127.0.0.1";
+    .port = "8080";
+}
+
+acl purge {
+    "localhost";
+    "192.168.1.0"/24;
+}
+
+sub vcl_recv {
+    // 移除私有 Cookie
+    unset req.http.Cookie;
+
+    // 强制缓存特定路径
+    if (req.url ~ "^/images/") {
+        return (hash);
+    }
+
+    // 绕过缓存特定路径
     if (req.url ~ "^/admin/") {
         return (pass);
     }
 
-    # 选择后端服务器
-    if (req.http.host ~ "example.com") {
-        set req.backend_hint = backend_example;
-    } else {
-        set req.backend_hint = backend_default;
+    // 处理清除缓存的请求
+    if (req.method == "PURGE") {
+        if (client.ip ~ purge) {
+            return (purge);
+        } else {
+            return (synth(403, "Forbidden"));
+        }
     }
 }
-```
 
-## vcl_backend_fetch
-
-`vcl_backend_fetch` 是 VCL 的阶段，用于在将请求转发给后端服务器之前进行一些处理。在这个阶段，管理员可以：
-
-- **修改后端请求**：如添加或修改请求头部信息。
-- **决定是否转发请求**：如某些特定条件下，可以阻止请求转发给后端服务器。
-
-```vcl
-sub vcl_backend_fetch {
-    # 修改后端请求头部
-    set bereq.http.X-Forwarded-For = client.ip;
+sub vcl_hash {
+    hash_data(req.url);
+    if (req.http.host) {
+        hash_data(req.http.host);
+    } else {
+        hash_data("localhost");
+    }
+    return (hash);
 }
-```
 
-## vcl_backend_response
-
-`vcl_backend_response` 是 VCL 的阶段，用于处理从后端服务器接收到的响应。在这个阶段，管理员可以：
-
-- **修改响应**：如添加或修改响应头部信息。
-- **决定是否缓存响应**：如某些特定的响应不需要缓存，可以直接返回给客户端。
-
-```vcl
 sub vcl_backend_response {
-    # 修改响应头部
-    set beresp.http.X-Cache = "HIT";
+    // 设置缓存时间
+    set beresp.ttl = 1h;
 
-    # 某些特定响应不缓存
-    if (beresp.http.Content-Type ~ "text/html") {
-        set beresp.ttl = 300;
-    } else {
-        set beresp.ttl = 86400;
+    // 移除 Set-Cookie 头
+    unset beresp.http.Set-Cookie;
+}
+
+sub vcl_deliver {
+    // 添加自定义响应头
+    set resp.http.X-Cache = "HIT";
+    if (obj.hits == 0) {
+        set resp.http.X-Cache = "MISS";
     }
+
+    // 删除不必要的头部信息
+    unset resp.http.Server;
+    unset resp.http.X-Varnish;
+}
+
+sub vcl_purge {
+    return (synth(200, "Purged"));
+}
+
+sub vcl_fini {
+    return (ok);
 }
 ```
 
-## vcl_deliver
+### 内置变量
 
-`vcl_deliver` 是 VCL 的阶段，用于在将响应返回给客户端之前进行一些处理。在这个阶段，管理员可以：
+VCL 提供了丰富的内置变量和操作符，用于访问和修改请求、响应和缓存相关的数据。
 
-- **修改响应**：如添加或修改响应头部信息。
-- **记录日志**：如记录缓存命中情况。
+- `req.*`：客户端请求相关变量，如 `req.url`, `req.http.User-Agent` 等。
+- `beresp.*`：后端响应相关变量，如 `beresp.status`, `beresp.http.Content-Type` 等。
+- `obj.*`：缓存对象相关变量。
+- `now`：当前时间。
+
+### 操作符
+
+- 赋值：`set`
+- 条件判断：`if`, `else`
+- 函数调用：`call <函数名>`
+
+**示例：**
+
+   ```vcl
+   sub vcl_recv {
+       if (req.http.User-Agent ~ "Mobile") {
+           set req.http.X-Device = "Mobile";
+       } else {
+           set req.http.X-Device = "Desktop";
+       }
+   }
+   ```
+
+### 函数
+
+VCL 支持调用内置函数和自定义函数，用于实现复杂的逻辑。
+
+- **内置函数**：
+  - `return (<状态|hash|purge|pass|restart>)`：控制 VCL 执行流程。
+  - `synthetic("<字符串>")`：生成自定义响应内容。
+  - `hash_data(<字符串>)`：添加数据到缓存键中。
+
+**示例：**
 
 ```vcl
-sub vcl_deliver {
-    # 添加自定义响应头部
-    set resp.http.X-Cache = "HIT";
-
-    # 记录日志
-    if (obj.hits > 0) {
-        set resp.http.X-Cache-Hits = obj.hits;
+sub vcl_recv {
+    if (req.url ~ "^/admin") {
+        return (pass);
     }
 }
 ```
-
-# 缓存策略
-
-Varnish 支持多种缓存策略，以满足不同的需求：
-
-- **基于时间的缓存策略**：通过设置 TTL（Time-To-Live）来控制缓存的生命周期。
-- **基于内容的缓存策略**：通过 ETag 和 Last-Modified 头部信息来控制缓存的有效性。
-- **缓存失效策略**：如在收到后端服务器的响应时，设置缓存失效条件。
-
-# 性能优化
-
-为了充分发挥 Varnish 的性能优势，管理员可以采取以下措施：
-
-- **合理配置缓存大小**：根据服务器内存容量，合理配置 Varnish 的缓存大小。
-- **优化 VCL 配置**：尽量减少 VCL 逻辑的复杂性，避免不必要的计算和内存操作。
-- **使用持久化存储**：如使用文件或数据库来存储缓存数据，以提高缓存的持久性和可靠性。
-- **监控和日志分析**：通过监控工具和日志分析，及时发现和解决性能瓶颈。
-
-# 安全性
-
-Varnish 本身不提供安全性功能，但可以通过以下方式增强安全性：
-
-- **使用 HTTPS**：通过在 Varnish 前端配置 HTTPS 终端（如 Nginx 或 HAProxy），实现加密传输。
-- **访问控制**：通过 VCL 配置，实现基于 IP 地址或请求路径的访问控制。
-- **防止缓存污染**：通过 VCL 配置，防止恶意请求污染缓存。
-
-
-# 配置文件与 VCL
-
-VCL（Varnish Configuration Language）是 Varnish 的配置语言，语法简单，功能强大，类似于 C 和 Perl。主要用于配置如何处理请求和内容的缓存策略。
-
-VCL 在执行时会转换成二进制代码。
-
-VCL 文件被分为多个子程序（即配置文件中 sub 修饰的配置代码块），不同的子程序在不同的时间里执行，比如一个子程序在接到请求时执行，另一个子程序在接收到后端服务器传送的文件时执行。
 
 ## 配置文件示例
 
@@ -217,7 +434,7 @@ vcl 4.0;
 # 导入默认的 VCL 规则
 import std;
 
-# 定义后端服务器
+# 定义后端服务器配置信息
 backend default {
     .host = "127.0.0.1";
     .port = "8080";
@@ -374,641 +591,6 @@ sub vcl_fini {
    }
    ```
    处理请求完成后的清理工作。
-
-## VCL 的执行机制
-
-1. **编译与加载**：
-   - VCL 文件由 Varnish 加载并编译成二进制代码。这一过程在 Varnish 启动或 VCL 文件修改后自动完成。
-
-2. **子程序的执行顺序**：
-   - VCL 文件包含多个子程序，每个子程序在请求的不同的生命周期阶段执行。以下是常见的子程序及其执行顺序：
-
-     | 子程序名称      | 执行时机                           | 主要用途                           |
-     | --------------- | ---------------------------------- | ---------------------------------- |
-     | `vcl_recv`      | 接收到客户端请求时                 | 决定是否缓存请求、修改请求头等     |
-     | `vcl_hash`      | 计算缓存键时                       | 定义缓存键的生成方式               |
-     | `vcl_pass`      | 请求需要绕过缓存时                 | 处理需要传递到后端的请求           |
-     | `vcl_purge`     | 收到清除缓存的请求时               | 处理缓存清除逻辑                   |
-     | `vcl_backend_fetch` | 向后端服务器发起请求时           | 修改向后端服务器发送的请求         |
-     | `vcl_backend_response` | 接收到后端服务器的响应时        | 处理后端响应，决定是否缓存等       |
-     | `vcl_deliver`   | 向客户端发送响应时                 | 修改发送给客户端的响应头           |
-     | `vcl_fini`      | VCL 加载完成后                     | 执行清理操作                       |
-
-3. **子程序的调用流程**：
-
-   当 Varnish 接收到一个请求时，执行流程大致如下：
-
-   1. **vcl_recv**：处理客户端请求，决定是否缓存、修改请求头等。
-   2. **vcl_hash**：计算缓存键，用于后续缓存查找。
-   3. **vcl_pass**（如果需要绕过缓存）：处理需要传递到后端的请求。
-   4. **vcl_backend_fetch**：向后端服务器发起请求。
-   5. **vcl_backend_response**：处理后端响应，决定是否缓存等。Varnish 3 及更早版本为 vcl_fetch 这个名称
-   6. **vcl_deliver**：向客户端发送响应。
-
-   如果在任意阶段调用了 `return` 语句，VCL 会跳转到相应的子程序或终止执行。
-
-## VCL 语法结构
-
-1. **子程序定义**：
-
-   ```vcl
-   sub <子程序名称> {
-       // VCL 代码
-   }
-   ```
-
-   **示例：**
-
-   ```vcl
-   sub vcl_recv {
-       // 处理客户端请求
-   }
-
-   sub vcl_backend_response {
-       // 处理后端响应
-   }
-   ```
-
-2. **变量与操作**：
-
-   VCL 提供了丰富的内置变量和操作符，用于访问和修改请求、响应和缓存相关的数据。
-
-   - **内置变量**：
-
-     - `req.*`：客户端请求相关变量，如 `req.url`, `req.http.User-Agent` 等。
-     - `beresp.*`：后端响应相关变量，如 `beresp.status`, `beresp.http.Content-Type` 等。
-     - `obj.*`：缓存对象相关变量。
-     - `now`：当前时间。
-
-   - **操作符**：
-
-     - 赋值：`set`
-     - 条件判断：`if`, `else`
-     - 函数调用：`call <函数名>`
-
-   **示例：**
-
-   ```vcl
-   sub vcl_recv {
-       if (req.http.User-Agent ~ "Mobile") {
-           set req.http.X-Device = "Mobile";
-       } else {
-           set req.http.X-Device = "Desktop";
-       }
-   }
-   ```
-
-3. **函数**：
-
-   VCL 支持调用内置函数和自定义函数，用于实现复杂的逻辑。
-
-   - **内置函数**：
-
-     - `return (<状态|hash|purge|pass|restart>)`：控制 VCL 执行流程。
-     - `synthetic("<字符串>")`：生成自定义响应内容。
-     - `hash_data(<字符串>)`：添加数据到缓存键中。
-
-   **示例：**
-
-   ```vcl
-   sub vcl_recv {
-       if (req.url ~ "^/admin") {
-           return (pass);
-       }
-   }
-   ```
-
-4. **注释**：
-
-   - 单行注释：`//`
-   - 多行注释：`/* */`
-
-   **示例：**
-
-   ```vcl
-   /*
-      这是一个多行注释
-   */
-   sub vcl_recv {
-       // 单行注释
-       if (req.url ~ "^/admin") {
-           return (pass); // 绕过缓存
-       }
-   }
-   ```
-
-## 常见子程序及配置示例
-
-Varnish Cache 是一款高性能的开源 HTTP 加速器（反向代理缓存），主要用于加速 Web 应用和动态网站。Varnish 的核心功能通过其配置语言 **Varnish Configuration Language (VCL)** 来实现。VCL 是一种领域特定语言，用于定义 Varnish 如何处理 HTTP 请求和响应。VCL 函数在 VCL 脚本中扮演着关键角色，它们允许用户自定义和扩展 Varnish 的行为，以满足特定的业务需求。
-
-以下是 VCL 中一些主要函数及其作用的详细介绍：
-
-### 1. `vcl_recv`
-
-`vcl_recv` 函数在 Varnish 接收到一个 HTTP 请求后立即被调用。它主要用于决定是否处理该请求、是否从缓存中提供响应、是否进行重定向或是否传递请求到后端服务器。
-
-**主要功能**
-- **决定是否缓存请求**：通过设置 `return (pass)` 或 `return (lookup)` 来决定是否从缓存中查找响应。
-- **修改请求**：例如，重写 URL、添加或修改请求头。
-- **负载均衡**：选择不同的后端服务器来处理请求。
-- **阻止恶意请求**：例如，阻止特定类型的请求或 IP 地址。
-
-**示例**
-```vcl
-sub vcl_recv {
-    # 如果请求是针对静态资源的，则尝试从缓存中提供
-    if (req.url ~ "^/static/") {
-        return (lookup);
-    }
-
-    # 对于其他请求，传递到后端
-    return (pass);
-}
-```
-
-### 2. `vcl_hash`
-
-**作用**
-`vcl_hash` 函数用于定义如何为请求生成哈希键（hash key），这个哈希键用于在缓存中查找对应的对象。Varnish 使用哈希表来快速定位缓存中的对象。
-
-**主要功能**
-- **自定义哈希键**：通过添加或修改请求的组成部分来影响哈希键的生成。
-- **影响缓存命中率**：通过调整哈希键，可以影响缓存的命中率。
-
-**示例**
-```vcl
-sub vcl_hash {
-    # 默认情况下，Varnish 使用请求的方法和 URL 作为哈希键
-    hash_data(req.url);
-
-    # 如果需要，可以根据请求头中的某些信息来调整哈希键
-    if (req.http.host) {
-        hash_data(req.http.host);
-    }
-
-    return (lookup);
-}
-```
-
-### 3. `vcl_hit`
-
-**作用**
-`vcl_hit` 函数在 Varnish 在缓存中成功找到与请求匹配的缓存对象时被调用。它用于决定如何处理已缓存的响应。
-
-**主要功能**
-- **决定是否使用缓存响应**：通过设置 `return (deliver)` 来提供缓存的响应，或 `return (miss)` 来强制重新获取响应。
-- **修改缓存的响应**：例如，添加或修改响应头。
-
-**示例**
-```vcl
-sub vcl_hit {
-    # 如果缓存的响应仍然有效，则提供缓存的响应
-    if (obj.ttl > 0s) {
-        return (deliver);
-    }
-
-    # 如果缓存的响应已过期，则重新获取
-    return (miss);
-}
-```
-
-### 4. `vcl_miss`
-
-**作用**
-`vcl_miss` 函数在 Varnish 在缓存中未找到与请求匹配的缓存对象时被调用。它用于决定如何处理未缓存的请求。
-
-**主要功能**
-- **决定是否从后端获取响应**：通过设置 `return (fetch)` 来从后端获取响应。
-- **修改请求**：例如，添加或修改请求头。
-
-**示例**
-```vcl
-sub vcl_miss {
-    # 从后端获取响应
-    return (fetch);
-}
-```
-
-### 5. `vcl_backend_fetch`
-
-**作用**
-`vcl_backend_fetch` 函数在 Varnish 准备从后端服务器获取响应时被调用。它用于修改发送到后端的请求。
-
-**主要功能**
-- **修改后端请求**：例如，添加或修改请求头。
-- **决定是否重试请求**：如果后端请求失败，可以设置重试策略。
-
-**示例**
-```vcl
-sub vcl_backend_fetch {
-    # 在发送到后端的请求中添加自定义头
-    set bereq.http.X-Forwarded-For = client.ip;
-
-    return (fetch);
-}
-```
-
-### 6. `vcl_backend_response`
-
-**作用**
-`vcl_backend_response` 函数在 Varnish 从后端服务器接收到响应时被调用。它用于修改从后端获取的响应。
-
-**主要功能**
-- **修改响应**：例如，添加或修改响应头。
-- **决定是否缓存响应**：通过设置 `return (deliver)` 或 `return (hit_for_pass)` 来控制缓存行为。
-- **处理错误响应**：例如，设置重定向或自定义错误页面。
-
-**示例**
-```vcl
-sub vcl_backend_response {
-    # 如果后端响应是 404，则设置自定义错误页面
-    if (beresp.status == 404) {
-        set beresp.status = 404;
-        set beresp.http.Content-Type = "text/html";
-        synthetic("<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>");
-        return (deliver);
-    }
-
-    # 缓存响应
-    return (deliver);
-}
-```
-
-### 7. `vcl_deliver`
-
-**作用**
-`vcl_deliver` 函数在 Varnish 准备将响应发送给客户端时被调用。它用于修改最终发送给客户端的响应。
-
-**主要功能**
-- **修改响应头**：例如，添加或修改响应头。
-- **记录日志**：记录有关请求和响应的信息。
-- **添加自定义内容**：例如，添加自定义的 HTTP 头或修改响应内容。
-
-**示例**
-```vcl
-sub vcl_deliver {
-    # 添加自定义响应头
-    set resp.http.X-Cache = "HIT";
-
-    # 如果响应是从缓存中提供的，则设置相应的头
-    if (obj.hits > 0) {
-        set resp.http.X-Cache-Hits = obj.hits;
-    }
-
-    return (deliver);
-}
-```
-
-### 8. `vcl_backend_error`
-
-**作用**
-`vcl_backend_error` 函数在 Varnish 从后端服务器接收到错误响应时被调用。它用于处理后端错误。
-
-**主要功能**
-- **处理错误响应**：例如，设置重定向或自定义错误页面。
-- **决定是否重试请求**：如果需要，可以设置重试策略。
-
-**示例**
-```vcl
-sub vcl_backend_error {
-    # 如果后端响应是 5xx 错误，则设置自定义错误页面
-    if (beresp.status >= 500 && beresp.status <= 599) {
-        set beresp.status = 503;
-        set beresp.http.Content-Type = "text/html";
-        synthetic("<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html><body><h1>Service Unavailable</h1></body></html>");
-        return (deliver);
-    }
-
-    return (deliver);
-}
-```
-
-### 9. `vcl_init` 和 `vcl_fini`
-
-**作用**
-`vcl_init` 和 `vcl_fini` 函数用于在 VCL 加载和卸载时执行初始化和清理操作。
-
-**主要功能**
-- **初始化资源**：例如，连接数据库、初始化变量等。
-- **清理资源**：例如，关闭连接、释放资源等。
-
-**示例**
-```vcl
-sub vcl_init {
-    # 初始化后端连接
-    new my_backend = backend("my_backend", "127.0.0.1", 8080);
-}
-
-sub vcl_fini {
-    # 清理资源
-    my_backend.close();
-}
-```
-
-1. **请求处理流程**：`vcl_recv` → `vcl_hash` → `vcl_hit` / `vcl_miss` → `vcl_backend_fetch` → `vcl_backend_response` → `vcl_deliver`。
-2. **缓存控制**：通过 `vcl_recv` 和 `vcl_miss` 控制是否缓存请求，通过 `vcl_hit` 控制是否使用缓存响应。
-3. **响应修改**：通过 `vcl_backend_response` 和 `vcl_deliver` 修改最终发送给客户端的响应。
-4. **错误处理**：通过 `vcl_backend_error` 处理后端错误响应。
-
-
-## VCL 调试与日志
-
-VCL 支持在子程序中插入调试语句，帮助开发者了解请求处理流程和变量状态。
-
-**示例：**
-
-```vcl
-sub vcl_recv {
-    // 打印请求 URL
-    std.log("URL: " + req.url);
-
-    // 打印请求方法
-    std.log("Method: " + req.method);
-
-    // 打印 User-Agent
-    std.log("User-Agent: " + req.http.User-Agent);
-}
-```
-
-## 基本语法介绍
-
-1. **用花括号做界定符，使用分号表示声明结束。注释用 //, #, /* */**：
-   - 花括号 `{}` 用于界定代码块。
-   - 分号 `;` 用于结束语句。
-   - 注释可以使用 `//`（单行注释）、`#`（单行注释）或 `/* */`（多行注释）。
-
-2. **赋值(=), 比较(==), 和一些布尔值(!, &&, ||), !(取反)等类似C语法**：
-   - 赋值使用 `=`。
-   - 比较使用 `==`。
-   - 布尔操作符包括 `!`（取反）、`&&`（逻辑与）、`||`（逻辑或）。
-
-3. **支持正则表达式, ACL匹配使用 ~ 操作**：
-   - 正则表达式和 ACL（访问控制列表）匹配使用 `~` 操作符。
-
-4. **不同于C的地方，反斜杠(\)在VCL中没有特殊的含义。只是用来匹配URLs**：
-   - 在 VCL 中，反斜杠 `\` 没有特殊含义，仅用于匹配 URLs。
-
-5. **VCL没有用户定义的变量，只能给backend, request, document这些对象的变量赋值。大部分是手工输入的，而且给这些变量分配值的时候，必须有一个VCL兼容的单位**：
-   - VCL 不支持用户定义的变量，变量的赋值需要针对特定对象（如 backend, request, document）。
-
-6. **VCL有if, 但是没有循环**：
-   - VCL 支持 `if` 条件语句，但不支持循环结构。
-
-7. **可以使用set来给request的header添加值, unset, 或 remove 来删除某个header**：
-   - 使用 `set` 可以给请求的 header 添加值。
-   - 使用 `unset` 或 `remove` 可以删除某个 header。
-
-### 1. **代码块与语句结束**
-
-- **代码块界定符**：使用花括号 `{}` 来界定代码块，例如子程序的定义。
-  
-  ```vcl
-  sub vcl_recv {
-      // 子程序代码
-  }
-  ```
-
-- **语句结束符**：使用分号 `;` 来表示语句的结束。
-
-  ```vcl
-  set req.http.X-Custom-Header = "CustomValue";
-  ```
-
-### 2. **注释**
-
-- **单行注释**：使用 `//` 或 `#` 进行单行注释。
-  
-  ```vcl
-  // 这是一个单行注释
-  # 这也是单行注释
-  ```
-
-- **多行注释**：使用 `/* */` 进行多行注释。
-  
-  ```vcl
-  /*
-     这是一个多行注释
-     可以跨多行
-  */
-  ```
-
-### 3. **变量与赋值**
-
-- **内置变量**：VCL 提供了丰富的内置变量，用于访问和修改请求、响应和缓存相关的数据。例如：
-  
-  - `req.*`：客户端请求相关变量，如 `req.url`, `req.http.User-Agent` 等。
-  - `beresp.*`：后端响应相关变量，如 `beresp.status`, `beresp.http.Content-Type` 等。
-  - `obj.*`：缓存对象相关变量。
-  - `now`：当前时间。
-
-- **赋值操作**：使用 `set` 关键字进行赋值。
-  
-  ```vcl
-  set req.http.X-Custom-Header = "CustomValue";
-  set beresp.ttl = 1h;
-  ```
-
-- **删除变量**：使用 `unset` 或 `remove` 关键字删除变量。
-  
-  ```vcl
-  unset req.http.Cookie;
-  remove resp.http.Server;
-  ```
-
-### 4. **条件语句**
-
-- **if 语句**：VCL 支持 `if` 条件语句，用于根据条件执行不同的代码块。
-  
-  ```vcl
-  if (req.method == "GET" || req.method == "HEAD") {
-      // 处理 GET 或 HEAD 请求
-  } else {
-      // 处理其他类型的请求
-  }
-  ```
-
-- **逻辑操作符**：支持 `==`（等于）、`!=`（不等于）、`&&`（逻辑与）、`||`（逻辑或）、`!`（逻辑非）等。
-  
-  ```vcl
-  if (req.http.User-Agent ~ "Mobile" && req.http.Cookie !~ "session") {
-      // 处理移动设备且没有会话 Cookie 的请求
-  }
-  ```
-
-### 5. **正则表达式与 ACL 匹配**
-
-- **正则表达式匹配**：使用 `~` 操作符进行正则表达式匹配，`!~` 表示不匹配。
-  
-  ```vcl
-  if (req.url ~ "^/admin/") {
-      // 处理以 /admin/ 开头的 URL
-  }
-
-  if (req.http.User-Agent !~ "MSIE") {
-      // 处理非 IE 浏览器的请求
-  }
-  ```
-
-- **ACL 匹配**：使用 `acl` 关键字定义访问控制列表，并使用 `~` 操作符进行匹配。
-  
-  ```vcl
-  acl localnet {
-      "127.0.0.1"/8;
-      "192.168.0.0"/16;
-  }
-
-  if (client.ip ~ localnet) {
-      // 处理本地网络请求
-  }
-  ```
-
-### 6. **函数调用**
-
-- **内置函数**：VCL 提供了许多内置函数，用于实现复杂的逻辑。例如：
-  
-  - `return (<action>)`：控制 VCL 执行流程，如 `return (pass)`, `return (hash)`, `return (deliver)` 等。
-  - `synthetic("<字符串>")`：生成自定义响应内容。
-  - `hash_data(<字符串>)`：添加数据到缓存键中。
-  - `std.log("<字符串>")`：记录日志信息。
-
-  ```vcl
-  sub vcl_recv {
-      if (req.url ~ "^/admin") {
-          return (pass);
-      }
-      std.log("Request URL: " + req.url);
-  }
-
-  sub vcl_deliver {
-      synthetic("Hello, World!");
-  }
-  ```
-
-### 7. **循环结构**
-
-- **不支持循环**：VCL 不支持循环结构（如 `for`, `while`），只能使用条件语句和函数调用来处理逻辑。
-
-### 8. **变量作用域**
-
-- **子程序内变量**：变量在子程序内有效，子程序之间不共享变量。
-  
-  ```vcl
-  sub vcl_recv {
-      set req.http.X-Custom-Header = "CustomValue";
-  }
-
-  sub vcl_deliver {
-      // 无法访问 req.http.X-Custom-Header
-  }
-  ```
-
-### 9. **子程序定义**
-
-- **子程序名称**：常见的子程序名称包括 `vcl_recv`, `vcl_hash`, `vcl_pass`, `vcl_purge`, `vcl_backend_fetch`, `vcl_backend_response`, `vcl_deliver`, `vcl_fini` 等。
-
-  ```vcl
-  sub vcl_recv {
-      // 处理接收到的请求
-  }
-
-  sub vcl_backend_response {
-      // 处理从后端服务器接收到的响应
-  }
-  ```
-
-### 10. **导入其他 VCL 文件**
-
-- **import 语句**：使用 `import` 关键字导入其他 VCL 文件或标准库。
-  
-  ```vcl
-  import std;
-
-  sub vcl_recv {
-      std.log("Request received");
-  }
-  ```
-
-### 11. **示例：完整的 VCL 配置**
-
-以下是一个完整的 VCL 配置示例，展示了上述语法和特性的应用：
-
-```vcl
-vcl 4.0;
-
-import std;
-
-backend default {
-    .host = "127.0.0.1";
-    .port = "8080";
-}
-
-acl purge {
-    "localhost";
-    "192.168.1.0"/24;
-}
-
-sub vcl_recv {
-    // 移除私有 Cookie
-    unset req.http.Cookie;
-
-    // 强制缓存特定路径
-    if (req.url ~ "^/images/") {
-        return (hash);
-    }
-
-    // 绕过缓存特定路径
-    if (req.url ~ "^/admin/") {
-        return (pass);
-    }
-
-    // 处理清除缓存的请求
-    if (req.method == "PURGE") {
-        if (client.ip ~ purge) {
-            return (purge);
-        } else {
-            return (synth(403, "Forbidden"));
-        }
-    }
-}
-
-sub vcl_hash {
-    hash_data(req.url);
-    if (req.http.host) {
-        hash_data(req.http.host);
-    } else {
-        hash_data("localhost");
-    }
-    return (hash);
-}
-
-sub vcl_backend_response {
-    // 设置缓存时间
-    set beresp.ttl = 1h;
-
-    // 移除 Set-Cookie 头
-    unset beresp.http.Set-Cookie;
-}
-
-sub vcl_deliver {
-    // 添加自定义响应头
-    set resp.http.X-Cache = "HIT";
-    if (obj.hits == 0) {
-        set resp.http.X-Cache = "MISS";
-    }
-
-    // 删除不必要的头部信息
-    unset resp.http.Server;
-    unset resp.http.X-Varnish;
-}
-
-sub vcl_purge {
-    return (synth(200, "Purged"));
-}
-
-sub vcl_fini {
-    return (ok);
-}
-```
 
 ## Backend
 
@@ -2214,6 +1796,957 @@ VCL 的 ACL 提供了一种强大的方式来控制客户端的访问权限。�
 - **高级用法**：结合其他 VCL 功能，实现更复杂的访问控制策略，如速率限制和动态 ACL 更新。
 
 通过合理配置和使用 ACL，Varnish 可以显著提升 Web 应用程序的安全性和性能。
+
+## 子程序
+
+在 VCL 中，一个子程序就是一串代码，子程序没有参数，也没有返回值。
+
+### 子程序语法
+
+```vcl
+sub <子程序名称> {
+    // VCL 代码
+}
+```
+**示例：**
+```vcl
+sub vcl_recv {
+    // 处理客户端请求
+}
+sub vcl_backend_response {
+    // 处理后端响应
+}
+```
+
+### 子程序的调用
+
+调用一个子程序，使用call关键字，后接子程序名
+
+例
+
+```vcl
+call pipe_if_local;
+```
+
+### 子程序的调用流程
+
+有很多默认子程序与 Varnish 的工作流程相关，这些子程序会检查和操作 HTTP 头文件和各种请求，决定哪些请求被重用。如果这些子程序没有被定义（没有在VCL中配置），或者没有完成预定的处理而被终止，控制权将被转交给系统默认的子程序（调用系统默认的子程序的实现）。
+
+VCL 文件可以包含多个子程序，每个子程序在请求的不同的生命周期阶段执行。以下是常见的子程序及其执行顺序
+
+ | 子程序名称      | 执行时机                           | 主要用途                           |
+ | --------------- | ---------------------------------- | ---------------------------------- |
+ | `vcl_recv`      | 接收到客户端请求时                 | 决定是否缓存请求、修改请求头等     |
+ | `vcl_hash`      | 计算缓存键时                       | 定义缓存键的生成方式               |
+ | `vcl_pass`      | 请求需要绕过缓存时                 | 处理需要传递到后端的请求           |
+ | `vcl_purge`     | 收到清除缓存的请求时               | 处理缓存清除逻辑                   |
+ | `vcl_backend_fetch` | 向后端服务器发起请求时           | 修改向后端服务器发送的请求         |
+ | `vcl_backend_response` | 接收到后端服务器的响应时        | 处理后端响应，决定是否缓存等       |
+ | `vcl_deliver`   | 向客户端发送响应时                 | 修改发送给客户端的响应头           |
+ | `vcl_fini`      | VCL 加载完成后                     | 执行清理操作                       |
+
+
+**子程序的调用流程**：
+
+当 Varnish 接收到一个请求时，执行流程大致如下：
+
+1. **vcl_recv**：处理客户端请求，决定是否缓存、修改请求头等。
+2. **vcl_hash**：计算缓存键，用于后续缓存查找。
+3. **vcl_pass**（如果需要绕过缓存）：处理需要传递到后端的请求。
+4. **vcl_backend_fetch**：向后端服务器发起请求。
+5. **vcl_backend_response**：处理后端响应，决定是否缓存等。Varnish 3 及更早版本为 vcl_fetch 这个名称
+6. **vcl_deliver**：向客户端发送响应。
+
+如果在任意阶段调用了 `return` 语句，VCL 会跳转到相应的子程序或终止执行。
+
+### Actions 动作
+
+在 VCL（Varnish Configuration Language）中，动作（Actions）是用于控制 HTTP 请求和响应处理流程的关键指令。
+
+#### pass
+
+`pass` 是 VCL（Varnish Configuration Language）中用于控制 HTTP 请求处理流程的一个关键动作。它的主要功能是跳过缓存机制，直接将请求传递给后端服务器，并且不缓存后端服务器的响应。换句话说，`pass` 动作使得请求和响应绕过 Varnish 的缓存，直接进行客户端和服务器之间的传输。
+
+##### 使用位置
+
+一般来说 pass 动作放在 vcl_recv 和 vcl_backend_fetch 子程序中。
+
+**vcl_recv**
+
+`vcl_recv` 是 VCL 中最先处理的子程序之一，用于接收和处理客户端的 HTTP 请求。在这个阶段使用 `pass` 动作有以下几个原因：
+
+1. **早期决策**：
+   - 在 `vcl_recv` 中尽早决定是否需要跳过缓存，可以避免不必要的缓存查找和处理，提高效率。如果确定某个请求需要绕过缓存，那么尽早返回 `pass` 可以减少后续的处理步骤。
+
+   ```vcl
+   sub vcl_recv {
+       if (req.url ~ "^/admin") {
+           return (pass);
+       }
+   }
+   ```
+
+2. **减少负载**：
+   - 通过在 `vcl_recv` 中使用 `pass`，可以避免后续子程序中进行不必要的缓存检查和可能的缓存存储操作，从而减轻 Varnish 和后端服务器的负载。
+
+3. **精确控制**：
+   - 在 `vcl_recv` 中使用 `pass` 可以根据请求的详细信息（如 URL、客户端 IP、请求方法等）进行精确控制，确保只有特定的请求绕过缓存。
+
+**vcl_backend_fetch**
+
+`vcl_backend_fetch` 在从客户端接收请求后，准备向后台服务器发起请求时调用。在这个阶段使用 `pass` 动作有以下原因：
+
+1. **确保传递**：
+   - 尽管在 `vcl_recv` 中已经决定使用 `pass`，但在 `vcl_backend_fetch` 中再次确认可以确保请求确实绕过缓存，直接传递到后端服务器。这增加了安全性和可靠性，避免缓存中的任何干扰。
+
+   ```vcl
+   sub vcl_backend_fetch {
+       if (bereq.url ~ "^/admin") {
+           return (pass);
+       }
+   }
+   ```
+
+2. **处理复杂逻辑**：
+   - 有些复杂的逻辑可能需要在请求传递给后端服务器前进行处理。在 `vcl_backend_fetch` 中使用 `pass` 可以确保这些逻辑被正确执行，且请求不经过缓存。
+
+3. **调试和日志记录**：
+   - 在 `vcl_backend_fetch` 中使用 `pass` 可以帮助进行调试和日志记录，确保请求按照预期绕过缓存，直接传递到后端服务器，便于监控和分析。
+
+##### 使用场景
+
+1. **敏感请求**：
+   - 对于涉及敏感信息的请求，比如登录信息、个人数据等，可能不希望这些请求的数据被缓存。这时可以使用 `pass` 动作确保数据直接从后端服务器获取，并直接返回给客户端。
+   
+   ```vcl
+   if (req.url ~ "^/login") {
+       return (pass);
+   }
+   ```
+
+2. **动态内容**：
+   - 有些动态生成的内容每次请求可能都会有所不同，这些内容不适合缓存。使用 `pass` 可以确保每次请求都获取最新的数据。
+   
+   ```vcl
+   if (req.url ~ "^/dynamic-data") {
+       return (pass);
+   }
+   ```
+
+3. **特定客户端请求**：
+   - 可以针对特定客户端的请求使用 `pass`，例如来自特定 IP 地址的请求，以确保这些请求绕过缓存。
+   
+   ```vcl
+   if (client.ip ~ local_network) {
+       return (pass);
+   }
+   ```
+
+在 VCL 配置文件中，`pass` 动作通常在 `vcl_recv` 子程序中使用。以下是一个典型的例子：
+
+```vcl
+sub vcl_recv {
+    # 如果请求的URL以 /admin 开头，则使用 pass 动作
+    if (req.url ~ "^/admin") {
+        return (pass);
+    }
+}
+```
+
+在这个例子中，所有以 `/admin` 开头的请求都会被直接传递给后端服务器，并且不会进行缓存。
+
+##### pass vs cache/pipe
+
+1. **`pass` vs `cache`**：
+   - `pass` 会绕过缓存，直接与后端服务器通信，并且不缓存响应。而 `cache`（默认行为）会将响应存储在缓存中，供后续请求使用。
+   
+2. **`pass` vs `pipe`**：
+   - `pipe` 也会绕过缓存，但它的作用是建立一个客户端和服务器之间的管道连接，不进行任何处理。而 `pass` 仍然会进行一些请求头的处理和检查。
+   
+   ```vcl
+   if (req.http.Upgrade ~ "websocket") {
+       return (pipe);
+   }
+   ```
+
+- **性能影响**：使用 `pass` 会增加后端服务器的负载，因为每个 `pass` 请求都需要直接与后端服务器通信，无法利用缓存的优势。因此，应谨慎使用 `pass`，仅在必要时采用。
+- **安全性**：确保 `pass` 动作不会绕过必要的安全检查，比如身份验证和授权，否则可能导致安全漏洞。
+
+#### lookup
+
+`lookup` 是 VCL（Varnish Configuration Language）中一个非常重要的动作，用于在缓存中查找请求对应的对象。如果找到匹配的对象，则返回缓存内容，否则将被设置为 pass，且将请求传递给后端服务器。不能在 vcl_backend_fetch 中使用，vcl_backend_fetch 用于在将请求发送到后端服务器之前，对请求进行最后的修改，在这个阶段，请求已经确定需要由后端服务器处理，缓存查找已经完成，因此 lookup 没有意义。
+
+**功能与用途**
+
+1. **缓存查找**：
+   - `lookup` 主要用于在 Varnish 的缓存中查找请求对应的对象。如果找到匹配的对象（即缓存命中），则返回缓存的内容。这可以极大地提高响应速度，减少后端服务器的负载。
+
+2. **缓存未命中的处理**：
+   - 如果缓存中没有匹配的对象（即缓存未命中），`lookup` 会将请求传递给后端服务器，获取最新的内容。然后，这个内容可以被缓存起来，供后续请求使用。
+
+**使用场景**
+
+- **加速内容交付**：通过在缓存中查找已有的内容，可以大大减少响应时间，提高用户体验。
+- **减轻后端服务器压力**：缓存命中可以直接返回内容，减少对后端服务器的请求次数，降低服务器负载。
+- **提高可扩展性**：有效的缓存策略使得系统能够处理更多的并发请求，提高整体的可扩展性。
+
+
+以下是一个简单的示例，展示如何在 VCL 中使用 `lookup` 动作：
+
+```vcl
+sub vcl_recv {
+    # 设置哈希值，用于缓存查找
+    set req.hash = req.url;
+
+    # 执行缓存查找
+    return (lookup);
+}
+
+sub vcl_hit {
+    # 缓存命中，返回缓存内容
+    return (deliver);
+}
+
+sub vcl_miss {
+    # 缓存未命中，继续请求后端服务器
+    return (fetch);
+}
+
+sub vcl_backend_response {
+    # 将从后端服务器获取的内容存入缓存
+    return (deliver);
+}
+```
+
+**详细流程**
+
+1. **`vcl_recv`**：
+   - 在请求接收阶段，设置请求的哈希值（通常是 URL），然后调用 `lookup` 动作进行缓存查找。
+
+2. **`vcl_hit`**：
+   - 如果缓存命中（即找到了匹配的对象），则执行 `deliver` 动作，将缓存的内容返回给客户端。
+
+3. **`vcl_miss`**：
+   - 如果缓存未命中，则继续请求后端服务器，获取最新的内容。
+
+4. **`vcl_backend_response`**：
+   - 从后端服务器获取的内容可以通过 `deliver` 动作存入缓存，供后续请求使用。
+
+- **哈希值的设置**：正确设置请求的哈希值非常重要，它决定了缓存查找的匹配规则。通常使用请求的 URL，但也可以根据需要使用其他请求参数。
+- **缓存策略**：需要根据具体的应用场景制定合理的缓存策略，避免缓存雪崩、缓存穿透等问题。
+- **缓存失效**：合理设置缓存失效时间，确保缓存中的数据不过期，同时又能及时更新。
+
+#### pipe
+
+`pipe` 动作在 VCL（Varnish Configuration Language）中主要用于处理特定类型的流量，特别是那些不适合缓存的请求。与 pass 类似，都需要访问后端服务器，不过当进入 pipe 后，此链接在未关闭前，后续所有的请求都直接发往后端服务器，不经过 Varnish 的处理。
+
+**功能与用途**
+
+1. **建立管道连接**：
+   - 当 Varnish 遇到需要使用 `pipe` 动作的请求时，它会在客户端和后端服务器之间建立一个直接的管道连接。这意味着请求和响应数据将直接在客户端和服务器之间传输，Varnish 不再干预或缓存这些数据。
+
+2. **适用于非 HTTP 流量**：
+   - `pipe` 常用于处理非 HTTP 协议的流量，例如 WebSocket 连接、SSH、FTP 等。这些协议的流量通常不适合缓存，因为它们可能包含动态生成的内容或需要保持长时间的连接。
+
+3. **绕过缓存**：
+   - 对于某些特定的 HTTP 请求，如果希望完全绕过 Varnish 的缓存机制，也可以使用 `pipe`。例如，对于需要实时更新的数据或需要保持会话一致性的请求，`pipe` 是一个理想的选择。
+
+**使用场景**
+
+1. **WebSocket 连接**：
+   - WebSocket 连接需要保持长时间的通信通道，并且数据是双向实时传输的。这种情况下，`pipe` 可以确保连接不被 Varnish 缓存，从而保持通信的实时性。
+     ```vcl
+     if (req.http.Upgrade ~ "websocket") {
+         return (pipe);
+     }
+     ```
+
+2. **文件下载**：
+   - 对于非常大的文件下载，如果不想让这些文件占用 Varnish 的缓存空间，可以使用 `pipe` 让文件直接从后端服务器传输到客户端。
+     ```vcl
+     if (req.url ~ "^/download/") {
+         return (pipe);
+     }
+     ```
+
+3. **实时数据流**：
+   - 对于实时数据流，如股票行情、实时日志等，需要保证数据的实时性和连续性，这时可以使用 `pipe`。
+     ```vcl
+     if (req.url ~ "^/realtime/") {
+         return (pipe);
+     }
+     ```
+
+**实现细节**
+
+- **连接保持**：
+  - 使用 `pipe` 后，Varnish 会保持客户端和后端服务器之间的连接，直到连接关闭。这意味着 Varnish 不再对传输的数据进行任何处理或修改。
+
+- **性能考虑**：
+  - 虽然 `pipe` 可以绕过缓存，但对于高并发的场景，需要谨慎使用，因为每个 `pipe` 连接都会占用一定的系统资源。如果有大量的 `pipe` 连接，可能会影响 Varnish 的整体性能。
+
+- **日志记录**：
+  - 由于 `pipe` 会直接传输数据，Varnish 不会记录这些请求的详细信息。因此，在使用 `pipe` 时，日志记录会有所欠缺，需要通过其他方式监控和分析流量。
+
+以下是一个完整的 VCL 示例，展示如何使用 `pipe` 动作处理 WebSocket 连接：
+
+```vcl
+sub vcl_recv {
+    if (req.http.Upgrade ~ "websocket") {
+        return (pipe);
+    }
+}
+
+sub vcl_pipe {
+    # 保持连接打开，直到客户端或服务器关闭
+    return (pipe);
+}
+```
+
+#### deliver 
+
+在 VCL（Varnish Configuration Language）中，`deliver` 用于将缓存中的对象交付给客户端。
+
+**功能与用途**
+
+- **交付缓存对象**：`deliver` 动作的主要功能是将缓存中找到的对象交付给客户端。这意味着 Varnish 已经成功地从缓存中检索到了请求的资源，并将这个资源返回给用户，而不需要向后端服务器再次发起请求。
+  
+- **终止处理流程**：当 `deliver` 被调用时，它会终止当前的 VCL 子程序，并将控制权返回给 Varnish，表明缓存对象已经准备好发送给客户端。
+
+**使用场景**
+
+1. **缓存命中**：
+   - 当 Varnish 在缓存中找到了请求的资源时，可以使用 `deliver` 将该资源直接返回给客户端，提高响应速度，减少后端服务器的压力。
+   - **示例**：
+     ```vcl
+     sub vcl_recv {
+         if (req.url ~ "^/cached/") {
+             return (lookup);
+         }
+     }
+
+     sub vcl_hit {
+         return (deliver);
+     }
+     ```
+
+2. **自定义缓存策略**：
+   - 通过在不同的子程序中调用 `deliver`，可以实现复杂的缓存策略。例如，可以在特定的条件下决定是否缓存某些请求，或者在缓存命中时执行额外的逻辑。
+   - **示例**：
+     ```vcl
+     sub vcl_backend_response {
+         if (beresp.http.X-Cache-Action == "cache") {
+             set beresp.uncacheable = false;
+         } else {
+             set beresp.uncacheable = true;
+         }
+     }
+
+     sub vcl_deliver {
+         if (obj.uncacheable) {
+             return (deliver);
+         }
+     }
+     ```
+
+**配合其他动作**
+
+- **`deliver` 通常与 `lookup` 动作一起使用**：
+  - 当 Varnish 需要在缓存中查找请求的资源时，会调用 `lookup`。如果在缓存中找到匹配的对象，则会进入 `vcl_hit` 子程序，在那里调用 `deliver` 将对象交付给客户端。
+  - **示例**：
+    ```vcl
+    sub vcl_recv {
+        return (lookup);
+    }
+
+    sub vcl_hit {
+        return (deliver);
+    }
+    ```
+
+**注意事项**
+
+- **确保缓存对象的有效性**：
+  - 在调用 `deliver` 之前，确保缓存中的对象是有效的和最新的。否则，可能会向客户端返回过期的或不正确的内容。
+  
+- **处理不可缓存的请求**：
+  - 对于标记为不可缓存的请求，不要调用 `deliver`，而是应该将请求传递给后端服务器处理。
+
+以下是一个更完整的 VCL 配置示例，展示如何使用 `deliver` 动作来处理缓存命中：
+
+```vcl
+sub vcl_recv {
+    if (req.url ~ "^/cached/") {
+        return (lookup);
+    }
+}
+
+sub vcl_hit {
+    return (deliver);
+}
+
+sub vcl_miss {
+    return (fetch);
+}
+
+sub vcl_backend_response {
+    if (beresp.http.Content-Type ~ "text/html") {
+        set beresp.ttl = 300s;
+    }
+}
+
+sub vcl_deliver {
+    if (obj.hits > 0) {
+        set resp.http.X-Cache = "HIT";
+    } else {
+        set resp.http.X-Cache = "MISS";
+    }
+}
+```
+
+在这个示例中：
+- 请求被 `vcl_recv` 接收，如果 URL 匹配特定模式，则进行缓存查找。
+- 如果缓存命中，进入 `vcl_hit` 子程序并调用 `deliver` 将缓存对象交付给客户端。
+- 如果缓存未命中，则从后端服务器获取资源。
+- 在 `vcl_deliver` 中，根据缓存命中情况设置自定义 HTTP 头。
+
+#### hit_for_pass
+
+`hit_for_pass` 是一个在 VCL（Varnish Configuration Language）中主要用于处理那些不应该被缓存的对象，或者缓存无效的对象。
+
+**功能与用途**
+
+`hit_for_pass` 的主要功能是标记一个请求，使得未来的相似请求也不再尝试从缓存中获取，而是直接传递给后端服务器。它通常用于处理那些无法缓存或不应该缓存的响应，比如涉及到个人化内容、经常变化的内容或者后端服务器返回某些特定状态码的响应。
+
+**使用场景**
+
+1. **动态内容**：对于一些动态生成的内容，比如用户特定的推荐、广告等，这些内容每次请求都可能不同，因此不适合缓存。
+   
+2. **认证和授权**：涉及到用户认证和授权的请求，通常需要每次都验证，这类请求不适合缓存。
+
+3. **错误响应**：某些情况下，后端服务器可能会返回一些临时的错误响应（如 503 Service Unavailable），这些响应不适合缓存，因为它们不代表最终状态。
+
+以下是一个使用 `hit_for_pass` 的示例：
+
+```vcl
+sub vcl_backend_response {
+    # 如果后端返回的状态码是 500 或 503，则使用 hit_for_pass
+    if (beresp.status == 500 || beresp.status == 503) {
+        set beresp.uncacheable = true;
+        return (hit_for_pass);
+    }
+
+    # 对于某些特定的内容类型，不缓存
+    if (beresp.http.Content-Type ~ "text/event-stream") {
+        set beresp.uncacheable = true;
+        return (hit_for_pass);
+    }
+}
+```
+
+在这个示例中，我们检查后端响应的状态码。如果状态码是 500 或 503，我们将其标记为不可缓存，并使用 `hit_for_pass` 动作。同样，对于 `text/event-stream` 类型的内容，我们也不进行缓存。
+
+**工作原理**
+
+当 `hit_for_pass` 被调用时，Varnish 会做以下几件事：
+
+1. **标记对象为不可缓存**：将对象标记为不可缓存，这样未来的相似请求就不会尝试从缓存中获取。
+   
+2. **直接传递请求**：将请求直接传递给后端服务器，而不进行任何缓存相关的操作。
+
+3. **设置 TTL**：设置一个特殊的 TTL（Time-To-Live），确保这个对象在缓存中有一个短暂的存活时间，但不会被重用。如果没有 TTL，每次这样的请求都会直接打到后端服务器，可能会造成后端服务器的压力过大，导致雪崩效应。设置 TTL 可以确保在短时间内，相同的请求不会重复发往后端，而是由 Varnish 直接返回一个标记，告诉其他请求同样的结果。可以确保系统在一段时间内不会重复处理相同的请求，同时也避免缓存中充斥着大量无用的数据。
+
+**注意事项**
+
+- **性能影响**：频繁使用 `hit_for_pass` 可能影响性能，因为它会增加后端服务器的负载，因为每个请求都需要重新处理。
+  
+- **合理使用**：应该根据具体的业务需求合理使用 `hit_for_pass`，避免不必要的缓存失效。
+
+#### fetch
+
+在 VCL（Varnish Configuration Language）中，`fetch` 动作用于从后端服务器获取请求的对象，并在缓存中存储它。虽然 `fetch` 不是一个直接的 VCL 动作，但它是在 VCL 的处理流程中非常重要的一个步骤，通常在 `vcl_backend_fetch` 和 `vcl_backend_response` 子程序中使用。
+
+**功能与用途**
+
+1. **从后端服务器获取内容**：
+   - 当 Varnish 需要获取客户端请求的内容时，它会向后端服务器发送请求，并使用 `fetch` 动作来获取响应内容。这个过程涉及网络请求和数据传输。
+
+2. **缓存对象**：
+   - 获取到的内容会被存储在缓存中，以便将来相同的请求可以直接从缓存中获取，而不需要再次访问后端服务器。这大大提高了响应速度，降低了后端服务器的负载。
+
+**使用场景**
+
+- **首次请求**：当客户端请求一个尚未缓存的对象时，Varnish 会使用 `fetch` 从后端服务器获取该对象，并将其存储在缓存中。
+- **缓存过期**：如果缓存中的对象已经过期，Varnish 会使用 `fetch` 从后端服务器获取最新的内容，并更新缓存。
+- **条件请求**：在某些情况下，Varnish 可能会发送条件请求（例如基于 `If-Modified-Since` 或 `If-None-Match` 头部），如果后端服务器返回新的内容，则使用 `fetch` 更新缓存。
+
+以下是一个典型的 `vcl_backend_response` 子程序示例，展示了如何使用 `fetch` 动作：
+
+```vcl
+sub vcl_backend_response {
+    # 检查响应状态
+    if (beresp.status == 200) {
+        # 设置缓存生存时间
+        set beresp.ttl = 1h;
+    } elseif (beresp.status == 404) {
+        # 对于404响应，设置较短的缓存生存时间
+        set beresp.ttl = 10m;
+    }
+
+    # 返回 fetch 以继续处理
+    return (fetch);
+}
+```
+
+**详细步骤**
+
+1. **发送请求**：
+   - Varnish 向后端服务器发送 HTTP 请求，这个请求包含了客户端的原始请求信息。
+
+2. **接收响应**：
+   - 后端服务器处理请求并返回 HTTP 响应。Varnish 接收这个响应，并进行进一步的处理。
+
+3. **缓存存储**：
+   - 根据 VCL 配置，Varnish 会决定是否将响应内容存储在缓存中。通常会根据响应状态、头部信息等来决定缓存策略。
+
+4. **返回客户端**：
+   - 最终，Varnish 将获取到的内容返回给客户端。如果将来有相同的请求，Varnish 可以直接从缓存中获取内容，提高响应速度。
+
+**注意事项**
+
+- **缓存策略**：合理设置缓存策略非常重要，既要保证数据的时效性，又要最大化缓存命中率。
+- **错误处理**：在后端服务器返回错误时，需要根据具体情况决定是否进行重试或返回错误信息给客户端。
+- **性能优化**：尽量减少不必要的网络请求，通过合理的缓存策略和 `fetch` 动作，可以显著提高系统性能。
+
+#### hash 
+
+进入 hash 模式
+
+#### restart 
+
+在 VCL（Varnish Configuration Language）中，`restart` 是一个特殊的动作，用于重新开始 VCL 程序的处理流程。当执行 `restart` 时，当前的请求处理会被终止，并重新从头开始处理。这在某些需要重新评估请求或处理流程的场景中非常有用。
+
+**使用场景**
+
+1. **重新评估请求**：
+   - 在某些复杂的逻辑判断中，可能需要根据后续处理的结果重新评估请求。例如，最初的判断条件可能不充分，需要更多信息来做出最终决定。
+
+2. **修正请求**：
+   - 如果在处理过程中发现请求需要修改，可以使用 `restart` 来重新开始处理，以便应用新的修改。
+
+3. **错误处理**：
+   - 在某些错误处理场景中，可能需要重新尝试处理请求，特别是在后端服务器暂时不可用或返回错误时。
+
+以下是一个使用 `restart` 的示例，展示了如何在特定条件下重新开始请求处理：
+
+```vcl
+sub vcl_recv {
+    if (req.http.x-custom-header) {
+        # 如果自定义头部存在，重新开始处理流程
+        return (restart);
+    }
+    # 其他处理逻辑
+}
+
+sub vcl_restart {
+    # 在重新开始处理之前，可以在这里执行一些初始化操作
+    set req.http.X-Restarted = "true";
+}
+```
+
+**注意事项**
+
+1. **避免无限循环**：
+   - 使用 `restart` 时需要小心，确保不会导致无限循环。可以通过设置某些标志或限制重启次数来避免这种情况。
+
+2. **性能影响**：
+   - 频繁使用 `restart` 可能影响性能，因为每次重启都会重新开始请求处理流程。因此，应谨慎使用，确保只在必要时使用。
+
+3. **初始化操作**：
+   - 在 `vcl_restart` 子程序中，可以执行一些初始化操作，以确保重新开始处理时一切正常。
+
+#### ok
+
+表示正常
+
+#### error
+
+表示错误
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+5. **retry**：
+   - **用途**：重新尝试请求。常用于后端服务器暂时不可用或返回错误时。
+   - **示例**：
+     ```vcl
+     if (beresp.status == 503) {
+         return (retry);
+     }
+     ```
+
+6. **purge**：
+   - **用途**：从缓存中删除指定的对象。常用于需要立即更新缓存的场景。
+   - **示例**：
+     ```vcl
+     if (req.method == "PURGE") {
+         return (purge);
+     }
+     ```
+
+7. **synth**：
+   - **用途**：生成一个合成响应，而不是从后端服务器获取。常用于返回自定义错误信息或重定向。
+   - **示例**：
+     ```vcl
+     if (req.url ~ "^/forbidden") {
+         return (synth(403, "Forbidden"));
+     }
+     ```
+
+8. **return**：
+   - **用途**：返回一个状态，终止当前子程序并返回控制权给调用者。可以用来提前结束处理流程。
+   - **示例**：
+     ```vcl
+     if (req.http.Cookie ~ "logged_in=yes") {
+         return (pass);
+     }
+     ```
+
+- **缓存控制**：通过 `pass`、`pipe` 和 `hit_for_pass` 等动作，可以精细控制哪些请求需要绕过缓存，直接访问后端服务器。
+- **错误处理**：使用 `synth` 可以生成自定义的错误响应，提升用户体验。
+- **缓存更新**：通过 `purge` 可以即时删除缓存中的旧数据，确保返回给用户的是最新的内容。
+- **重试机制**：通过 `retry` 可以处理临时性错误，提高系统的健壮性。
+
+### vcl_init 和 vcl_fini
+
+**作用**
+`vcl_init` 和 `vcl_fini` 函数用于在 VCL 加载和卸载时执行初始化和清理操作。
+
+**主要功能**
+- **初始化资源**：例如，连接数据库、初始化变量等。
+- **清理资源**：例如，关闭连接、释放资源等。
+
+**示例**
+```vcl
+sub vcl_init {
+    # 初始化后端连接
+    new my_backend = backend("my_backend", "127.0.0.1", 8080);
+}
+
+sub vcl_fini {
+    # 清理资源
+    my_backend.close();
+}
+```
+
+#### vcl_init
+
+`vcl_init` 是一个非常重要的 VCL 子程序，它在 VCL 加载时被调用，通常用于初始化操作，尤其是与 VMOD（Varnish 模块）相关的初始化。
+
+1. **初始化 VMOD 模块**：
+   - `vcl_init` 最常见的用途是初始化 VMOD 模块。VMOD 是 Varnish 的模块扩展，允许开发者扩展 Varnish 的功能。通过在 `vcl_init` 中调用 VMOD 的初始化函数，可以确保这些模块在 Varnish 启动时正确加载和配置。
+
+2. **设置全局变量**：
+   - 在 `vcl_init` 中，可以设置一些全局变量，这些变量可以在整个 VCL 配置中访问和使用。这对于需要在多个子程序中共享的数据非常有用。
+
+3. **配置初始化**：
+   - 除了 VMOD，`vcl_init` 也可以用于其他初始化任务，比如配置参数、日志系统等。它提供了一个集中位置来执行所有需要在 Varnish 启动时完成的设置操作。
+
+以下是一个简单的示例，展示如何在 `vcl_init` 中初始化一个 VMOD 模块：
+
+```vcl
+import example_module;
+
+sub vcl_init {
+    # 初始化 example_module
+    new example_obj = example_module.init();
+
+    # 设置全局变量
+    set req.http.X-Powered-By = "Varnish " + varnish.version;
+
+    # 其他初始化操作
+    call setup_logging;
+}
+
+sub setup_logging {
+    # 这里可以添加日志系统的初始化代码
+}
+```
+
+- `vcl_init` 在 VCL 配置文件加载时被调用，且在加载任何客户请求之前执行。这意味着在 `vcl_init` 中进行的任何设置都会在处理任何实际请求之前完成，确保所有模块和配置都已正确初始化。
+
+- `vcl_init` 应该返回一个状态值（实际上不是返回值，而是动作 Actions），通常是 `ok`，表示初始化成功。如果初始化失败，可以返回一个错误状态，这将阻止 Varnish 启动，并记录相应的错误信息。
+
+- 在 `vcl_init` 中执行的任何操作都应该是快速且非阻塞的，因为初始化过程会直接影响 Varnish 的启动时间。
+- 尽量避免在 `vcl_init` 中执行复杂或耗时的操作，比如网络请求或大规模数据处理。
+
+### vcl_recv
+
+`vcl_recv` 函数在 Varnish 接收到一个 HTTP 请求后立即被调用。它主要用于决定是否处理该请求、是否从缓存中提供响应、是否进行重定向或是否传递请求到后端服务器。
+
+**主要功能**
+- **决定是否缓存请求**：通过设置 `return (pass)` 或 `return (lookup)` 来决定是否从缓存中查找响应。
+- **修改请求**：例如，重写 URL、添加或修改请求头。
+- **负载均衡**：选择不同的后端服务器来处理请求。
+- **阻止恶意请求**：例如，阻止特定类型的请求或 IP 地址。
+
+`vcl_recv` 是 VCL 的第一个阶段，用于处理接收到的客户端请求。在这个阶段，管理员可以：
+
+- **修改请求**：如添加或修改请求头部信息。
+- **选择后端服务器**：根据请求的不同，选择不同的后端服务器。
+- **决定是否缓存**：如某些特定的请求不需要缓存，可以直接转发给后端服务器。
+
+**示例**
+```vcl
+sub vcl_recv {
+    # 修改请求头部
+    set req.http.X-Forwarded-For = client.ip;
+
+    # 某些特定请求不缓存
+    if (req.url ~ "^/admin/") {
+        return (pass);
+    }
+
+    # 选择后端服务器
+    if (req.http.host ~ "example.com") {
+        set req.backend_hint = backend_example;
+    } else {
+        set req.backend_hint = backend_default;
+    }
+}
+```
+
+### vcl_hash
+
+**作用**
+`vcl_hash` 函数用于定义如何为请求生成哈希键（hash key），这个哈希键用于在缓存中查找对应的对象。Varnish 使用哈希表来快速定位缓存中的对象。
+
+**主要功能**
+- **自定义哈希键**：通过添加或修改请求的组成部分来影响哈希键的生成。
+- **影响缓存命中率**：通过调整哈希键，可以影响缓存的命中率。
+
+**示例**
+```vcl
+sub vcl_hash {
+    # 默认情况下，Varnish 使用请求的方法和 URL 作为哈希键
+    hash_data(req.url);
+
+    # 如果需要，可以根据请求头中的某些信息来调整哈希键
+    if (req.http.host) {
+        hash_data(req.http.host);
+    }
+
+    return (lookup);
+}
+```
+
+### vcl_hit
+
+**作用**
+`vcl_hit` 函数在 Varnish 在缓存中成功找到与请求匹配的缓存对象时被调用。它用于决定如何处理已缓存的响应。
+
+**主要功能**
+- **决定是否使用缓存响应**：通过设置 `return (deliver)` 来提供缓存的响应，或 `return (miss)` 来强制重新获取响应。
+- **修改缓存的响应**：例如，添加或修改响应头。
+
+**示例**
+```vcl
+sub vcl_hit {
+    # 如果缓存的响应仍然有效，则提供缓存的响应
+    if (obj.ttl > 0s) {
+        return (deliver);
+    }
+
+    # 如果缓存的响应已过期，则重新获取
+    return (miss);
+}
+```
+
+### vcl_miss
+
+**作用**
+`vcl_miss` 函数在 Varnish 在缓存中未找到与请求匹配的缓存对象时被调用。它用于决定如何处理未缓存的请求。
+
+**主要功能**
+- **决定是否从后端获取响应**：通过设置 `return (fetch)` 来从后端获取响应。
+- **修改请求**：例如，添加或修改请求头。
+
+**示例**
+```vcl
+sub vcl_miss {
+    # 从后端获取响应
+    return (fetch);
+}
+```
+
+### vcl_backend_fetch
+
+**作用**
+`vcl_backend_fetch` 函数在 Varnish 准备从后端服务器获取响应时被调用。它用于修改发送到后端的请求。
+
+**主要功能**
+- **修改后端请求**：例如，添加或修改请求头。
+- **决定是否重试请求**：如果后端请求失败，可以设置重试策略。
+
+`vcl_backend_fetch` 是 VCL 的阶段，用于在将请求转发给后端服务器之前进行一些处理。在这个阶段，管理员可以：
+
+- **修改后端请求**：如添加或修改请求头部信息。
+- **决定是否转发请求**：如某些特定条件下，可以阻止请求转发给后端服务器。
+
+**示例**
+```vcl
+sub vcl_backend_fetch {
+    # 在发送到后端的请求中添加自定义头
+    set bereq.http.X-Forwarded-For = client.ip;
+
+    return (fetch);
+}
+```
+
+### vcl_backend_response
+
+**作用**
+`vcl_backend_response` 函数在 Varnish 从后端服务器接收到响应时被调用。它用于修改从后端获取的响应。
+
+**主要功能**
+- **修改响应**：例如，添加或修改响应头。
+- **决定是否缓存响应**：通过设置 `return (deliver)` 或 `return (hit_for_pass)` 来控制缓存行为。
+- **处理错误响应**：例如，设置重定向或自定义错误页面。
+
+**示例**
+```vcl
+sub vcl_backend_response {
+    # 如果后端响应是 404，则设置自定义错误页面
+    if (beresp.status == 404) {
+        set beresp.status = 404;
+        set beresp.http.Content-Type = "text/html";
+        synthetic("<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html><body><h1>404 Not Found</h1></body></html>");
+        return (deliver);
+    }
+
+    # 缓存响应
+    return (deliver);
+}
+```
+
+`vcl_backend_response` 是 VCL 的阶段，用于处理从后端服务器接收到的响应。在这个阶段，管理员可以：
+
+- **修改响应**：如添加或修改响应头部信息。
+- **决定是否缓存响应**：如某些特定的响应不需要缓存，可以直接返回给客户端。
+
+```vcl
+sub vcl_backend_response {
+    # 修改响应头部
+    set beresp.http.X-Cache = "HIT";
+
+    # 某些特定响应不缓存
+    if (beresp.http.Content-Type ~ "text/html") {
+        set beresp.ttl = 300;
+    } else {
+        set beresp.ttl = 86400;
+    }
+}
+```
+
+### vcl_deliver
+
+**作用**
+`vcl_deliver` 函数在 Varnish 准备将响应发送给客户端时被调用。它用于修改最终发送给客户端的响应。
+
+**主要功能**
+- **修改响应头**：例如，添加或修改响应头。
+- **记录日志**：记录有关请求和响应的信息。
+- **添加自定义内容**：例如，添加自定义的 HTTP 头或修改响应内容。
+
+**示例**
+```vcl
+sub vcl_deliver {
+    # 添加自定义响应头
+    set resp.http.X-Cache = "HIT";
+
+    # 如果响应是从缓存中提供的，则设置相应的头
+    if (obj.hits > 0) {
+        set resp.http.X-Cache-Hits = obj.hits;
+    }
+
+    return (deliver);
+}
+```
+
+`vcl_deliver` 是 VCL 的阶段，用于在将响应返回给客户端之前进行一些处理。在这个阶段，管理员可以：
+
+- **修改响应**：如添加或修改响应头部信息。
+- **记录日志**：如记录缓存命中情况。
+
+```vcl
+sub vcl_deliver {
+    # 添加自定义响应头部
+    set resp.http.X-Cache = "HIT";
+
+    # 记录日志
+    if (obj.hits > 0) {
+        set resp.http.X-Cache-Hits = obj.hits;
+    }
+}
+```
+
+### vcl_backend_error
+
+**作用**
+`vcl_backend_error` 函数在 Varnish 从后端服务器接收到错误响应时被调用。它用于处理后端错误。
+
+**主要功能**
+- **处理错误响应**：例如，设置重定向或自定义错误页面。
+- **决定是否重试请求**：如果需要，可以设置重试策略。
+
+**示例**
+```vcl
+sub vcl_backend_error {
+    # 如果后端响应是 5xx 错误，则设置自定义错误页面
+    if (beresp.status >= 500 && beresp.status <= 599) {
+        set beresp.status = 503;
+        set beresp.http.Content-Type = "text/html";
+        synthetic("<?xml version=\"1.0\" encoding=\"utf-8\"?><!DOCTYPE html><html><body><h1>Service Unavailable</h1></body></html>");
+        return (deliver);
+    }
+
+    return (deliver);
+}
+```
+
+
+
+## VCL 调试与日志
+
+VCL 支持在子程序中插入调试语句，帮助开发者了解请求处理流程和变量状态。
+
+**示例：**
+
+```vcl
+sub vcl_recv {
+    // 打印请求 URL
+    std.log("URL: " + req.url);
+
+    // 打印请求方法
+    std.log("Method: " + req.method);
+
+    // 打印 User-Agent
+    std.log("User-Agent: " + req.http.User-Agent);
+}
+```
 
 # VCL 常用内置函数
 
@@ -3883,3 +4416,28 @@ Grace 模式是 Varnish 中一个强大的功能，可以显著提高网站的�
 - **健康检查**：根据后端服务器的健康状况调整 Grace 模式的行为。
 
 通过这些配置，Varnish 可以更好地应对各种复杂的网络环境和应用需求。
+
+# 缓存策略
+
+Varnish 支持多种缓存策略，以满足不同的需求：
+
+- **基于时间的缓存策略**：通过设置 TTL（Time-To-Live）来控制缓存的生命周期。
+- **基于内容的缓存策略**：通过 ETag 和 Last-Modified 头部信息来控制缓存的有效性。
+- **缓存失效策略**：如在收到后端服务器的响应时，设置缓存失效条件。
+
+# 性能优化
+
+为了充分发挥 Varnish 的性能优势，管理员可以采取以下措施：
+
+- **合理配置缓存大小**：根据服务器内存容量，合理配置 Varnish 的缓存大小。
+- **优化 VCL 配置**：尽量减少 VCL 逻辑的复杂性，避免不必要的计算和内存操作。
+- **使用持久化存储**：如使用文件或数据库来存储缓存数据，以提高缓存的持久性和可靠性。
+- **监控和日志分析**：通过监控工具和日志分析，及时发现和解决性能瓶颈。
+
+# 安全性
+
+Varnish 本身不提供安全性功能，但可以通过以下方式增强安全性：
+
+- **使用 HTTPS**：通过在 Varnish 前端配置 HTTPS 终端（如 Nginx 或 HAProxy），实现加密传输。
+- **访问控制**：通过 VCL 配置，实现基于 IP 地址或请求路径的访问控制。
+- **防止缓存污染**：通过 VCL 配置，防止恶意请求污染缓存。
