@@ -211,7 +211,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
   if (req.url ~ "^/admin/") {
       // 处理以 /admin/ 开头的 URL
   }
-
+  
   if (req.http.User-Agent !~ "MSIE") {
       // 处理非 IE 浏览器的请求
   }
@@ -224,7 +224,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
       "127.0.0.1"/8;
       "192.168.0.0"/16;
   }
-
+  
   if (client.ip ~ localnet) {
       // 处理本地网络请求
   }
@@ -246,7 +246,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
       }
       std.log("Request URL: " + req.url);
   }
-
+  
   sub vcl_deliver {
       synthetic("Hello, World!");
   }
@@ -264,7 +264,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
   sub vcl_recv {
       set req.http.X-Custom-Header = "CustomValue";
   }
-
+  
   sub vcl_deliver {
       // 无法访问 req.http.X-Custom-Header
   }
@@ -278,7 +278,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
   sub vcl_recv {
       // 处理接收到的请求
   }
-
+  
   sub vcl_backend_response {
       // 处理从后端服务器接收到的响应
   }
@@ -290,7 +290,7 @@ VCL 在执行时会被编译转换成二进制代码。一个标准的 VCL 配�
   
   ```vcl
   import std;
-
+  
   sub vcl_recv {
       std.log("Request received");
   }
@@ -533,15 +533,15 @@ sub vcl_fini {
        if (req.method != "GET" && req.method != "HEAD") {
            return (pass);
        }
-
+   
        if (req.http.Authorization || req.http.Cookie) {
            return (pass);
        }
-
+   
        if (req.url ~ "^/admin/") {
            return (pass);
        }
-
+   
        if (req.http.host ~ "^(www\.)?example\.com$") {
            # 自定义规则
        }
@@ -553,13 +553,13 @@ sub vcl_fini {
    ```vcl
    sub vcl_backend_response {
        set beresp.ttl = 1h;
-
+   
        if (beresp.status != 200) {
            set beresp.uncacheable = true;
            set beresp.ttl = 120s;
            return (deliver);
        }
-
+   
        if (beresp.http.Cache-Control ~ "no-cache" || beresp.http.Pragma ~ "no-cache") {
            set beresp.uncacheable = true;
            set beresp.ttl = 120s;
@@ -577,7 +577,7 @@ sub vcl_fini {
        } else {
            set resp.http.X-Cache = "MISS";
        }
-
+   
        unset resp.http.Server;
        unset resp.http.X-Varnish;
    }
@@ -849,7 +849,7 @@ sub vcl_fini {
        if (req.method != "GET" && req.method != "HEAD") {
            return (pass);
        }
-
+   
        # 其他自定义规则
    }
    ```
@@ -859,7 +859,7 @@ sub vcl_fini {
    ```vcl
    sub vcl_backend_response {
        set beresp.ttl = 1h;
-
+   
        # 其他自定义规则
    }
    ```
@@ -873,7 +873,7 @@ sub vcl_fini {
        } else {
            set resp.http.X-Cache = "MISS";
        }
-
+   
        unset resp.http.Server;
        unset resp.http.X-Varnish;
    }
@@ -958,7 +958,7 @@ sub vcl_recv {
        .host = "192.168.1.10";
        .port = "8080";
    }
-
+   
    backend server2 {
        .host = "192.168.1.11";
        .port = "8080";
@@ -1031,7 +1031,7 @@ sub vcl_recv {
        {
            .backend = server1;
        }
-
+   
        {
            .backend = server2;
        }
@@ -1072,7 +1072,7 @@ sub vcl_recv {
            .backend = server1;
            .weight = 1;
        }
-
+   
        {
            .backend = server2;
            .weight = 1;
@@ -1142,7 +1142,7 @@ director my_director hash {
        {
            .backend = server1;
        }
-
+   
        {
            .backend = server2; // 第一个不可用时才会走
        }
@@ -1859,6 +1859,44 @@ VCL 文件可以包含多个子程序，每个子程序在请求的不同的生�
 
 如果在任意阶段调用了 `return` 语句，VCL 会跳转到相应的子程序或终止执行。
 
+### request 请求流程
+
+![image-20250106204518408](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202501062045901.png)
+
+这张图展示了VCL（Varnish Configuration Language）的请求处理流程。
+
+1. **vcl_recv**：这是请求处理的起点。Varnish接收客户端的请求。
+   - 如果请求需要查找缓存，则进入`vcl_hash`。
+   - 如果请求需要直接pipe（管道传输），则进入`vcl_pipe`。
+
+2. **vcl_hash**：在这个阶段，Varnish会根据请求的URL和其他一些因素生成一个哈希值，用于查找缓存对象。
+   - 完成后，进入判断缓存是否存在的阶段。
+
+3. **判断缓存是否存在**：
+   - 如果缓存存在（yes），则进入`vcl_hit`。
+   - 如果缓存不存在（no），则进入`vcl_miss`。
+
+4. **vcl_hit**：缓存命中的处理流程。
+   - 可以选择直接传递（pass）对象，进入`vcl_pass`。
+   - 或者直接传递对象，进入`vcl_deliver`。
+
+5. **vcl_miss**：缓存未命中的处理流程。
+   - 可以选择直接传递（pass）对象，进入`vcl_pass`。
+   - 或者从后端服务器获取对象，进入`vcl_fetch`。
+
+6. **vcl_pass**：处理需要传递的对象。
+   - 最终会进入`vcl_fetch`从后端服务器获取对象。
+
+7. **vcl_fetch**：从后端服务器获取对象。
+   - 获取对象后，可以选择缓存对象（Cache），进入`vcl_deliver`。
+   - 或者不缓存对象（Don't cache），直接进入`vcl_deliver`。
+
+8. **vcl_deliver**：将对象交付给客户端。
+   - 完成请求的处理流程。
+
+9. **vcl_pipe**：处理需要管道传输的请求。
+   - 直到连接关闭，一直保持管道传输。
+
 ### Actions 动作
 
 在 VCL（Varnish Configuration Language）中，动作（Actions）是用于控制 HTTP 请求和响应处理流程的关键指令。
@@ -2124,7 +2162,7 @@ sub vcl_pipe {
              return (lookup);
          }
      }
-
+     
      sub vcl_hit {
          return (deliver);
      }
@@ -2141,7 +2179,7 @@ sub vcl_pipe {
              set beresp.uncacheable = true;
          }
      }
-
+     
      sub vcl_deliver {
          if (obj.uncacheable) {
              return (deliver);
@@ -2158,7 +2196,7 @@ sub vcl_pipe {
     sub vcl_recv {
         return (lookup);
     }
-
+    
     sub vcl_hit {
         return (deliver);
     }
@@ -2495,37 +2533,124 @@ sub setup_logging {
 
 ### vcl_recv
 
-`vcl_recv` 函数在 Varnish 接收到一个 HTTP 请求后立即被调用。它主要用于决定是否处理该请求、是否从缓存中提供响应、是否进行重定向或是否传递请求到后端服务器。
+`vcl_recv` 函数在 Varnish 接收到一个 HTTP 请求后立即被调用。它主要用于决定是否处理该请求、是否从缓存中提供响应、是否进行重定向或是否传递请求到后端服务器。一般以 `error code [reason]`、`return (pass)`,`return (pipe)`,`return (lookup)` 结束
 
-**主要功能**
-- **决定是否缓存请求**：通过设置 `return (pass)` 或 `return (lookup)` 来决定是否从缓存中查找响应。
-- **修改请求**：例如，重写 URL、添加或修改请求头。
-- **负载均衡**：选择不同的后端服务器来处理请求。
-- **阻止恶意请求**：例如，阻止特定类型的请求或 IP 地址。
+1. **决定是否处理请求**：根据请求的某些条件，决定是否继续处理该请求。
+2. **缓存控制**：指定是否从缓存中提供响应，或者是否需要从后端服务器获取新内容。
+3. **请求重定向**：根据需要进行 URL 重定向。
+4. **请求传递**：将请求直接传递到后端服务器，而不经过缓存。
+5. **修改请求**：在将请求传递到后端之前，可以修改请求的头部信息或其他属性。
 
-`vcl_recv` 是 VCL 的第一个阶段，用于处理接收到的客户端请求。在这个阶段，管理员可以：
+`vcl_recv` 函数通常以以下几种方式结束：
 
-- **修改请求**：如添加或修改请求头部信息。
-- **选择后端服务器**：根据请求的不同，选择不同的后端服务器。
-- **决定是否缓存**：如某些特定的请求不需要缓存，可以直接转发给后端服务器。
+- **`error code [reason]`**：返回一个错误响应给客户端。例如，`error 404 "Not Found"`。
+- **`return (pass)`**：指示 Varnish 不缓存该请求的响应，并直接将其传递到后端服务器。
+- **`return (pipe)`**：将请求置于管道模式，Varnish 不再干预后续的数据传输，直接在客户端和后端服务器之间传递数据。
+- **`return (lookup)`**：指示 Varnish 从缓存中查找响应。如果缓存命中，则返回缓存的响应；否则，继续传递请求到后端服务器。
+- **`return (hash)`**：根据请求生成哈希值，用于缓存查找（Varnish 4 及以上版本）。
+- **`return (synth(status, reason))`**：生成一个合成响应（synthetic response），例如重定向或自定义错误页面。
 
-**示例**
+以下是一个示例 `vcl_recv` 配置，展示了如何根据不同的条件处理请求：
+
 ```vcl
 sub vcl_recv {
-    # 修改请求头部
-    set req.http.X-Forwarded-For = client.ip;
+    # 移除跟踪参数以提高缓存命中率
+    if (req.url ~ "(\?|&)(utm_source|utm_medium|utm_campaign|gclid|cx|ie)=([^&]+)") {
+        set req.url = regsuball(req.url, "((\?)?|&)(utm_source|utm_medium|utm_campaign|gclid|cx|ie)=([^&]+)", "\1");
+        set req.url = regsub(req.url, "(\?|&)$", "");
+    }
 
-    # 某些特定请求不缓存
-    if (req.url ~ "^/admin/") {
+    # 处理带有特定 Cookie 的请求，不缓存
+    if (req.http.Cookie ~ "user_logged_in") {
         return (pass);
     }
 
-    # 选择后端服务器
-    if (req.http.host ~ "example.com") {
-        set req.backend_hint = backend_example;
-    } else {
-        set req.backend_hint = backend_default;
+    # 强制 HTTPS
+    if (req.http.X-Forwarded-Proto !~ "(?i)https") {
+        return (synth(301, "https://" + req.http.Host + req.url));
     }
+
+    # 缓存所有 GET 和 HEAD 请求
+    if (req.method != "GET" && req.method != "HEAD") {
+        return (pass);
+    }
+
+    # 允许缓存静态内容
+    if (req.url ~ "\.(css|js|png|gif|jpg|jpeg|ico|svg|woff|woff2|ttf|eot)$") {
+        return (lookup);
+    }
+
+    # 默认行为：查找缓存
+    return (lookup);
+}
+```
+
+1. **移除跟踪参数**：通过正则表达式匹配并移除 URL 中的跟踪参数（如 `utm_source`），以提高缓存命中率。
+2. **处理特定 Cookie**：如果请求中包含 `user_logged_in` 的 Cookie，则不缓存该请求，直接传递到后端服务器。
+3. **强制 HTTPS**：如果请求不是通过 HTTPS 发起的，则返回 301 重定向响应，强制使用 HTTPS。
+4. **缓存控制**：
+   - 对于非 GET 和 HEAD 方法的请求，不缓存，直接传递到后端服务器。
+   - 对于静态内容的请求（如 CSS、JS、图片等），尝试从缓存中查找响应。
+   - 其他请求默认尝试从缓存中查找响应。
+
+**常见使用场景**
+
+- **缓存策略**：根据 URL 路径、请求方法、Cookie 等条件决定是否缓存响应。
+- **安全增强**：移除或修改请求头，防止安全漏洞，如 HTTP 头部注入。
+- **性能优化**：通过移除不必要的请求参数或头信息，减少带宽使用和服务器负载。
+- **重定向管理**：实现内部或外部的重定向规则。
+- **负载均衡**：根据请求的属性，将请求分发到不同的后端服务器。
+
+**注意事项**
+
+- **VCL 版本差异**：不同版本的 Varnish 在 VCL 语法和功能上可能有所不同。例如，Varnish 4 引入了 `return (hash)`，而 Varnish 3 使用 `return (lookup)`。
+- **调试与测试**：在修改 `vcl_recv` 配置后，建议使用 Varnish 的调试工具或日志功能进行测试，以确保配置按预期工作。
+- **性能影响**：复杂的 VCL 配置可能会影响 Varnish 的性能，特别是在高并发环境下。因此，应尽量保持配置简洁高效。
+
+### vcl_pipe
+
+`vcl_pipe` 是 Varnish 中的一个子程序，用于处理进入 `pipe` 模式的请求。在这个模式下，请求会被直接传递到后端服务器，而不进行任何缓存处理。
+
+- **直接传递请求**：当请求进入 `pipe` 模式时，`vcl_pipe` 子程序被调用，Varnish 将请求直接传递给后端服务器。
+- **透明传输数据**：在连接关闭之前，无论是客户端还是后端服务器的数据，都会通过 Varnish 进行透明传输。这意味着 Varnish 不干预数据的传输，只作为一个通道。
+- **不适合缓存的请求**：适用于无法缓存的请求，例如长时间的流媒体数据或需要保持连接的请求。
+- **保持连接**：当需要保持客户端和服务器之间的连接时，可以使用 `pipe` 模式。
+
+`vcl_pipe` 子程序通常以下列关键字结束：
+- **`error code [reason]`**：返回一个错误响应给客户端。例如，`error 502 "Bad Gateway"`。
+- **`pipe`**：继续以 `pipe` 模式运行，保持客户端和后端服务器之间的数据传输通道。
+
+以下是一个简单的 `vcl_pipe` 配置示例：
+
+```vcl
+sub vcl_pipe {
+    # 在这里可以添加自定义逻辑，例如日志记录或请求修改
+    return (pipe);
+}
+```
+
+### vcl_pass
+
+`vcl_pass` 是 Varnish 中的一个子程序，用于处理进入 `pass` 模式的请求。在这个模式下，请求会被直接传递到后端服务器，后端服务器的响应也会被直接传递给客户端，但不会被缓存。
+
+- **直接传递请求**：当请求进入 `pass` 模式时，`vcl_pass` 子程序被调用，Varnish 将请求直接传递给后端服务器。
+- **不缓存响应**：后端服务器的响应会被直接传递给客户端，但不会被 Varnish 缓存。
+- **后续请求处理**：来自相同客户端的后续请求将按照正常的缓存策略进行处理，不会因为之前的 `pass` 请求而受到影响。
+
+- **不适合缓存的请求**：适用于需要实时处理但不希望缓存的请求，例如需要动态生成内容的请求。
+- **调试和测试**：在调试和测试过程中，可以使用 `pass` 模式来绕过缓存，直接查看后端服务器的响应。
+
+`vcl_pass` 子程序通常以下列关键字结束：
+- **`error code [reason]`**：返回一个错误响应给客户端。例如，`error 502 "Bad Gateway"`。
+- **`pass`**：继续以 `pass` 模式运行，保持客户端和后端服务器之间的数据传输通道。
+- **`restart`**：重启当前事务，增加重启计数器的计数。如果重启次数超过 `max_restarts`，Varnish 会发出一个错误。
+
+以下是一个简单的 `vcl_pass` 配置示例：
+
+```vcl
+sub vcl_pass {
+    # 在这里可以添加自定义逻辑，例如日志记录或请求修改
+    return (pass);
 }
 ```
 
@@ -2726,6 +2851,10 @@ sub vcl_backend_error {
     return (deliver);
 }
 ```
+
+## 变量
+
+由于子程序没有参数，子进程必须通过全局变量来处理。
 
 
 
@@ -4395,7 +4524,7 @@ sub vcl_backend_response {
    sub vcl_backend_response {
        set beresp.grace = 24h;
    }
-
+   
    sub vcl_recv {
        if (std.healthy(req.backend_hint)) {
            set req.grace = 10s;
