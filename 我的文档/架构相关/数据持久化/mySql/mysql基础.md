@@ -1046,6 +1046,293 @@ MySQL 的 JSON 数据类型和虚拟列为开发者提供了强大的工具来�
 - [MySQL 官方文档 - JSON 函数](https://dev.mysql.com/doc/refman/8.0/en/json-function-reference.html)
 - [MySQL 官方文档 - Generated Columns](https://dev.mysql.com/doc/refman/8.0/en/create-table-generated-columns.html) 
 
+# 窗口函数
+
+窗口函数（Window Functions）是 SQL 中一种强大的工具，用于在查询结果集上进行复杂的计算和分析。与传统的聚合函数不同，窗口函数不会将结果集缩减为一行，而是对每一行都生成一个结果，同时考虑与该行相关的其他行（即“窗口”）。MySQL 从 8.0 版本开始支持窗口函数，这为数据分析和复杂查询提供了极大的便利。
+
+本文将详细介绍 MySQL 窗口函数的概念、语法、常用函数以及实际应用示例。
+
+## 1. 窗口函数概述
+
+窗口函数允许在查询结果集的每一行上执行计算，同时可以访问与当前行相关的一组行（即“窗口”）。这使得窗口函数非常适合用于以下场景：
+
+- **排名和排序**：如计算行号、排名、百分比排名等。
+- **聚合分析**：如计算累计和、移动平均等。
+- **比较和差异分析**：如计算当前行与前一行的差异等。
+
+## 2. 窗口函数的基本语法
+
+窗口函数的语法结构如下：
+
+```sql
+SELECT
+    column1,
+    column2,
+    window_function() OVER (
+        [PARTITION BY partition_expression]
+        [ORDER BY order_expression]
+        [frame_clause]
+    ) AS alias
+FROM
+    table_name;
+```
+
+### 组成部分说明：
+
+- **window_function()**：具体的窗口函数，如 `ROW_NUMBER()`, `RANK()`, `SUM()` 等。
+- **OVER 子句**：定义窗口的范围和规则。
+  - **PARTITION BY**：将结果集划分为多个分区，窗口函数在每个分区上独立计算。
+  - **ORDER BY**：定义分区内的排序顺序，影响窗口函数的行为。
+  - **frame_clause**（可选）：定义窗口的框架范围，用于滑动窗口等高级功能。
+
+## 3. 常用窗口函数
+
+### 3.1 排名函数
+
+- **ROW_NUMBER()**：为分区内的每一行分配一个唯一的顺序号。
+  
+  ```sql
+  SELECT
+      employee_id,
+      salary,
+      ROW_NUMBER() OVER (ORDER BY salary DESC) AS salary_rank
+  FROM
+      employees;
+  ```
+
+- **RANK()**：为分区内的每一行分配一个排名，如果存在相同的值，则排名相同，后续排名会跳过。
+  
+  ```sql
+  SELECT
+      employee_id,
+      salary,
+      RANK() OVER (ORDER BY salary DESC) AS salary_rank
+  FROM
+      employees;
+  ```
+
+- **DENSE_RANK()**：与 `RANK()` 类似，但即使存在相同的值，后续排名也不会跳过。
+  
+  ```sql
+  SELECT
+      employee_id,
+      salary,
+      DENSE_RANK() OVER (ORDER BY salary DESC) AS salary_rank
+  FROM
+      employees;
+  ```
+
+### 3.2 聚合函数
+
+- **SUM() OVER()**：计算累计总和。
+  
+  ```sql
+  SELECT
+      order_id,
+      amount,
+      SUM(amount) OVER (ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+  FROM
+      orders;
+  ```
+
+- **AVG() OVER()**：计算移动平均。
+  
+  ```sql
+  SELECT
+      order_id,
+      amount,
+      AVG(amount) OVER (ORDER BY order_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_average
+  FROM
+      orders;
+  ```
+
+- **COUNT() OVER()**：计算分区内的行数。
+  
+  ```sql
+  SELECT
+      department_id,
+      employee_id,
+      COUNT(*) OVER (PARTITION BY department_id) AS employee_count
+  FROM
+      employees;
+  ```
+
+### 3.3 偏移函数
+
+- **LAG()**：获取当前行之前的某一行数据。
+  
+  ```sql
+  SELECT
+      order_id,
+      order_date,
+      amount,
+      LAG(amount) OVER (ORDER BY order_date) AS previous_amount
+  FROM
+      orders;
+  ```
+
+- **LEAD()**：获取当前行之后的某一行数据。
+  
+  ```sql
+  SELECT
+      order_id,
+      order_date,
+      amount,
+      LEAD(amount) OVER (ORDER BY order_date) AS next_amount
+  FROM
+      orders;
+  ```
+
+- **FIRST_VALUE()** 和 **LAST_VALUE()**：获取窗口内的第一个和最后一个值。
+  
+  ```sql
+  SELECT
+      order_id,
+      order_date,
+      amount,
+      FIRST_VALUE(amount) OVER (ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS first_amount,
+      LAST_VALUE(amount) OVER (ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING) AS last_amount
+  FROM
+      orders;
+  ```
+
+### 3.4 其他函数
+
+- **NTILE()**：将分区内的行分配到指定数量的桶中。
+  
+  ```sql
+  SELECT
+      employee_id,
+      salary,
+      NTILE(4) OVER (ORDER BY salary DESC) AS quartile
+  FROM
+      employees;
+  ```
+
+- **CUME_DIST()**：计算累计分布值。
+  
+  ```sql
+  SELECT
+      employee_id,
+      salary,
+      CUME_DIST() OVER (ORDER BY salary DESC) AS cumulative_distribution
+  FROM
+      employees;
+  ```
+
+## 4. 窗口函数的实际应用示例
+
+### 4.1 计算累计总和
+
+假设有一个销售订单表 `orders`，包含 `order_id`, `order_date`, `amount` 等字段。我们希望计算每个订单的累计销售总额。
+
+```sql
+SELECT
+    order_id,
+    order_date,
+    amount,
+    SUM(amount) OVER (ORDER BY order_date ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running_total
+FROM
+    orders;
+```
+
+### 4.2 计算移动平均
+
+计算每个订单前后两天的平均销售额。
+
+```sql
+SELECT
+    order_id,
+    order_date,
+    amount,
+    AVG(amount) OVER (ORDER BY order_date ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_average
+FROM
+    orders;
+```
+
+### 4.3 排名与分位数
+
+将员工按薪水排名，并分配到不同的分位数中。
+
+```sql
+SELECT
+    employee_id,
+    salary,
+    RANK() OVER (ORDER BY salary DESC) AS salary_rank,
+    NTILE(5) OVER (ORDER BY salary DESC) AS salary_quintile
+FROM
+    employees;
+```
+
+### 4.4 偏移分析
+
+比较当前订单金额与前一个订单金额的差异。
+
+```sql
+SELECT
+    order_id,
+    order_date,
+    amount,
+    LAG(amount) OVER (ORDER BY order_date) AS previous_amount,
+    amount - LAG(amount) OVER (ORDER BY order_date) AS difference
+FROM
+    orders;
+```
+
+## 5. 窗口函数的高级用法
+
+### 5.1 分区与排序
+
+通过 `PARTITION BY` 和 `ORDER BY` 的结合，可以实现更复杂的分析。例如，计算每个部门的累计销售额。
+
+```sql
+SELECT
+    department_id,
+    employee_id,
+    salary,
+    SUM(salary) OVER (PARTITION BY department_id ORDER BY employee_id) AS department_running_total
+FROM
+    employees;
+```
+
+### 5.2 滑动窗口
+
+使用 `ROWS BETWEEN` 子句定义窗口的框架范围，实现滑动窗口。例如，计算每个订单前后两天的销售额总和。
+
+```sql
+SELECT
+    order_id,
+    order_date,
+    amount,
+    SUM(amount) OVER (ORDER BY order_date ROWS BETWEEN 1 PRECEDING AND 1 FOLLOWING) AS sliding_sum
+FROM
+    orders;
+```
+
+### 5.3 窗口框架
+
+窗口框架定义了窗口函数在当前行周围的作用范围。可以使用以下方式定义：
+
+- **ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW**：从分区的第一行到当前行。
+- **ROWS BETWEEN CURRENT ROW AND UNBOUNDED FOLLOWING**：从当前行到分区的最后一行。
+- **ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING**：当前行前后两行。
+
+```sql
+SELECT
+    order_id,
+    order_date,
+    amount,
+    AVG(amount) OVER (ORDER BY order_date ROWS BETWEEN 2 PRECEDING AND 2 FOLLOWING) AS average_amount
+FROM
+    orders;
+```
+
+## 6. 注意事项
+
+1. **性能考虑**：窗口函数在处理大数据集时可能会影响性能，特别是在没有适当索引的情况下。因此，在使用窗口函数时，应确保相关列有适当的索引。
+2. **MySQL 版本**：窗口函数在 MySQL 8.0 及以上版本中可用。如果使用较低版本，可以考虑升级或使用其他替代方法（如子查询或自连接）。
+3. **窗口函数顺序**：窗口函数在 `SELECT` 语句中的执行顺序通常在 `ORDER BY` 之前，但在 `WHERE`, `GROUP BY` 和 `HAVING` 之后。因此，无法在窗口函数中使用 `WHERE` 子句中的别名。
+
 
 
 
