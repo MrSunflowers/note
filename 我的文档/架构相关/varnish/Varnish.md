@@ -2882,13 +2882,459 @@ sub vcl_backend_error {
 
 例如，可以通过检查`obj.ttl`来决定是否提供缓存的响应，或者通过读取`obj.http.Content-Type`来决定如何处理缓存的内容。
 
+### 内置变量
+
+#### 通用变量
+
+- **now**：这是一个表示当前时间的变量。在VCL中，你可以使用这个变量来执行一些基于时间的操作，比如设置TTL（Time-To-Live）或者记录请求的时间戳。
+
+#### 在backend中有效的变量
+- **.host**：这个变量用于指定backend的主机名或者IP地址。通过设置这个变量，你可以定义Varnish应该连接到哪个后端服务器来获取内容。
+  
+  ```vcl
+  backend default {
+      .host = "127.0.0.1";
+      .port = "8080";
+  }
+  ```
+
+- **.port**：这个变量用于指定backend的服务名或者端口号。结合.host，你可以精确定义Varnish如何连接到后端服务器。
+
+#### 在处理请求时有效的变量
+- **client.ip**：这个变量包含了客户端的IP地址。通过这个变量，你可以根据客户端的地理位置或者IP地址段来做出不同的缓存策略。
+  
+  ```vcl
+  if (client.ip ~ "192.168.0.0/16") {
+      // 特定的缓存策略
+  }
+  ```
+
+- **client.identity**：这个变量用于标识客户端，特别是在使用负载均衡的时候。通过这个变量，可以针对不同的客户端应用不同的策略。
+  
+  ```vcl
+  set req.http.X-Client-Id = client.identity;
+  ```
+
+- **server.hostname**：这个变量包含了Varnish服务器的主机名。这对于日志记录或者调试非常有帮助，因为你可以通过它来识别是哪一台服务器处理了请求。
+  
+  ```vcl
+  std.log("Handling request on " + server.hostname);
+  ```
+
+- **server.identity**：这个变量用于设置Varnish服务器的身份。如果没有通过-i参数传递给varnishd，server.identity将自动为varnishd实例设置名字。
+  
+  ```vcl
+  set server.identity = "cache-01";
+  ```
+
+- **server.ip**：这个变量包含了客户端连接到的Varnish服务器的IP地址。这对于识别和处理特定的服务器实例非常有用。
+  
+  ```vcl
+  std.log("Client connected to IP: " + server.ip);
+  ```
+
+- **server.port**：这个变量包含了客户端连接到的Varnish服务器的端口号。结合server.ip，你可以全面了解请求的入口点。
+  
+  ```vcl
+  std.log("Client connected on port: " + server.port);
+  ```
+
+- **req.request**：这个变量表示HTTP请求的类型，比如“GET”，“HEAD”，“POST”等。你可以根据请求的类型来决定如何处理请求。
+  
+  ```vcl
+  if (req.request == "GET") {
+      // 处理GET请求
+  }
+  ```
 
 
+req.proto
+- **客户端的Http协议**：这个变量包含了客户端使用的HTTP协议版本，比如HTTP/1.0或者HTTP/1.1。通过这个变量，你可以根据不同的协议版本采取不同的处理策略。
+
+  ```vcl
+  if (req.proto ~ "HTTP/1.0") {
+      // 针对HTTP/1.0请求的特殊处理
+  }
+  ```
+
+req.url
+- **请求的URL**：这个变量包含了客户端请求的完整URL。通过这个变量，可以对不同的URL应用不同的缓存策略。例如，可以针对特定的URL路径设置不同的TTL。
+
+  ```vcl
+  if (req.url ~ "^/static/") {
+      set beresp.ttl = 1h;
+  }
+  ```
+
+req.backend
+- **使用哪个后端服务器为这个请求提供服务**：这个变量指定了应该使用哪个后端服务器来处理请求。可以根据不同的条件动态地选择后端服务器。
+
+  ```vcl
+  if (req.url ~ "^/api/") {
+      set req.backend = api_backend;
+  } else {
+      set req.backend = default_backend;
+  }
+  ```
+
+req.backend.healthy
+- **后端服务器是否健康**：这个变量用来检查后端服务器的健康状态。如果后端服务器不健康，可以采取相应的措施，比如使用备用服务器。
+
+  ```vcl
+  if (!req.backend.healthy) {
+      set req.backend = backup_backend;
+  }
+  ```
+
+req.http.header
+- **对应的HTTP头**：这个变量用来访问请求中的HTTP头信息。通过这个变量，可以对特定的HTTP头进行操作，比如修改或者检查头信息。这里的header指的是请求头的名称，比如 `req.http.请求头中的某个属性`
+
+  ```vcl
+  if (req.http.Cookie ~ "session_id=") {
+      // 针对包含session_id的Cookie的处理
+  }
+  ```
+
+req.hash_always_miss
+- **强制本次请求的缓存失效**：如果设置为true，那么即使请求的URL已经被缓存，也会强制从后端服务器获取新的内容。
+
+  ```vcl
+  set req.hash_always_miss = true;
+  ```
+
+req.hash_ignore_busy
+- **当lookup缓存的时候，忽略busy的对象**：这个变量用来忽略那些标记为busy的缓存对象，避免在缓存查找时等待busy对象。
+
+  ```vcl
+  set req.hash_ignore_busy = true;
+  ```
+
+req.can_gzip
+- **设置能使用gzip**：这个变量用来指示是否可以接受gzip压缩的内容。如果设置为true，Varnish会尝试获取gzip压缩的内容。
+
+  ```vcl
+  set req.can_gzip = true;
+  ```
+
+req.restarts
+- **设置最大的重启次数**：这个变量用来设置请求重启的最大次数。当请求处理失败时，可以通过重启来处理。
+
+  ```vcl
+  if (req.restarts == 0 && req.request == "GET") {
+      // 处理重启逻辑
+  }
+  ```
+
+req.esi
+- **设置是否支持ESI，今后会改变，建议不要使用**：这个变量用来指示是否支持ESI（Edge Side Includes）。ESI是一种用于动态内容的边缘计算技术。
+
+  ```vcl
+  set req.esi = false;
+  ```
+
+req.esi_level
+- **设置ESI的level**：这个变量用来设置ESI处理的层级深度。
+
+  ```vcl
+  set req.esi_level = 5;
+  ```
+
+req.grace
+- **设置对象被保持的时间**：这个变量用来设置缓存对象的grace时间，即使缓存对象过期，也可以在一定时间内继续使用。
+
+  ```vcl
+  set req.grace = 15m;
+  ```
+
+req.xid
+- **请求的唯一id**：这个变量包含了请求的唯一标识符。通过这个变量，可以对特定的请求进行追踪和分析。
+
+  ```vcl
+  std.log("Handling request with XID: " + req.xid);
+  ```
+
+#### 访问backend时使用的变量
+
+bereq.request
+- **请求的类型**：这个变量表示发送到backend的请求类型，比如“GET”，“HEAD”等。通过这个变量，可以根据不同的请求类型采取不同的处理策略。
+
+  ```vcl
+  if (bereq.request == "GET") {
+      // 针对GET请求的处理
+  }
+  ```
+
+bereq.url
+- **请求的URL**：这个变量包含了发送到backend的请求的完整URL。通过这个变量，可以对不同的URL应用不同的处理策略。
+
+  ```vcl
+  if (bereq.url ~ "^/api/") {
+      // 针对/api路径的处理
+  }
+  ```
+
+bereq.proto
+- **请求的协议**：这个变量表示发送到backend的请求的协议版本，比如HTTP/1.0或者HTTP/1.1。通过这个变量，可以根据不同的协议版本采取不同的处理策略。
+
+  ```vcl
+  if (bereq.proto ~ "HTTP/1.0") {
+      // 针对HTTP/1.0协议的处理
+  }
+  ```
+
+bereq.http.header
+- **请求的HTTP头**：这个变量用来访问发送到backend的请求中的HTTP头信息。通过这个变量，可以对特定的HTTP头进行操作，比如修改或者检查头信息。
+
+  ```vcl
+  if (bereq.http.Cookie ~ "session_id=") {
+      // 针对包含session_id的Cookie的处理
+  }
+  ```
+
+bereq.connect_timeout
+- **等待后端服务器响应的时间**：这个变量设置了Varnish等待backend响应的时间。如果backend在规定时间内没有响应，Varnish会认为请求超时。
+
+  ```vcl
+  set bereq.connect_timeout = 5s;
+  ```
+
+bereq.first_byte_timeout
+- **等待接收第一个字节的等待时间**：这个变量设置了Varnish等待接收backend响应的第一个字节的时间。pipe模式下无效。
+
+  ```vcl
+  set bereq.first_byte_timeout = 30s;
+  ```
+
+bereq.between_bytes_timeout
+- **两次从后端服务器接收到字节的间隔**：这个变量设置了Varnish在接收backend响应时，两次接收字节之间的最大间隔时间。pipe模式下无效。
+
+  ```vcl
+  set bereq.between_bytes_timeout = 15s;
+  ```
+
+#### 从backend获取响应后但尚未进入缓存时使用的变量
+
+这张图片介绍了在VCL（Varnish Configuration Language）中，从backend获取响应后但尚未进入缓存时使用的变量。这些变量可以在`vcl_fetch`子程序中使用。
+
+beresp.do_stream
+- **对缓存直接返回给客户端，不会缓存**：这个变量指示Varnish直接将响应返回给客户端，而不进行缓存。在Varnish 3中，这类响应会被标记为busy。
+
+  ```vcl
+  if (beresp.http.content-type ~ "video/mp4") {
+      set beresp.do_stream = true;
+  }
+  ```
+
+beresp.do_esi
+- **是否进行ESI处理**：这个变量指示Varnish是否要对响应内容进行ESI（Edge Side Includes）处理。ESI是一种用于动态内容的边缘计算技术。
+
+  ```vcl
+  set beresp.do_esi = true;
+  ```
+
+beresp.do_gzip
+- **是否在存储前Gzip压缩**：这个变量指示Varnish是否要在存储响应之前对内容进行Gzip压缩。
+
+  ```vcl
+  set beresp.do_gzip = true;
+  ```
+
+beresp.do_gunzip
+- **是否在存储前解压缩**：这个变量指示Varnish是否要在存储响应之前对内容进行解压缩。
+
+  ```vcl
+  set beresp.do_gunzip = true;
+  ```
+
+beresp.http.header
+- **HTTP头**：这个变量用于访问从backend获取的HTTP响应头信息。通过这个变量，可以对特定的HTTP头进行操作，比如修改或者检查头信息。
+
+  ```vcl
+  if (beresp.http.X-Cache-Status ~ "HIT") {
+      // 针对HIT响应的处理
+  }
+  ```
+
+beresp.proto
+- **HTTP的协议**：这个变量表示从backend获取的响应的HTTP协议版本，比如HTTP/1.0或者HTTP/1.1。通过这个变量，可以根据不同的协议版本采取不同的处理策略。
+
+  ```vcl
+  if (beresp.proto ~ "HTTP/1.0") {
+      // 针对HTTP/1.0协议的处理
+  }
+  ```
+
+beresp.status
+- **HTTP的状态码**：这个变量包含了从backend获取到的HTTP响应的状态码，比如200（成功）、404（未找到）等。通过这个变量，可以根据不同的状态码采取不同的处理策略。
+
+  ```vcl
+  if (beresp.status == 200) {
+      // 针对200状态码的处理
+  }
+  ```
+
+beresp.response
+- **服务端返回的状态消息**：这个变量包含了从backend获取到的HTTP响应的状态消息，比如“OK”、“Not Found”等。结合状态码，可以更好地理解响应的含义。
+
+  ```vcl
+  if (beresp.response ~ "OK") {
+      // 针对状态消息为OK的处理
+  }
+  ```
+
+beresp.ttl
+- **对象保存的时间**：这个变量用于设置缓存对象的TTL（Time-To-Live），即对象在缓存中可以保存的时间。通过调整TTL，可以控制缓存的有效期。
+
+  ```vcl
+  set beresp.ttl = 1h;  // 设置缓存对象的TTL为1小时
+  ```
+
+beresp.grace
+- **对象grace保存的时间**：这个变量用于设置缓存对象的grace时间，即使缓存对象过期，也可以在一定时间内继续使用。这对于处理后端服务器短暂不可用的情况非常有用。
+
+  ```vcl
+  set beresp.grace = 15m;  // 设置grace时间为15分钟
+  ```
+
+beresp.saintmode
+- **saint模式持续的时间**：这个变量用于设置saint模式持续的时间。saint模式是一种容错机制，当后端服务器返回错误时，可以在一段时间内避免请求该服务器。
+
+  ```vcl
+  set beresp.saintmode = 10m;  // 设置saint模式持续时间为10分钟
+  ```
+
+beresp.backend.name
+- **response的backend的名字**：这个变量包含了处理请求的后端服务器的名字。通过这个变量，可以识别是哪一个后端服务器返回的响应。
+
+  ```vcl
+  std.log("Response from backend: " + beresp.backend.name);
+  ```
+
+beresp.backend.ip
+- **response的backend的IP地址**：这个变量包含了处理请求的后端服务器的IP地址。结合backend.name，可以更精确地定位后端服务器。
+
+  ```vcl
+  std.log("Backend IP: " + beresp.backend.ip);
+  ```
+
+beresp.backend.port
+- **response的backend的端口**：这个变量包含了处理请求的后端服务器的端口号。结合backend.ip，可以全面了解后端服务器的信息。
+
+  ```vcl
+  std.log("Backend port: " + beresp.backend.port);
+  ```
+
+beresp.storage
+- **强制Varnish保存这个对象**：这个变量用于指定缓存对象的存储方式。通过设置这个变量，可以控制Varnish如何存储缓存对象。
+
+  ```vcl
+  set beresp.storage = "malloc, 1G";  // 使用malloc存储，并限制大小为1G
+  ```
 
 
+#### 请求目标被成功地从后端服务器或者缓存中获取后有效的变量
 
+这张图片介绍了在VCL（Varnish Configuration Language）中，当请求目标被成功地从后端服务器或者缓存中获取后有效的变量。即 vcl_deliver
 
+obj.proto
+- **返回请求目标的HTTP版本**：这个变量包含了从后端服务器或者缓存中获取到的响应的HTTP版本，比如HTTP/1.0或者HTTP/1.1。通过这个变量，可以根据不同的协议版本采取不同的处理策略。
 
+  ```vcl
+  if (obj.proto ~ "HTTP/1.0") {
+      // 针对HTTP/1.0协议的处理
+  }
+  ```
+
+obj.status
+- **服务器返回的HTTP状态码**：这个变量包含了从后端服务器或者缓存中获取到的HTTP响应的状态码，比如200（成功）、404（未找到）等。通过这个变量，可以根据不同的状态码采取不同的处理策略。
+
+  ```vcl
+  if (obj.status == 200) {
+      // 针对200状态码的处理
+  }
+  ```
+
+obj.response
+- **服务器返回的HTTP状态信息**：这个变量包含了从后端服务器或者缓存中获取到的HTTP响应的状态信息，比如“OK”、“Not Found”等。结合状态码，可以更好地理解响应的含义。
+
+  ```vcl
+  if (obj.response ~ "OK") {
+      // 针对状态消息为OK的处理
+  }
+  ```
+
+obj.ttl
+- **目标的剩余生存时间，以秒为单位**：这个变量用于获取缓存对象的TTL（Time-To-Live），即对象在缓存中可以保存的时间。通过这个变量，可以判断缓存对象是否即将过期。
+
+  ```vcl
+  if (obj.ttl < 300) {
+      // 缓存对象剩余时间少于5分钟的处理
+  }
+  ```
+
+obj.lastuse
+- **最后一个请求后，过去的时间，以秒为单位**：这个变量包含了自最后一个请求以来所经过的时间，单位为秒。通过这个变量，可以判断缓存对象的活跃程度。
+
+  ```vcl
+  if (obj.lastuse > 600) {
+      // 缓存对象超过10分钟未使用时的处理
+  }
+  ```
+
+obj.hits
+- **大概的delivered次数，如果为0，表明缓存出错**：这个变量包含了缓存对象被成功交付的次数。如果这个值为0，可能表明缓存对象存在问题。
+
+  ```vcl
+  if (obj.hits == 0) {
+      // 缓存对象未被成功交付的处理
+  }
+  ```
+
+obj.grace
+- **对象grace的存活时间**：这个变量用于获取缓存对象的grace时间，即即使缓存对象过期，也可以在一定时间内继续使用的时间长度。
+
+  ```vcl
+  if (obj.grace > 900) {
+      // grace时间超过15分钟的处理
+  }
+  ```
+
+obj.http.header
+- **HTTP头**：这个变量用于访问从后端服务器或者缓存中获取到的HTTP响应头信息。通过这个变量，可以对特定的HTTP头进行操作，比如修改或者检查头信息。
+
+  ```vcl
+  if (obj.http.Content-Type ~ "text/html") {
+      // 针对Content-Type为text/html的处理
+  }
+  ```
+
+#### 在目标hash key以后有效的变量
+- **req.hash**: 这个变量和缓存中的目标相关，在读出和写入缓存时使用。通过设置req.hash，可以定义缓存的hash key，从而影响缓存的行为。
+
+#### 在准备响应客户端时使用的变量
+- **resp.proto**: 这个变量表示准备响应的HTTP协议版本，比如HTTP/1.0或者HTTP/1.1。通过这个变量，可以指定返回给客户端的HTTP版本。
+
+  ```vcl
+  set resp.proto = "HTTP/1.1";
+  ```
+
+- **resp.status**: 这个变量用于设置返回给客户端的HTTP状态码，比如200（成功）、404（未找到）等。通过这个变量，可以控制HTTP响应的状态。
+
+  ```vcl
+  set resp.status = 200;
+  ```
+
+- **resp.response**: 这个变量用于设置返回给客户端的HTTP状态信息，比如“OK”、“Not Found”等。结合状态码，可以更好地传达响应的含义。
+
+  ```vcl
+  set resp.response = "OK";
+  ```
+
+- **resp.http.header**: 这个变量用于设置通信的HTTP头信息。通过这个变量，可以添加、修改或者删除HTTP响应头。
+
+  ```vcl
+  set resp.http.Content-Type = "text/html; charset=utf-8";
+  ```
 
 ## VCL 调试与日志
 
@@ -2908,6 +3354,231 @@ sub vcl_recv {
     std.log("User-Agent: " + req.http.User-Agent);
 }
 ```
+
+## 常见应用片段
+
+### 设置 HTTP 头
+
+这段代码是用于Varnish Cache的VCL（Varnish Configuration Language）配置的一部分。它的目的是根据客户端的设备类型设置不同的HTTP头部参数。具体来说，这段代码做了以下事情：
+
+1. 定义了一个名为`vcl_recv`的子程序，这个子程序在Varnish收到请求时执行。
+2. 使用`if`语句检查请求的`User-Agent`头部是否包含"iPad"、"iPhone"或"Android"。
+3. 如果`User-Agent`包含这些字符串中的任何一个，就设置请求的`X-Device`头部为"mobile"，表示这是一个移动设备。
+4. 如果`User-Agent`不包含这些字符串，就设置请求的`X-Device`头部为"desktop"，表示这是一个桌面设备。
+
+完整的代码如下：
+
+```vcl
+sub vcl_recv {
+    if (req.http.User-Agent ~ "iPad" ||
+        req.http.User-Agent ~ "iPhone" ||
+        req.http.User-Agent ~ "Android") {
+        set req.http.X-Device = "mobile";
+    } else {
+        set req.http.X-Device = "desktop";
+    }
+}
+```
+
+### 取消对路径`/images`的请求中的cookie
+
+这段VCL（Varnish Configuration Language）代码的目的是取消对路径`/images`的请求中的cookie。代码如下：
+
+```vcl
+sub vcl_recv {
+    if (req.url ~ "^/images") {
+        unset req.http.cookie;
+    }
+}
+```
+
+解释：
+1. `sub vcl_recv { ... }`：定义一个名为`vcl_recv`的子程序，这个子程序在Varnish收到请求时执行。
+2. `if (req.url ~ "^/images") { ... }`：检查请求的URL是否以`/images`开头。如果是，则执行大括号内的代码。
+3. `unset req.http.cookie;`：取消请求中的cookie头部。
+
+这样配置后，所有对`/images`路径的请求将不会携带cookie。
+
+### 通过 ACL 控制可以访问的地址
+
+这段VCL（Varnish Configuration Language）代码的作用是通过ACL（访问控制列表）来控制能够执行PURGE请求的IP地址。以下是代码的详细解释：
+
+```vcl
+// 定义一个名为local的ACL，控制允许访问的IP地址
+acl local {
+    "localhost";  // 允许本地主机访问
+    "192.168.1.0"/24;  // 允许本地网络中的所有IP地址访问
+    !"192.168.1.23";  // 禁止拨号路由器的IP地址访问
+}
+
+sub vcl_recv {
+    // 如果请求方法是PURGE
+    if (req.request == "PURGE") {
+        // 检查客户端IP是否在local ACL中
+        if (client.ip ~ local) {
+            // 如果在local ACL中，则进行缓存查找
+            return (lookup);
+        }
+    }
+}
+
+sub vcl_hit {
+    // 如果请求方法是PURGE并且缓存命中
+    if (req.request == "PURGE") {
+        // 将对象的TTL设置为0秒
+        set obj.ttl = 0s;
+        // 返回200状态码和"Purged."消息
+        error 200 "Purged.";
+    }
+}
+
+sub vcl_miss {
+    // 如果请求方法是PURGE并且缓存未命中
+    if (req.request == "PURGE") {
+        // 返回404状态码和"Not in cache."消息
+        error 404 "Not in cache.";
+    }
+}
+```
+
+详细解释：
+
+1. **ACL定义**：
+   - `acl local { ... }`：定义一个名为`local`的访问控制列表，包含允许访问的IP地址。
+   - `"localhost"`：允许本地主机访问。
+   - `"192.168.1.0"/24`：允许本地网络中的所有IP地址访问。
+   - `!"192.168.1.23"`：禁止拨号路由器的IP地址访问。
+
+2. **`vcl_recv`子程序**：
+   - `if (req.request == "PURGE") { ... }`：检查请求的方法是否为`PURGE`。
+   - `if (client.ip ~ local) { ... }`：如果客户端IP在`local` ACL中，则执行缓存查找。
+
+3. **`vcl_hit`子程序**：
+   - `if (req.request == "PURGE") { ... }`：如果请求的方法是`PURGE`且缓存命中。
+   - `set obj.ttl = 0s;`：将对象的TTL（生存时间）设置为0秒，即删除缓存。
+   - `error 200 "Purged.";`：返回200状态码和"Purged."消息。
+
+4. **`vcl_miss`子程序**：
+   - `if (req.request == "PURGE") { ... }`：如果请求的方法是`PURGE`且缓存未命中。
+   - `error 404 "Not in cache.";`：返回404状态码和"Not in cache."消息。
+
+这段代码的主要目的是通过控制PURGE请求的访问权限，确保只有特定的IP地址可以清除缓存，从而提高安全性。
+
+### 修改从后台服务器返回的对象的TTL
+
+这段VCL（Varnish Configuration Language）代码的目的是修改从后台服务器返回的对象的TTL（生存时间），特别是针对图片文件（PNG、GIF、JPG）。以下是代码的详细解释：
+
+```vcl
+sub vcl_fetch {
+    if (req.url ~ "\.(png|gif|jpeg|jpg)$") {
+        unset beresp.http.set-cookie;
+        set beresp.ttl = 1h;
+    }
+}
+```
+
+详细解释：
+
+1. **`sub vcl_fetch { ... }`**：
+   - 这行代码定义了一个名为`vcl_fetch`的子程序。`vcl_fetch`是在Varnish从后台服务器成功获取到对象后调用的子程序。在这个子程序中，你可以对从后台服务器返回的对象进行处理和修改。
+
+2. **`if (req.url ~ "\.(png|gif|jpeg|jpg)$") { ... }`**：
+   - 这行代码检查请求的URL是否以.png、.gif、.jpeg或.jpg结尾，即判断请求的资源是否为图片文件。
+   - 正则表达式`\.(png|gif|jpeg|jpg)$`表示URL以.png、.gif、.jpeg或.jpg结尾。
+
+3. **`unset beresp.http.set-cookie;`**：
+   - 这行代码的作用是取消响应中的`set-cookie`头部。`unset`关键字用于删除变量或头部信息。
+   - 通过取消`set-cookie`，可以防止图片文件携带不必要的cookie，从而提高缓存效率和性能。
+
+4. **`set beresp.ttl = 1h;`**：
+   - 这行代码设置从后台服务器返回的对象的TTL（生存时间）为1小时。
+   - `beresp.ttl`是Varnish中的一个变量，用于定义缓存对象的生存时间。通过设置`beresp.ttl = 1h`，你可以控制图片文件在缓存中保存的时间为1小时。
+
+通过这样的配置，你可以确保对图片文件的请求不会携带cookie，并且这些文件会在缓存中保存1小时。这样可以减少不必要的数据传输，提高缓存效率，并减轻后端服务器的负担。这种配置在需要优化静态资源加载性能的场景中非常有用。
+
+### 设置客户端发送的`Accept-Encoding`头，只允许`gzip`和`deflate`两种编码方式，并且优先使用`gzip`
+
+这段VCL（Varnish Configuration Language）代码的目的是设置客户端发送的`Accept-Encoding`头，只允许`gzip`和`deflate`两种编码方式，并且优先使用`gzip`。以下是代码的详细解释：
+
+```vcl
+if (req.http.Accept-Encoding) {
+    if (req.url ~ "\.(jpg|png|gif|gz|tgz|bz2|tbz|mp3|ogg)$") {
+        # No point in compressing these
+        remove req.http.Accept-Encoding;
+    } elseif (req.http.Accept-Encoding ~ "gzip") {
+        set req.http.Accept-Encoding = "gzip";
+    } elseif (req.http.Accept-Encoding ~ "deflate") {
+        set req.http.Accept-Encoding = "deflate";
+    } else {
+        # unknown algorithm
+        remove req.http.Accept-Encoding;
+    }
+}
+```
+
+详细解释：
+
+1. **`if (req.http.Accept-Encoding) { ... }`**：
+   - 这行代码检查请求中是否包含`Accept-Encoding`头。如果存在，则执行大括号内的代码。
+
+2. **`if (req.url ~ "\.(jpg|png|gif|gz|tgz|bz2|tbz|mp3|ogg)$") { ... }`**：
+   - 这行代码检查请求的URL是否以指定的文件扩展名结尾，即判断请求的资源是否为图片文件、压缩文件或音频文件。
+   - 正则表达式`\.(jpg|png|gif|gz|tgz|bz2|tbz|mp3|ogg)$`表示URL以这些扩展名结尾。
+   - 如果匹配，则移除请求中的`Accept-Encoding`头，因为这些类型的文件通常不需要压缩。
+
+3. **`elseif (req.http.Accept-Encoding ~ "gzip") { ... }`**：
+   - 这行代码检查`Accept-Encoding`头是否包含`gzip`。如果是，则将`Accept-Encoding`头设置为`gzip`，表示客户端支持gzip压缩。
+
+4. **`elseif (req.http.Accept-Encoding ~ "deflate") { ... }`**：
+   - 这行代码检查`Accept-Encoding`头是否包含`deflate`。如果是，则将`Accept-Encoding`头设置为`deflate`，表示客户端支持deflate压缩。
+
+5. **`else { ... }`**：
+   - 如果`Accept-Encoding`头既不包含`gzip`也不包含`deflate`，则移除请求中的`Accept-Encoding`头，因为不支持的编码方式将被忽略。
+
+通过这样的配置，你可以确保只有支持的压缩方式（`gzip`和`deflate`）被使用，并且优先使用`gzip`。这有助于优化网络传输和提高页面加载性能。
+
+### 简单的图片防盗链
+
+这段VCL（Varnish Configuration Language）代码的目的是实现一个简单的图片防盗链机制。以下是代码的详细解释：
+
+```vcl
+// 简单的图片防盗链：
+if (req.http.referer ~ "http://.*") {
+    if ( !(req.http.referer ~ "http://.*sishuok\.com"
+        || req.http.referer ~ "http://.*google\.com"
+        || req.http.referer ~ "http://.*google\.cn"
+    )) {
+        set req.http.host = "www.sishuok.com";
+        set req.url = "/static/images/logo.gif";
+    }
+}
+return (lookup);
+```
+
+详细解释：
+
+1. **`if (req.http.referer ~ "http://.*") { ... }`**：
+   - 这行代码检查请求的`Referer`头是否以`http://`开头。`~`是匹配操作符，`"http://.*"`表示字符串以`http://`开头，后面跟随任意字符。
+   - 如果匹配，则执行大括号内的代码。
+
+2. **`if ( !(req.http.referer ~ "http://.*sishuok\.com" || req.http.referer ~ "http://.*google\.com" || req.http.referer ~ "http://.*google\.cn") ) { ... }`**：
+   - 这行代码检查`Referer`头是否不匹配以下三个域名：`sishuok.com`、`google.com`、`google.cn`。
+   - 使用`!`表示取反，即如果`Referer`头不匹配这三个域名，则执行大括号内的代码。
+
+3. **`set req.http.host = "www.sishuok.com";`**：
+   - 这行代码将请求的主机名设置为`www.sishuok.com`。这意味着即使请求是从其他域名发起的，也会被重定向到`www.sishuok.com`。
+
+4. **`set req.url = "/static/images/logo.gif";`**：
+   - 这行代码将请求的URL设置为`/static/images/logo.gif`。这意味着即使请求的是其他资源，也会被重定向到这个特定的图片文件。
+
+5. **`return (lookup);`**：
+   - 这行代码表示进行缓存查找。`lookup`是Varnish中的一个动作，用于查找请求的资源是否在缓存中。
+
+通过这样的配置，你可以实现简单的图片防盗链机制。只有来自特定域名（`sishuok.com`、`google.com`、`google.cn`）的请求才能正常访问图片，否则会被重定向到指定的图片文件。这有助于防止其他网站直接引用你的图片资源，从而保护你的图片版权。
+
+
+
+
 
 # VCL 常用内置函数
 
