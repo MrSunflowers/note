@@ -5257,19 +5257,187 @@ Varnish 支持多种缓存策略，以满足不同的需求：
 - **基于内容的缓存策略**：通过 ETag 和 Last-Modified 头部信息来控制缓存的有效性。
 - **缓存失效策略**：如在收到后端服务器的响应时，设置缓存失效条件。
 
-# 性能优化
+# 控制台指令  
 
-为了充分发挥 Varnish 的性能优势，管理员可以采取以下措施：
+在启动Varnish的时候，已经通过`-T`的参数指定了管理Varnish的IP地址和端口。现在就可以连接这个IP地址和端口来进行Varnish的管理，有两种连接方式：
 
-- **合理配置缓存大小**：根据服务器内存容量，合理配置 Varnish 的缓存大小。
-- **优化 VCL 配置**：尽量减少 VCL 逻辑的复杂性，避免不必要的计算和内存操作。
-- **使用持久化存储**：如使用文件或数据库来存储缓存数据，以提高缓存的持久性和可靠性。
-- **监控和日志分析**：通过监控工具和日志分析，及时发现和解决性能瓶颈。
+第一种：`telnet ip port`的方式，会进入一个纯文本的命令行管理界面。
 
-# 安全性
+第二种：`varnishadm -T ip:port`的方式，进入Varnish的命令行管理界面。
 
-Varnish 本身不提供安全性功能，但可以通过以下方式增强安全性：
+这两种方式都是进入Varnish Command Line Interface，简称CLI，在CLI里面可以控制和改变大多数Varnish运行的参数和配置，而无须中断Varnish的服务。
 
-- **使用 HTTPS**：通过在 Varnish 前端配置 HTTPS 终端（如 Nginx 或 HAProxy），实现加密传输。
-- **访问控制**：通过 VCL 配置，实现基于 IP 地址或请求路径的访问控制。
-- **防止缓存污染**：通过 VCL 配置，防止恶意请求污染缓存。
+这里主要学习第二种
+
+## varnishadm CLI
+
+语法
+
+```bash
+varnishadm [-t timeout] [-S secret_file] [-T address:port] [-n name] [command [...]]
+```
+
+- `-t timeout`：等待一个操作完成的时间，单位秒。
+- `-S secret_file`：确定一个认证的安全文件。
+- `-T address:port`：连接到管理接口的地址和端口，在启动Varnish时指定的。
+- `-n name`：连接到管理接口的名字，在启动Varnish时指定的。
+
+后面还可以直接跟要执行的命令，如果不跟命令，就会进入CLI的界面。
+
+假设你已经启动了 Varnish，并且指定了管理接口的地址和端口为 `127.0.0.1:6082`，你可以使用以下命令来连接到 Varnish 的管理接口并执行一些命令：
+
+```bash
+varnishadm -T 127.0.0.1:6082 -S /etc/varnish/secret
+```
+
+在这个命令中：
+- `-T 127.0.0.1:6082` 指定了管理接口的地址和端口。
+- `-S /etc/varnish/secret` 指定了认证的安全文件路径。
+
+执行上述命令后，你将进入 Varnish 的命令行管理界面（CLI），可以在其中执行各种管理命令。例如，你可以使用 `help` 命令来查看可用的命令列表：
+
+```bash
+help
+```
+
+这将列出所有可用的 CLI 命令，例如 `start`、`stop`、`status`、`ban` 等。你可以使用这些命令来管理 Varnish 的运行状态和缓存策略。
+
+例如，要查看 Varnish 的当前状态，可以使用以下命令：
+
+```bash
+status
+```
+
+如果要清除缓存中所有匹配的 URL，可以使用 `ban` 命令：
+
+```bash
+ban req.url ~ .
+```
+
+这个命令将清除所有缓存的 URL。
+
+通过这种方式，你可以方便地管理和配置 Varnish，而无需重启服务。
+
+CLI主要能完成如下的功能：
+
+1. 配置：能上传、修改和删除VCL文件
+2. 参数：能查看和修改各种参数
+3. 清除缓存：可以清除Varnish中的缓存内容
+4. 进程管理：可以启动或者停止缓存子进程
+
+## 常用命令
+
+- **backend.list**：这个命令用于列出定义中的所有backend，包括它们的健康状态。通过这个命令，你可以查看当前所有backend的健康状况，便于监控和管理。
+
+- **backend.set_health matcher state**：这个命令用于为某个backend设置健康状态。当你想要把某个backend从使用列表中移出时，这个命令会非常有用。通过设置健康状态，你可以控制Varnish如何处理与该backend相关的请求。
+
+## 配置文件热更新
+
+首先，可以使用 `vcl.list` 命令查看当前已经加载的所有VCL配置文件列表。
+
+```bash
+vcl.list
+```
+
+这个命令会列出所有已加载的VCL文件及其状态（例如active或available）。
+
+active：当前使用的配置文件
+available：可用的配置文件
+
+接下来，可以使用 `vcl.load` 命令加载一个新的VCL配置文件。例如，如果你的新配置文件名为 `newconfig.vcl`，可以使用以下命令加载：
+
+```bash
+vcl.load newconfig newconfig.vcl
+```
+
+这里，`newconfig` 是你给这个新配置的名称（随便写），`newconfig.vcl` 是VCL文件的路径。
+
+加载完成后，可以使用 `vcl.show` 命令查看新加载的VCL文件内容，以确保其正确加载。
+
+```bash
+vcl.show newconfig
+```
+
+这个命令会输出 `newconfig` 这个VCL配置文件的内容。
+
+最后，使用 `vcl.use` 命令将新的VCL配置文件设置为当前使用的配置。
+
+```bash
+vcl.use newconfig
+```
+
+执行这个命令后，Varnish将开始使用 `newconfig` 这个VCL配置文件进行请求处理。
+
+通过以上步骤，你可以实现VCL配置文件的热更新，而无需重启Varnish服务。这种方式非常适合在生产环境中进行配置更改，因为它最大限度地减少了服务中断时间。
+
+以下是整个过程的命令汇总：
+
+```bash
+# 查看当前加载的VCL列表
+vcl.list
+
+# 加载新的VCL配置文件
+vcl.load newconfig newconfig.vcl
+
+# 查看新加载的VCL文件内容
+vcl.show newconfig
+
+# 使用新的VCL配置文件
+vcl.use newconfig
+```
+
+### vcl.discard
+
+**vcl.discard configname**：废弃某个配置。注意，如果这个配置的引用不为0的话，简单地说就是已经使用了，这个命令无效。
+
+这个命令用于从Varnish中移除一个不再需要的VCL配置。但是，如果这个配置当前正在被使用（即引用计数不为0），那么这个命令将不会生效。因此，在使用`vcl.discard`命令之前，需要确保目标配置没有被任何正在运行的Varnish实例引用。
+
+### vcl.inline
+
+`vcl.inline` 命令用于内联创建一个新的VCL配置。一般很少用，都用 vcl.load 会更方便
+
+命令格式如下：
+```bash
+vcl.inline configname 'vcl_code'
+```
+
+其中：
+- `configname` 是你要创建的配置的名称。
+- `vcl_code` 是实际的VCL代码。
+
+例如，如果你想创建一个名为`myconfig`的VCL配置，可以使用如下命令：
+```bash
+vcl.inline myconfig 'vcl 4.0;
+backend default {
+    .host = "127.0.0.1";
+    .port = "8080";
+}'
+```
+
+这个命令会创建一个名为`myconfig`的新配置，其中包含指定的VCL代码。这样，你就可以在Varnish中使用和管理这个新的配置了。
+
+## 清除缓存 ban
+
+使用 `ban` 命令来清除Varnish缓存中的内容。具体内容如下：
+
+- `ban field operator argument [&& field operator argument [...]]`：使得匹配 `ban` 表达式的内容从缓存中清除。
+
+详细说明：
+
+1. **一个 `ban` 表达式包含一到多个条件**，一个条件由一个字段、一个操作符、一个参数构成，多个条件之间可以用 `&&` 来表示逻辑与的关系。
+
+2. **字段可以是任意的VCL变量**，例如：`req.url`, `req.http.host` 或 `obj.http.set-cookie` 等。
+
+3. **操作符有**：表示等于 `=`, 匹配正则表达式 `~`, 大于 `>`, 小于 `<`, 非 `!` 等。
+
+4. **参数可以是一个用双引号引起来的字符串，也可以是正则表达式，或者数字**。数字后面可以跟 `KB`, `MB`, `GB` 或 `TB` 等。
+
+举个例子，如果你想要清除所有URL中包含特定路径的缓存，可以使用如下命令：
+
+```bash
+ban req.url ~ "/specific-path"
+```
+
+这个命令将会清除所有URL中包含 `/specific-path` 的缓存内容。
+
+通过合理使用 `ban` 命令，可以灵活地管理和清除Varnish缓存中的内容，以满足不同的缓存策略需求。
