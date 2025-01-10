@@ -322,7 +322,7 @@ maxmemory 10gb
 maxmemory-policy volatile-lru
 ```
 
-
+# 使用 redis cluster proxy 组件实现集群读写分离
 
 
 
