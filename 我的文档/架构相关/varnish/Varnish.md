@@ -5440,4 +5440,722 @@ ban req.url ~ "/specific-path"
 
 这个命令将会清除所有URL中包含 `/specific-path` 的缓存内容。
 
-通过合理使用 `ban` 命令，可以灵活地管理和清除Varnish缓存中的内容，以满足不同的缓存策略需求。
+其他示例
+
+- 清除请求url完全匹配`/news`的缓存内容：`ban req.url == "/news"`
+- 清除请求url不以`.ogg`结尾，同时对象的大小不能大于10MB的缓存内容：`ban req.url !~ ".ogg$" && obj.size > 10MB`
+- 清除host为example.com或者www.example.com，同时从backend获得set-cookie头里面包含`userid=1663`的缓存内容：`ban req.http.host ~ "(?i)(www\.)example\.com$" && obj.http.set-cookie ~ "USERID=1663"`
+
+## ban.list
+
+ban.list是Varnish缓存服务器中用于管理和查看ban规则的工具。通过ban.list，可以清晰地看到哪些缓存内容被ban，以及这些ban规则的详细信息。这对于管理和调试缓存策略非常有帮助。
+
+ban.list是一个用于管理缓存ban规则的列表。以下是一些关键点：
+
+1. **缓存内容标记为banned**：
+   - 如果缓存的内容比ban旧，那么这个缓存内容会被标记为banned，不能再使用这个缓存内容，需要从backend获取内容。
+
+2. **ban列表更新**：
+   - 如果ban的表达式比所有的缓存对象都旧的话，它将从ban的list里面去掉。
+
+3. **ban.list输出的格式**：
+   - ban.list输出的格式如下：
+     ```plaintext
+     0x7fea4fcb0580 1303835108.618863 131G req.http.host ~ www.myhost.com && req.url ~ /some/url
+     ```
+     - 第一个字段是ban的地址。
+     - 第二个字段是时间戳。
+     - 第三个字段表示有多少个对象受此ban的影响（通常在debug时才有效）。
+     - G表示这个ban已经Gone，也就不再有效了。
+     - 后面的内容才是真正的ban的内容。
+
+以下是ban.list输出的一个示例：
+```plaintext
+0x7fea4fcb0580 1303835108.618863 131G req.http.host ~ www.myhost.com && req.url ~ /some/url
+```
+- `0x7fea4fcb0580`：这是ban的地址。
+- `1303835108.618863`：这是时间戳，表示这个ban规则生效的时间。
+- `131G`：表示有131个对象受到这个ban的影响，G表示这个ban已经Gone，不再有效。
+- `req.http.host ~ www.myhost.com && req.url ~ /some/url`：这是实际的ban规则，表示当请求的主机名匹配`www.myhost.com`并且请求的URL匹配`/some/url`时，缓存内容会被ban。
+
+## ban.url
+
+ban.url regexp：要ban的url
+- 匹配这个规则的url，缓存立即失效，注意一点：在这个url里面host是被忽略的。
+
+## help
+
+help [command]：显示命令的帮助
+- 不写命令就显示所有的命令。
+
+## param.set
+
+param.set：设置param的值
+- 设置param的值。
+
+## 其他常用命令
+
+1. **param.show [-l] [param]**：
+   - 显示param以及他们的值。
+   - `-l`选项会带着命令的简短描述。
+
+2. **ping [timestamp]**：
+   - 用于ping Varnish的缓存进程，保持连接是活动的。
+
+3. **quit**：
+   - 退出CLI管理。
+
+4. **start**：
+   - 如果Varnish的缓存进程没有启动的话，启动它。
+
+5. **status**：
+   - 检查Varnish的缓存进程的状态。
+
+6. **stop**：
+   - 停止Varnish的缓存进程。
+
+7. **storage.list**：
+   - 列表显示定义的storage backends。
+
+### VCL命令
+
+1. **vcl.discard configname**：
+   - 废弃某个配置。注意，如果这个配置的引用不为0的话，简单地说就是已经使用了，这个命令无效。
+
+2. **vcl.inline configname vcl**：
+   - 使用VCL来创建一个新的配置。
+
+3. **vcl.list**：
+   - 列出可用的配置，以及参照使用他们的数量。
+
+4. **vcl.load configname filename**：
+   - 创建一个新的配置，配置的名字是configname，内容是filename指定的文件内容。
+
+5. **vcl.show configname**：
+   - 显示配置的具体内容。
+
+6. **vcl.use configname**：
+   - 使用哪一个配置。
+
+### 示例解释
+
+以下是一些命令的实际应用示例：
+
+- **param.show**：
+  ```bash
+  param.show -l
+  ```
+  这个命令会显示所有参数及其简短描述。
+
+- **ping**：
+  ```bash
+  ping
+  ```
+  这个命令用于ping varnish的缓存进程，确保连接是活动的。
+
+- **quit**：
+  ```bash
+  quit
+  ```
+  这个命令用于退出CLI管理界面。
+
+- **start**：
+  ```bash
+  start
+  ```
+  这个命令用于启动Varnish缓存进程，如果它还没有启动的话。
+
+- **status**：
+  ```bash
+  status
+  ```
+  这个命令用于检查Varnish缓存进程的状态。
+
+- **stop**：
+  ```bash
+  stop
+  ```
+  这个命令用于停止Varnish缓存进程。
+
+- **storage.list**：
+  ```bash
+  storage.list
+  ```
+  这个命令用于列出所有定义的storage backends。
+
+- **vcl.discard configname**：
+  ```bash
+  vcl.discard myconfig
+  ```
+  这个命令用于废弃名为`myconfig`的VCL配置。
+
+- **vcl.inline configname vcl**：
+  ```bash
+  vcl.inline myconfig "vcl 4.0;"
+  ```
+  这个命令用于创建一个新的VCL配置，内容为`vcl 4.0;`。
+
+- **vcl.list**：
+  ```bash
+  vcl.list
+  ```
+  这个命令用于列出所有可用的VCL配置及其引用数量。
+
+- **vcl.load configname filename**：
+  ```bash
+  vcl.load myconfig /path/to/config.vcl
+  ```
+  这个命令用于加载一个VCL配置文件，配置名为`myconfig`，文件路径为`/path/to/config.vcl`。
+
+- **vcl.show configname**：
+  ```bash
+  vcl.show myconfig
+  ```
+  这个命令用于显示名为`myconfig`的VCL配置的具体内容。
+
+- **vcl.use configname**：
+  ```bash
+  vcl.use myconfig
+  ```
+  这个命令用于使用名为`myconfig`的VCL配置。
+
+# Varnishd 命令和运行期参数
+
+## Varnishd
+
+命令语法
+```
+varnishd [-a address[:port]] [-b host[:port]] [-d] [-F] [-f config] [-g group] [-h type[,options]] [-i identity] [-l shmlogsize] [-n name] [-P file] [-p param=value] [-s type[,options]] [-T address[:port]] [-t ttl] [-u user] [-V] [-w min[,max[,timeout]]]
+```
+
+- `-a address[:port][,address]`
+  - 监听指定的IP地址和端口的请求。地址可以是主机名（如“localhost”），或者一个IPv4（如“127.0.0.1”），和IPv6（如“[::1]”）。如果地址没有明确指定，varnishd将监听所有可用的IPv4和IPv6地址。如果端口没有指定，那么varnishd默认监听/etc/services中的HTTP对应的端口。更多的端口和地址使用逗号分隔。
+  
+- `-b host[:port]`
+  - 指定后端服务器的地址和端口，如果没有端口，默认是8080。
+
+- `-C`
+  - 编译VCL代码成C语言，然后退出，指定VCL文件用-f参数。
+
+- `-d`
+  - 开启debug模式。主进程在前台启动，提供一个CLI界面，用于标准输入输出。子进程必须通过CLI命令启动。如果结束主进程，那么子进程也会结束。
+
+- `-F`
+  - 在前台运行。
+
+- `-f config`
+  - 使用指定的VCL配置文件代替系统默认的。
+
+- `-g group`
+  - 指定Varnishd子进程使用的用户组。
+
+- `-h type[,options]`
+  - 指定hash算法。
+
+- `-i identity`
+  - 指定Varnishd server的身份。
+
+- `-l shmlogsize`
+  - 指定shmlogfile的大小，单位可以使用‘k’和‘m’，默认是80M，不要指定比80M小的值。
+
+- `-n name`
+  - 为这个实例指定一个名字。
+
+- `-P file`
+  - 指定pidfile，用于保存PID信息。
+
+- `-p param=value`
+  - 设置指定参数的值。
+
+- `-S file`
+  - 访问管理端口用到的安全认证文件的路径。
+
+- `-s [name=]type[,options]`
+  - 使用指定的存储后端，可以多次使用此选项指定不同的存储类型。
+
+- `-T address[:port]`
+  - 提供一个管理接口的地址和端口。
+
+- `-t ttl`
+  - 给缓存中的内容指定最小的ttl。
+
+- `-u user`
+  - 指定运行varnishd子进程的用户。
+
+- `-V`
+  - 显示Varnishd的版本，然后退出。
+
+- `-w min[,max[,timeout]]`
+  - 指定线程最小和大空闲时间，这是一个设置thread_pool_min、thread_pool_max和thread_pool_timeout的捷径。如果只有一个值被指定，那么thread_pool_min和thread_pool_max都是用这个值。Thread_pool_timeout会失效。
+
+## 内置 Hash 算法
+
+**simple_list**是一种简单的doubly-linked链表。这种数据结构的特点是每个节点都有两个指针，一个指向前一个节点，另一个指向后一个节点。虽然这种数据结构实现简单，但在生产环境中并不推荐使用。原因在于它的查找效率较低，时间复杂度为O(n)，不适合需要频繁查找和插入的场景。
+
+**classic**是一种标准的hash table，也是默认使用的Hash算法。hash table通过将键值对存储在数组的桶（buckets）中，利用哈希函数将键映射到数组索引，从而实现快速查找。其优点是查找、插入和删除的平均时间复杂度为O(1)，非常适合需要高效数据访问的场景。然而，hash table的性能依赖于哈希函数的质量和桶的数量。如果哈希函数设计不当或桶的数量不足，可能会导致大量的哈希冲突，从而影响性能。
+
+**critbit**是一种自适应的树结构，相比传统的B-tree，critbit-tree几乎不用锁，性能更好。critbit-tree是一种基于字典树的变种，适用于需要频繁插入和查找的场景。其特点是每个节点存储一个键值对和一个临界位，通过比较键的临界位来决定分支方向。由于不需要锁机制，critbit-tree在高并发环境下表现出色，能够有效减少锁竞争，提高系统的整体性能。
+
+## 存储类型
+
+### 1. Malloc[, size]
+**Malloc**是基于内存的存储方式。`Size`参数指定分配给Varnish的最大内存，默认单位是byte。你可以使用K、M、G、T等单位来指定大小，例如：
+- `Malloc,1G`：分配1GB内存给Varnish。
+- `Malloc,512M`：分配512MB内存给Varnish。
+
+默认情况下，`Size`没有限制，这意味着Varnish将使用尽可能多的内存。
+
+### 2. file[, path[, size[, granularity]]]
+**file**是采用文件来存储对象，然后使用mmap将这些文件映射到内存，这是Varnish缺省的存储方式。以下是各参数的详细说明：
+- `path`：指定存储的路径和文件名，默认是/tmp。
+- `size`：指定文件的最大尺寸，默认单位是byte。同样可以使用K、M、G、T等单位。例如：
+  - `file,/var/lib/varnish,2G`：在/var/lib/varnish目录下创建一个最大2GB的文件。
+  - `file,/var/lib/varnish,1T`：在/var/lib/varnish目录下创建一个最大1TB的文件。
+
+还可以使用百分比来表示使用系统空闲空间的百分比，默认是50%。例如：
+- `file,/var/lib/varnish,50%`：使用系统空闲空间的50%。
+
+- `granularity`：这个参数指定了间隔的尺寸，默认是字节，可以指定单位，但不能使用%。默认的间隔尺寸是VM的page大小。如果你有太多的小文件，这个值可以小一点。例如：
+  - `file,/var/lib/varnish,,4K`：指定间隔尺寸为4KB。
+
+其他注意事项
+- 如果文件已经存在，varnish会缩小或放大backing文件到指定的size。
+- 如果Varnishd需要创建或者扩大一个文件，它不会去预分配需要的空间，而之前又没有设置好空间的话，可能会产生碎片，影响性能。在分配文件前使用dd命令来创建文件，可以尽量减少碎片。
+
+性能考虑
+文件的性能通常取决于设备的写入速度，还有使用上的寻找时间。选择合适的存储类型和配置参数，可以显著提高Varnish的性能和稳定性。
+
+## Transient Storage
+
+如果你将一个Storage的name设置为Transient，它将用来存储临时对象。缺少的Varnish将会使用无限制的malloc来存储它们。这意味着当Varnish需要存储临时对象时，它将使用系统内存（RAM）来进行存储，而不会限制内存的使用量。这种配置适用于需要快速存储和访问临时数据的场景，但要注意可能会占用大量内存资源。
+
+
+## 运行期参数
+
+运行期参数是指在管理界面，通过`param.show`看到的参数。这些参数有速记标志，以避免重复出现。以下是该标记的含义：
+
+#### experimental
+- **含义**：对这个参数，我们没有固定的值来说明好与不好，欢迎观察和反馈这个值。
+
+#### delayed
+- **含义**：这个值可以在不工作的时候改变，但是不会立即生效。
+
+#### restart
+- **含义**：工作进程会被停止，重新启动。
+
+#### reload
+- **含义**：VCL程序会被重新装载。
+
+#### acceptor_sleep_decay
+- **默认值**：0.900
+- **标志**：experimental
+- **说明**：如果我们的文件描述符或者工作线程等资源耗尽，接收器在两次间隔中会休眠，这个参数减少成功接收的休眠时间（0.9 = reduce by 10%）。
+
+#### acceptor_sleep_incr
+- **单位**：s
+- **默认值**：0.001
+- **标志**：experimental
+- **说明**：如果我们的文件描述符或者工作线程等资源耗尽，接收器在两次接收间隔中会休眠，这个参数控制休眠的时间。
+
+#### acceptor_sleep_max
+- **单位**：s
+- **默认值**：0.050
+- **标志**：experimental
+- **说明**：如果我们的文件描述符或者工作线程等资源耗尽，接收器在两次接收间隔中会休眠，这个参数设置最大的休眠时间。
+
+#### auto_restart
+- **单位**：bool
+- **默认值**：on
+- **说明**：如果子进程宕了，自动重启。
+
+#### ban_dups
+- **单位**：bool
+- **默认值**：on
+- **说明**：发现并去掉重复的bans。
+
+#### ban_lurker_sleep
+- **单位**：秒（s）
+- **默认值**：0.01
+- **说明**：设置ban_lurker线程在成功执行一次ban后的休息时间。默认是1秒，设置0将禁用ban_lurker。
+
+#### between_bytes_timeout
+- **单位**：秒（s）
+- **默认值**：60
+- **说明**：设置在接收数据时，两个字节之间的超时时间。值为0表示不会超时。这个参数不能用在pipe模式中。
+
+#### cc_command
+- **默认值**：exec gcc -std=gnu99 -pthread -fpic -shared -Wl,-x -o %o %s
+- **说明**：编译C源代码的参数。%s是源文件名，%o是输出文件名。
+
+#### cli_buffer
+- **单位**：字节（bytes）
+- **默认值**：8192
+- **说明**：CLI输入的缓冲区大小。如果使用很大的vcl文件的话，需要加大这个值。注意要使用-p参数使其生效。
+
+#### cli_timeout
+- **单位**：秒（seconds）
+- **默认值**：10
+- **说明**：管理员对CLI请求的超时时间。
+
+#### clock_skew
+- **单位**：秒（s）
+- **默认值**：10
+- **说明**：设置后端服务器和Varnish之间，多少时差是可以接受的。
+
+#### connect_timeout
+- **Units**: s  
+- **Default**: 0.7  
+- **说明**: 设置连接后端服务器默认的超时时间。vcl的配置可以覆盖这个值。
+
+#### critbit_cooloff
+- **Units**: s  
+- **Default**: 180.0  
+- **说明**: 设置critbit hasher在cooloff列表保存deleted objheads的时间。
+
+#### default_grace
+- **Units**: seconds  
+- **Default**: 10  
+- **Flags**: delayed  
+- **说明**: 设置grace的缺省时间。varnish将在对象过期后延迟递交，好让其他线程做一个新的拷贝。
+
+#### default_keep
+- **Units**: seconds  
+- **Default**: 0  
+- **Flags**: delayed  
+- **说明**: 设置保存一个无用对象的时间。这意味着对象从缓存中删除的时间=ttl+grace+keep。
+
+#### default_ttl
+- **Units**: seconds  
+- **Default**: 120  
+- **说明**: 如果backend和vcl都没有给对象分配ttl的话，这个设置将生效。已经存在缓存中的对象，在它们重新从后台获取数据前不受影响，强制他们生效，可以使用"ban.url"。
+
+#### diag_bitmap
+- **Units**: bitmap  
+- **Default**: 0  
+- **说明**: 设置bitmap控制诊断码，具体可以从文档上查看。
+
+#### expiry_sleep
+- **Units**: seconds  
+- **Default**: 1  
+- **说明**: 设置expiry线程的休息时间。
+
+#### fetch_chunksize
+- **Units**: kilobytes  
+- **Default**: 128  
+- **Flags**: experimental  
+- **说明**: 设置fetcher使用的缺省chunksize，这个值应该比多数对象大。
+
+#### fetch_maxchunksize
+- **Units**: kilobytes  
+- **Default**: 262144  
+- **Flags**: experimental  
+- **说明**: 分配给存储的最大chunksize，分配过大会引起延迟和碎片。
+
+#### first_byte_timeout
+- **Units**: s  
+- **Default**: 60  
+- **说明**: 从后端获取第一个数据的时间。我们只等待这么长时间，超时就放弃，0表示永不放弃，vcl的配置可以覆盖这个值。这个值在pipe模式无效。
+
+#### group
+- **Default**: magic  
+- **Flags**: must_restart  
+- **说明**: 使用哪个没有特权的组来运行此进程。
+
+#### gzip_level
+- **Default**: 6  
+- **说明**: Gzip压缩级别：0=debug，1=fast，9=best。
+
+#### gzip_memlevel
+- **Default**: 8  
+- **说明**: Gzip内存级别1=slow/least，9=fast/most compression。Memory impact is 1=1k，2=2k，...9=256k。
+
+#### gzip_stack_buffer
+- **Units**: Bytes  
+- **Default**: 32768  
+- **Flags**: experimental  
+- **说明**: Gzip缓存区的大小。
+
+#### gzip_tmp_space
+- **Default**: 0  
+- **Flags**: experimental  
+- **说明**: 在哪儿给gzip/gunzip分配临时空间，0=malloc; 1=session workspace; 2=thread workspace。如果有很多gzip/gunzip活动，建议使用workspace以减少内存耗费。要知道gzip需要256+KB，gunzip需要32+KB (64+KB if ESI processing)。
+
+#### gzip_window
+- **Default**: 15  
+- **说明**: Gzip窗口大小8=least, 15=most compression。Memory impact is 8=1k, 9=2k, ... 15=128k。
+
+#### http_gzip_support
+- **Units**: bool  
+- **Default**: on  
+- **Flags**: experimental  
+- **说明**: 开启gzip支持，Varnish将会在存储到缓存前压缩对象。
+
+#### http_max_hdr
+- **Units**: header lines  
+- **Default**: 64  
+- **说明**: 可以处理的最大Http Header。
+
+#### http_range_support
+- **Units**: bool  
+- **Default**: on  
+- **说明**: 开启支持HTTP Range headers，以支持多线程断点续传。
+
+#### http_req_hdr_len
+- **Units**: bytes  
+- **Default**: 8192  
+- **说明**: 最大能接受的客户端请求头的大小。
+
+#### http_req_size
+- **Units**: bytes  
+- **Default**: 32768  
+- **说明**: 最大能处理的客户端请求的大小。
+
+#### http_resp_hdr_len
+- **Units**: bytes  
+- **Default**: 8192  
+- **说明**: 最大能处理的从backend返回的响应头的大小。
+
+#### http_resp_size
+- **Units**: bytes  
+- **Default**: 32768  
+- **说明**: 最大能处理的从backend返回的响应的大小。
+
+#### idle_send_timeout
+- **Units**: seconds  
+- **Default**: 60  
+- **Flags**: delayed  
+- **说明**: 等待发送数据的时间，如果超时还是没有数据发送，session会关闭。
+
+#### listen_address
+- **Default**: :80  
+- **Flags**: must_restart  
+- **说明**: 监听的地址，可接收的表达：host, host:port, :port。
+
+#### listen_depth
+- **Units**: connections  
+- **Default**: 1024  
+- **Flags**: must_restart  
+- **说明**: 监听队列的深度。
+
+#### log_hashstring
+- **Units**: bool  
+- **Default**: on  
+- **说明**: 是否记录这hash内容到共享内存日志。
+
+#### log_local_address
+- **Units**: bool  
+- **Default**: off  
+- **说明**: 日志是否记录本地IP的TCP连接。
+
+#### lru_interval
+- **Units**: seconds  
+- **Default**: 2  
+- **Flags**: experimental  
+- **说明**: 目标对象移到LRU列表前的Grace时长。
+
+#### max_esi_depth
+- **Units**: levels  
+- **Default**: 5  
+- **说明**: esi:include进程的最大深度。
+
+#### max_restarts
+- **Units**: restarts  
+- **Default**: 4  
+- **说明**: 一个请求的最大重试次数。
+
+#### nuke_limit
+- **Units**: allocations  
+- **Default**: 50  
+- **Flags**: experimental  
+- **说明**: 在空间中保存对象body的最大对象数量。
+
+#### pcre_match_limit
+- **Default**: 10000  
+- **说明**: 内部调用pcre_exec()的次数限制。
+
+#### pcre_match_limit_recursion
+- **Default**: 10000  
+- **说明**: 内部递归调用pcre_exec()的次数限制。
+
+#### ping_interval
+- **Units**: seconds  
+- **Default**: 3  
+- **Flags**: must_restart  
+- **说明**: 子进程ping主进程的时间间隔，0表示禁止ping。
+
+#### pipe_timeout
+- **Units**: seconds  
+- **Default**: 60  
+- **说明**: PIPE会话的空闲超时时间，如果超时还没有数据发送的话，session会关闭。
+
+#### prefer_ipv6
+- **Units**: bool  
+- **Default**: off  
+- **说明**: 如果后端支持ipv4和ipv6，那么偏好使用ipv6。
+
+#### queue_max
+- **Units**: %  
+- **Default**: 100  
+- **Flags**: experimental  
+- **说明**: 允许的队列长度，用百分比表示，设置的是请求队列与worker进程的百分比。
+
+#### rush_exponent
+- **Units**: requests per request  
+- **Default**: 3  
+- **Flags**: experimental  
+- **说明**: 为完成一个请求对象准备多少parked request。
+
+#### saintmode_threshold
+- **Units**: objects  
+- **Default**: 10  
+- **Flags**: experimental  
+- **说明**: Saint模式在超时前可以容纳的对象数目，0表示禁用Saint模式。
+
+#### send_timeout
+- **Units**: seconds  
+- **Default**: 600  
+- **Flags**: delayed  
+- **说明**: 发送的超时时间。
+
+#### sess_timeout
+- **Units**: seconds  
+- **Default**: 5  
+- **说明**: 每个session保持的空闲时间。
+
+#### sess_workspace
+- **Units**: bytes  
+- **Default**: 65536  
+- **Flags**: delayed  
+- **说明**: 分配给每个HTTP协议的session的空间大小，最小是1024 bytes。
+
+#### session_linger
+- **Units**: ms  
+- **Default**: 50  
+- **Flags**: experimental  
+- **说明**: 一个session的linger（滞留，慢慢消失）的时间。
+
+#### session_max
+- **Units**: sessions  
+- **Default**: 100000  
+- **说明**: session的最大数量。
+
+#### shm_reclen
+- **Units**: bytes  
+- **Default**: 255  
+- **说明**: SHM日志的最大数量，最大是65535 bytes。
+
+#### shm_workspace
+- **Units**: bytes  
+- **Default**: 8192  
+- **Flags**: delayed  
+- **说明**: 分配给worker线程中shm日志的空间，最小是4096 bytes。
+
+#### Shortlived
+- **Units**: s  
+- **Default**: 10.0  
+- **说明**: 对象最小的存活时间。如果分配各对象的TTL比这个值小，就保存在瞬时存储里面。
+
+#### syslog_cli_traffic
+- **Units**: bool  
+- **Default**: on  
+- **说明**: 记录CLI的syslog（LOG_INFO）。
+
+#### thread_pool_add_delay
+- **Units**: milliseconds  
+- **Default**: 2  
+- **说明**: 创建新线程前等待的时间，设置太长，会造成工作线程不足，太短会造成工作线程堆积。
+
+#### thread_pool_add_threshold
+- **Units**: requests  
+- **Default**: 2  
+- **Flags**: experimental  
+- **说明**: 创建工作线程的阈值，设置太小，会造成工作线程过量，太大会造成线程不足。
+
+#### thread_pool_fail_delay
+- **Units**: milliseconds  
+- **Default**: 200  
+- **Flags**: experimental  
+- **说明**: 线程池在一个线程失败，创建新线程前的等待时间。
+
+#### thread_pool_max
+- **Units**: threads  
+- **Default**: 500  
+- **Flags**: delayed, experimental  
+- **说明**: 每个线程池能容纳的最大线程数。
+
+#### thread_pool_min
+- **Units**: threads  
+- **Default**: 5  
+- **Flags**: delayed, experimental  
+- **说明**: 每个线程池最小的线程数，最小值为2。
+
+#### thread_pool_purge_delay
+- **Units**: milliseconds  
+- **Default**: 1000  
+- **Flags**: delayed, experimental  
+- **说明**: 在purge线程间等待的时间，最小值为100。
+
+#### thread_pool_stack
+- **Units**: bytes  
+- **Default**: -1  
+- **Flags**: experimental  
+- **说明**: Worker线程栈的大小。
+
+#### thread_pool_timeout
+- **Units**: seconds  
+- **Default**: 300  
+- **Flags**: delayed, experimental  
+- **说明**: 线程池中的线程数小于thread_pool_min，在关闭线程池前等待的时间，最小是1秒。
+
+#### thread_pool_workspace
+- **Units**: bytes  
+- **Default**: 65536  
+- **Flags**: delayed  
+- **说明**: 分配各工作线程的workspace大小，最小是1024 bytes。
+
+#### thread_pools
+- **Units**: pools  
+- **Default**: 2  
+- **Flags**: delayed, experimental  
+- **说明**: 线程池的数量。
+
+#### thread_stats_rate
+- **Units**: requests  
+- **Default**: 10  
+- **Flags**: experimental  
+- **说明**: 处理多少个线程，然后统计一次。
+
+#### User
+- **Default**: magic  
+- **Flags**: must_restart  
+- **说明**: 运行进程的用户，通常和group一起配置。
+
+#### vcc_err_unref
+- **Units**: bool  
+- **Default**: on  
+- **说明**: 为引用vcl对象的错误结果。
+
+#### vcl_dir
+- **Default**: /usr/local/etc/varnish  
+- **说明**: VCL文件的路径和名称。
+
+#### vcl_trace
+- **Units**: bool  
+- **Default**: off  
+- **说明**: 开启跟踪VCL执行情况。
+
+#### vmod_dir
+- **Default**: /usr/local/lib/varnish/vmods  
+- **说明**: 定义VCL modules的路径。
+
+在32位系统上，有一些默认值，例如：
+- `workspace_client`（=16k）
+- `thread_pool_workspace`（=16k）
+- `http_resp_size`（=8k）
+- `http_req_size`（=12k）
+- `gzip_stack_buffer`（=4k）
+- `thread_pool_stack`（=64k）
+
+可以通过减少这些值以保持虚拟空间。
+
+# 日志操作
