@@ -6159,3 +6159,380 @@ varnishd [-a address[:port]] [-b host[:port]] [-d] [-F] [-f config] [-g group] [
 可以通过减少这些值以保持虚拟空间。
 
 # 日志操作
+
+在 bin 目录下的 varnishlog 程序。
+
+Varnish将日志记录到共享内存片段，而不是记录到一个普通文件中。这种方式有几个优点：
+1. **速度快**：内存访问速度比磁盘快得多，因此记录日志的速度也更快。
+2. **节省磁盘空间**：不需要占用磁盘空间，适合高流量网站。
+
+当记录到内存片段的最后处时，会从头开始记录，覆盖老数据。这种循环覆盖的方式确保日志不会无限制增长，从而节省内存资源。
+
+## Varnishlog程序
+Varnishlog是一个命令行工具，用于查看Varnish的日志信息。使用方法如下：
+1. **启动varnishlog**：在命令行输入`varnishlog`，会看到主进程的基本信息。
+2. **刷新浏览器访问页面**：重新加载网页，varnishlog会显示访问的日志信息，帮助开发者了解缓存命中情况和请求处理过程。
+
+## 日志格式说明
+日志格式分为几列，每列代表不同的信息：
+1. **第一列**：数字，表示具体的请求。相同的数字表示它们属于同一个HTTP事务。
+2. **第二列**：标签，表示日志信息的类型。以Rx开头的标签代表Varnish正在接受数据，Tx代表正在发送数据。
+3. **第三列**：表示数据的方向。来自或要发送给客户的数据标记为c，来自或要发送给后端的数据标记为b。
+4. **第四列**：具体的日志数据，记录了请求或响应的详细信息。
+
+### 示例解析
+假设有以下日志条目：
+```
+11 RxRequest c GET /index.html HTTP/1.1
+12 TxResponse b 200 OK
+```
+- 第一行表示请求编号11，Varnish正在接收来自客户端（c）的GET请求，请求的资源是/index.html，使用HTTP/1.1协议。
+- 第二行表示请求编号12，Varnish正在发送响应给后端（b），响应状态码是200，表示请求成功。
+
+## 日志查询过滤
+
+`varnishlog`是一个用于查看Varnish日志的程序，通过不同的选项可以实现对日志信息的筛选和过滤。
+
+### 基本选项
+- **-b**：只显示Varnish和后端服务器之间通信的记录条。当你想优化缓存命中率的时候，这个选项非常有用。
+- **-c**：和-b类似，只是针对与客户端的通信情况。
+
+标签过滤
+- **-i tag**：只有显示带有特定标签的行。例如，`varnishlog -i SessionOpen`将只显示新会话的情况。注意标签是大小写敏感的。
+
+正则表达式过滤
+- **-I**：通过正则表达式过滤数据，并显示匹配行。例如，`varnishlog -c -I RxHeader -I Cookie`，将显示所有来自客户端的cookie头信息。
+
+请求ID过滤
+- **-o**：根据请求id，将记录条目分组。如果要写到文件里面，使用-w选项。
+
+示例
+假设有以下日志条目：
+```
+11 RxRequest c GET /index.html HTTP/1.1
+12 TxResponse b 200 OK
+```
+- 使用`-b`选项，只会显示Varnish与后端服务器的通信记录，例如`TxResponse b 200 OK`。
+- 使用`-c`选项，只会显示Varnish与客户端的通信记录，例如`RxRequest c GET /index.html HTTP/1.1`。
+- 使用`-i RxHeader`选项，只会显示包含RxHeader标签的行。
+- 使用`-I Cookie`选项，只会显示包含Cookie头的行。
+- 使用`-o`选项，可以根据请求id将记录条目分组，例如将所有与请求id为11相关的记录分组到一起。
+
+### 拓展选项
+
+- `-a`：当把日志写入文件时，采用追加的方式，而不是覆盖。
+- `-C`：匹配正则表达式的时候，忽略大小写。
+- `-D`：以进程方式运行。
+- `-d`：启动时处理旧的日志，通常 `varnishlog` 只会在进程写入日志后启动。
+- `-k num`：只显示开头的 `num` 个日志记录。
+- `-n`：指定 varnish 实例的名字，用来获取日志，默认是主机名。
+- `-P file`：记录 PID 的文件。
+- `-r file`：从一个文件读取日志，而不是从共享内存读取。
+- `-s num`：跳过开始的 `num` 条日志。
+- `-u`：无缓冲的输出。
+- `-v`：显示版本，然后退出。
+- `-w file`：把日志写到一个文件里，而不是显示他们。如果没有 `-a` 参数的话，就会覆盖文件。如果在写文件的时候，收到 `sighup` 的信号，他会创建一个新的文件。
+- `-X regex`：排除匹配正则表达式的日志。
+- `-x tag`：排除匹配 tag 的日志。
+
+如果 `-o` 选项被指定，需要使用正则表达式和 tag 来制定需要的日志。
+
+## tag
+
+- Backend
+- BackendClose
+- BackendOpen
+- BackendReuse
+- BackendXID
+- CLI
+- ClientAddr
+- Debug
+- Error
+- ExpBan
+- ExpKill
+- ExpPick
+- Hit
+- HitPass
+- HttpError
+- HttpGarbage
+- Length
+- ObjHeader
+- ObjLostHeader
+- ObjProtocol
+- ObjRequest
+- ObjResponse
+- ObjStatus
+- ObjURL
+- ReqEnd
+- ReqStart
+- RxHeader
+- RxLostHeader
+- RxProtocol
+- RxRequest
+- RxResponse
+- RxStatus
+- RxURL
+- SessionClose
+- SessionOpen
+- StatAddr
+- StatSess
+- TTL
+- TxHeader
+- TxLostHeader
+- TxProtocol
+- TxRequest
+- TxResponse
+- TxStatus
+- TxURL
+- VCL_acl
+- VCL_call
+- VCL_return
+- VCL_trace
+- WorkThread
+
+示例:
+
+1. **输出日志到一个文件:**
+   ```sh
+   $ varnishlog -w /var/log/varnish.log
+   ```
+
+2. **读取一个日志文件，然后显示首页的请求:**
+   ```sh
+   $ varnishlog -r /var/log/varnish.log -c -m 'RxURL: /$'
+   ```
+
+# Varnish 缓存空间大小配置
+
+给Varnish选择多少内存，是个很艰巨的问题，需要考虑以下事情：
+
+1. 应用的数据集大小
+对于门户网站或新闻网站来说，数据集主要包含首页及其相关内容。首页通常包含大量的文字、图片和其他多媒体内容，这些内容是最容易被用户访问的，因此缓存命中率较高。在规划缓存大小时，需要评估首页及其相关内容的总大小，以便合理分配缓存空间。
+
+2. 对象的生成花费
+对象的生成花费指的是从后端服务器获取数据并生成缓存对象的资源消耗。如果生成对象的资源消耗较低，可以考虑缓存更多的对象，以提高缓存命中率。但如果资源消耗较高，则需要权衡缓存对象的数量，以避免过度消耗系统资源。
+
+3. 监控LRU活动
+LRU（Least Recently Used）算法是缓存管理中常用的算法，用于淘汰最少使用的缓存对象。通过监控n_lru_nuked计数器，可以了解缓存中LRU活动的频率。如果LRU活动频繁，说明缓存空间不足，需要增加缓存大小以减少对象淘汰，提高缓存命中率。
+
+**缓存开销**
+
+缓存任何对象都会带来额外的开销，包括存储开销和管理开销。即使指定了缓存大小，实际使用的内存可能会超过指定值。每个对象的开销大约为1kB，比如缓存一百万张图片的额外开销大概是 1GB，因此在缓存中存在大量小对象时，整体开销会较大，需要特别注意。
+
+# 提高命中率
+
+提高 Varnish 的命中率是优化网站性能的重要手段。以下是一些具体的方法和策略，可以帮助你提高 Varnish 的缓存命中率：
+
+### 1. 自定义缓存策略
+
+#### 使用 Varnish 配置语言 (VCL)
+通过自定义 VCL 文件，可以精细控制哪些请求和响应应该被缓存。以下是一些常见的自定义策略：
+
+- **缓存 GET 和 HEAD 请求**：默认情况下，Varnish 只缓存 GET 和 HEAD 请求。确保你的配置没有改变这一点。
+  ```vcl
+  sub vcl_recv {
+      if (req.method != "GET" && req.method != "HEAD") {
+          return (pass);
+      }
+      // 其他缓存逻辑
+  }
+  ```
+
+- **处理带有 Cookie 的请求**：默认情况下，带有 Cookie 的请求不会被缓存。你可以决定哪些 Cookie 是可以忽略的，从而允许缓存。
+  ```vcl
+  sub vcl_recv {
+      if (req.http.Cookie) {
+          if (req.url ~ "^/public/") {
+              unset req.http.Cookie;
+          } else {
+              return (pass);
+          }
+      }
+      // 其他缓存逻辑
+  }
+  ```
+
+- **处理带有认证信息的请求**：对于需要认证的请求，通常不应该被缓存。
+  ```vcl
+  sub vcl_recv {
+      if (req.http.Authorization || req.http.Cookie ~ "auth") {
+          return (pass);
+      }
+      // 其他缓存逻辑
+  }
+  ```
+
+### 2. 主动设置对象的 TTL
+
+#### 设置合理的 TTL 值
+TTL（Time To Live）决定了缓存对象在缓存中存活的时间。合理设置 TTL 可以显著提高缓存命中率。
+
+- **默认 TTL**：默认情况下，Varnish 设置的 TTL 为 120 秒。你可以根据实际需求调整这个值。
+  ```vcl
+  sub vcl_backend_response {
+      set beresp.ttl = 300s; // 设置 TTL 为 5 分钟
+      // 其他缓存逻辑
+  }
+  ```
+
+- **基于内容类型设置 TTL**：对于静态内容，可以设置较长的 TTL；对于动态内容，可以设置较短的 TTL。
+  ```vcl
+  sub vcl_backend_response {
+      if (bereq.url ~ "\.(css|js|png|jpg|gif)$") {
+          set beresp.ttl = 1h; // 1 小时
+      } else {
+          set beresp.ttl = 5m; // 5 分钟
+      }
+      // 其他缓存逻辑
+  }
+  ```
+
+### 3. 忽略 HTTP 头信息
+
+#### 尽量不依赖 HTTP 头信息
+虽然 HTTP 头信息（如 Cache-Control）可以控制缓存行为，但过度依赖它们可能会导致缓存命中率降低。通过自定义 VCL，可以忽略某些头信息，从而提高缓存命中率。
+
+```vcl
+sub vcl_recv {
+    if (req.http.Cache-Control ~ "no-cache") {
+        return (pass);
+    }
+    // 其他缓存逻辑
+}
+```
+
+### 4. 分析和监控
+
+#### 使用日志和监控工具
+通过分析 Varnish 的日志，可以了解哪些请求没有被缓存，以及为什么没有被缓存。
+
+- **常用命令**：
+  - `varnishtop -i txurl`：查看请求后端的 URL，帮助识别高频访问的 URL。
+  - `varnishstat`：实时监控 Varnish 的状态，包括缓存命中率。
+  - `varnishtest`：进行缓存策略的测试和验证。
+
+#### 示例：
+```bash
+varnishtop -i txurl
+```
+这个命令可以帮助你识别哪些 URL 被频繁请求，从而优化这些 URL 的缓存策略。
+
+### 5. 其他优化策略
+
+- **合并请求**：尽量合并多个小请求为一个大的请求，减少请求次数。
+- **压缩响应**：通过压缩响应内容，可以减少带宽消耗，提高传输速度。
+- **使用缓存分级**：对于不同类型的请求，使用不同的缓存策略。例如，静态资源使用长 TTL，动态内容使用短 TTL。
+
+## 通过日志辅助分析
+
+使用 Varnish 的日志功能来辅助分析缓存命中率是一个非常有用的方法。通过日志，你可以深入了解哪些请求没有被缓存，为什么没有被缓存，以及如何优化缓存策略。以下是详细的步骤和示例，帮助你通过日志来提高 Varnish 的缓存命中率。
+
+### 1. 导入 `std` 库
+
+首先，你需要在 VCL 文件的顶部导入 `std` 库，以便使用日志功能。
+
+```vcl
+import std;
+```
+
+### 2. 配置日志输出
+
+在需要输出日志的地方，使用 `std.log` 函数。例如，如果你想跟踪哪些请求没有命中缓存，可以在 `vcl_miss` 函数中输出日志。
+
+```vcl
+sub vcl_miss {
+    std.log("URL miss! The URL is: " + req.url);
+    return (fetch);
+}
+```
+
+### 3. 启动 Varnish 并运行 `varnishlog`
+
+启动 Varnish 后，使用 `varnishlog` 工具来跟踪日志输出。
+
+```bash
+varnishlog -I log
+```
+
+这个命令会实时显示所有包含 "log" 标签的日志信息。
+
+### 4. 高级日志配置
+
+为了更精细地控制日志输出，你可以在 VCL 文件中配置更多的日志信息。例如，记录请求的详细信息、未命中缓存的原因等。
+
+```vcl
+import std;
+
+sub vcl_recv {
+    // 记录所有进入的请求
+    std.log("Received request for: " + req.url);
+}
+
+sub vcl_miss {
+    // 记录未命中缓存的请求
+    std.log("Cache miss for URL: " + req.url);
+    // 你可以在这里添加更多的日志信息，例如请求头、客户端 IP 等
+    std.log("Client IP: " + client.ip);
+    return (fetch);
+}
+
+sub vcl_backend_response {
+    // 记录后端响应的详细信息
+    std.log("Backend response status: " + beresp.status);
+    std.log("Backend response TTL: " + beresp.ttl);
+}
+
+sub vcl_deliver {
+    // 记录发送给客户端的响应信息
+    std.log("Response sent to client with status: " + resp.status);
+}
+```
+
+### 5. 使用 `varnishtop` 和 `varnishstat` 进行实时监控
+
+除了 `varnishlog`，Varnish 还提供了其他工具来帮助你实时监控缓存性能。
+
+- **varnishtop**：显示最频繁的请求。
+  ```bash
+  varnishtop -i txurl
+  ```
+  这个命令会显示请求后端的 URL，帮助你识别高频访问的 URL。
+
+- **varnishstat**：显示 Varnish 的实时统计信息，包括缓存命中率、缓存对象数量等。
+  ```bash
+  varnishstat
+  ```
+
+### 6. 分析日志以优化缓存策略
+
+通过分析日志，你可以识别出哪些请求没有被缓存，以及为什么没有被缓存。以下是一些常见的优化策略：
+
+- **识别高频访问的 URL**：通过 `varnishtop` 或日志分析，找出高频访问的 URL，并确保这些 URL 的缓存策略是合理的。
+- **检查未命中缓存的原因**：通过 `varnishlog`，查看未命中缓存的请求，分析是否可以通过调整 VCL 配置来缓存这些请求。
+- **调整 TTL 值**：根据日志中的 TTL 信息，调整缓存对象的 TTL 值，以平衡缓存命中率和数据新鲜度。
+
+### 示例：分析未命中缓存的请求
+
+假设你在 `vcl_miss` 中记录了未命中缓存的请求：
+
+```vcl
+sub vcl_miss {
+    std.log("Cache miss for URL: " + req.url);
+    return (fetch);
+}
+```
+
+通过运行 `varnishlog -I log`，你可以看到类似以下的日志输出：
+
+```
+Cache miss for URL: /api/data
+Client IP: 192.168.1.100
+Cache miss for URL: /images/logo.png
+Client IP: 192.168.1.101
+```
+
+通过分析这些日志，你可以：
+
+- **识别未缓存的 URL**：例如 `/api/data` 可能是一个动态请求，不适合缓存；而 `/images/logo.png` 是一个静态资源，应该被缓存。
+- **调整缓存策略**：对于静态资源，确保 VCL 配置允许缓存这些请求，并设置合理的 TTL 值。
+
