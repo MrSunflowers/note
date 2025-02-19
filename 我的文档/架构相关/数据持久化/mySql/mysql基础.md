@@ -820,6 +820,77 @@ select * from employees e where e.id >= (select id from employees by name limit 
 select * from employees e where e.name >= (select name from employees by name limit 90000,1) limit 5;
 ```
 
+## 索引下推
+
+MySQL InnoDB 的 **索引下推（Index Condition Pushdown, ICP）** 是一种查询优化技术，核心思想是 **将部分 WHERE 条件的过滤操作下推到存储引擎层执行**，减少回表次数，提升查询性能。以下通过一个具体例子说明其原理和效果。
+
+假设有一个用户表 `users`，结构和索引如下：
+```sql
+CREATE TABLE users (
+    id INT PRIMARY KEY,
+    name VARCHAR(50),
+    age INT,
+    city VARCHAR(50),
+    INDEX idx_name_age (name, age)
+) ENGINE=InnoDB;
+```
+
+找到所有 `name` 以 "张" 开头且 `age > 25` 的用户。
+
+```sql
+SELECT * FROM users 
+WHERE name LIKE '张%' AND age > 25;
+```
+
+### **索引下推的运作原理**
+
+**1. 没有索引下推（MySQL 5.6 之前）**
+1. **存储引擎**：使用索引 `idx_name_age` 找到所有 `name LIKE '张%'` 的记录（根据最左前缀规则，`name` 列被索引覆盖）。
+2. **Server 层**：将所有满足 `name LIKE '张%'` 的记录回表（通过主键查询完整行数据），然后检查 `age > 25` 的条件。
+3. **问题**：如果 `name LIKE '张%'` 匹配 1000 条记录，但只有 100 条满足 `age > 25`，则需要进行 **1000 次回表操作**，但最终只保留 100 条有效数据。
+
+**2. 启用索引下推（MySQL 5.6+）**
+1. **存储引擎**：使用索引 `idx_name_age` 找到 `name LIKE '张%'` 的记录后，**直接在索引层检查 `age > 25` 的条件**，仅对同时满足 `name LIKE '张%'` 和 `age > 25` 的记录回表。
+2. **Server 层**：接收过滤后的记录，无需再次检查 `age > 25`。
+3. **优化效果**：如果最终满足条件的记录是 100 条，则只需 **100 次回表操作**，显著减少 I/O 和计算量。
+
+### **实现原理**
+1. **索引结构**：  
+   InnoDB 的二级索引（如 `idx_name_age`）存储了索引列的值（`name`, `age`）和对应的主键值（`id`）。索引下推会在扫描索引时，直接利用索引中的列（本例中的 `age`）过滤数据。
+
+2. **条件拆分**：  
+   - **索引条件（Index Key）**：`name LIKE '张%'`（由存储引擎处理）。  
+   - **索引下推条件（Index Filter）**：`age > 25`（由存储引擎处理）。  
+   - **表条件（Table Filter）**：如果查询有其他无法用索引的条件（如 `city = '北京'`），仍需回表后由 Server 层处理。
+
+3. **执行流程**：  
+   - 存储引擎扫描索引 `idx_name_age`，找到 `name LIKE '张%'` 的记录。  
+   - 在索引层直接检查 `age > 25` 的条件，过滤掉不满足条件的记录。  
+   - 仅对符合条件的记录回表查询完整数据，返回给 Server 层。
+
+**通过 EXPLAIN 查看效果**
+执行 `EXPLAIN` 时，如果出现 `Using index condition`，说明使用了索引下推：
+```sql
+EXPLAIN SELECT * FROM users 
+WHERE name LIKE '张%' AND age > 25;
+```
+输出结果：
+```
++----+-------------+-------+------------+-------+---------------+--------------+---------+------+------+----------+-----------------------+
+| id | select_type | table | partitions | type  | possible_keys | key          | key_len | ref  | rows | filtered | Extra                 |
++----+-------------+-------+------------+-------+---------------+--------------+---------+------+------+----------+-----------------------+
+| 1  | SIMPLE      | users | NULL       | range | idx_name_age  | idx_name_age | 153     | NULL | 500  | 33.33    | Using index condition |
++----+-------------+-------+------------+-------+---------------+--------------+---------+------+------+----------+-----------------------+
+```
+
+### **注意事项**
+
+1. 仅适用于 **二级索引**（主键索引不需要回表，无需 ICP）。  
+2. 查询需要回表（即 SELECT * 或包含非索引列的查询）。  
+3. WHERE 条件包含索引列和非索引列时，只有索引列的条件会被下推。
+
+MySQL 5.6+ 默认启用，可通过 `SET optimizer_switch='index_condition_pushdown=on|off';` 控制。
+
 # 在分库分表结构下，数据查询方案
 
 ## 基因法
