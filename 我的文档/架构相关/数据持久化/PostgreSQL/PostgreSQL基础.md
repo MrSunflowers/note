@@ -187,25 +187,53 @@ CREATE TABLE products (
 - **PostgreSQL** 不直接支持 ENUM 和 SET 类型，但可以通过其他方式实现类似功能。
 - 两者在字符集支持和索引方面都有良好的支持，但在具体实现和性能上可能会有所不同。
 
+## 时间类型
 
+| **功能**           | **MySQL 数据类型** | **PostgreSQL 数据类型** | **描述**                                                                 |
+|---------------------|--------------------|-------------------------|--------------------------------------------------------------------------|
+| 日期                 | `DATE`             | `DATE`                  | 存储日期（年、月、日），范围大致相同。                                   |
+| 时间                 | `TIME`             | `TIME`                  | 存储时间（小时、分钟、秒），范围和精度略有不同。                         |
+| 日期和时间           | `DATETIME`         | `TIMESTAMP`, `TIMESTAMP WITHOUT TIME ZONE` | MySQL 的 `DATETIME` 和 PostgreSQL 的 `TIMESTAMP` 都存储日期和时间，但 PostgreSQL 的 `TIMESTAMP` 可以包含时区信息。 |
+| 带时区的日期和时间 | 不支持             | `TIMESTAMP WITH TIME ZONE` | PostgreSQL 特有的类型，允许存储带有时区信息的日期和时间。                 |
+| 年份                 | `YEAR`             | `YEAR`（通过 `INTEGER` 或 `DATE` 实现） | MySQL 提供了专门的 `YEAR` 类型，而 PostgreSQL 通常使用 `INTEGER` 或 `DATE` 来表示年份。 |
+| 微秒级精度          | `DATETIME(6)`, `TIMESTAMP(6)` | `TIME`, `TIMESTAMP`（默认支持微秒） | PostgreSQL 默认支持微秒级精度，而 MySQL 需要指定精度。                   |
+| 自动初始化和更新   | `DEFAULT CURRENT_TIMESTAMP`, `ON UPDATE CURRENT_TIMESTAMP` | `DEFAULT CURRENT_TIMESTAMP`, `DEFAULT NOW()`, `USING` 表达式 | 两者都支持自动初始化和更新，但语法略有不同。                           |
+| 时区处理            | 仅存储和检索时区信息 | `TIMESTAMP WITH TIME ZONE` 自动转换时区 | PostgreSQL 提供了更强大的时区处理功能。                                 |
 
+1. **DATE**:
+   - **MySQL**: 存储日期，范围从 '1000-01-01' 到 '9999-12-31'。
+   - **PostgreSQL**: 同样存储日期，范围从 '4713 BC' 到 '5874897 AD'。
 
+2. **TIME**:
+   - **MySQL**: 存储时间，范围从 '-838:59:59' 到 '838:59:59'，支持微秒。
+   - **PostgreSQL**: 存储时间，范围从 '00:00:00' 到 '24:00:00'，默认支持微秒。
 
+3. **DATETIME vs TIMESTAMP**:
+   - **MySQL**: `DATETIME` 存储日期和时间，范围从 '1000-01-01 00:00:00' 到 '9999-12-31 23:59:59'。`TIMESTAMP` 存储日期和时间，范围从 '1970-01-01 00:00:01' UTC 到 '2038-01-19 03:14:07' UTC。
+   - **PostgreSQL**: `TIMESTAMP` 存储日期和时间，范围从 '4713 BC' 到 '5874897 AD'。`TIMESTAMP WITH TIME ZONE` 存储带有时区信息的日期和时间。
 
+4. **YEAR**:
+   - **MySQL**: 提供专门的 `YEAR` 类型，存储年份，范围从 1901 到 2155。
+   - **PostgreSQL**: 通常使用 `INTEGER` 或 `DATE` 类型来表示年份。
 
+5. **微秒级精度**:
+   - **MySQL**: 需要在类型后指定精度，例如 `DATETIME(6)`。
+   - **PostgreSQL**: 默认支持微秒级精度。
 
+6. **自动初始化和更新**:
+   - **MySQL**: 使用 `DEFAULT CURRENT_TIMESTAMP` 和 `ON UPDATE CURRENT_TIMESTAMP`。
+   - **PostgreSQL**: 使用 `DEFAULT CURRENT_TIMESTAMP`, `DEFAULT NOW()`, 或 `USING` 表达式。
 
+7. **时区处理**:
+   - **MySQL**: 仅存储和检索时区信息，不进行自动转换。
+   - **PostgreSQL**: `TIMESTAMP WITH TIME ZONE` 会自动将输入的时间转换为 UTC 存储，并在检索时转换为会话的时区。
 
+- **MySQL** 提供了简单直接的时间/日期类型，适合大多数基本需求。
+- **PostgreSQL** 提供了更丰富和强大的时间/日期类型，特别是在时区和精度处理方面更为灵活和强大。
 
+## 其他类型
 
-
-
-
-
-
-
-
-
+PostgreSQL 支持极其丰富的数据类型，例如 json 类型、xml 类型、几何类型等等，甚至可以自定义数据类型，详情可参考文章开头的文档。
 
 # 序列
 
@@ -385,7 +413,7 @@ DROP SEQUENCE my_sequence;
 4. **使用方式**: PostgreSQL 通常将序列与表列关联，而 Oracle 的序列是独立的，需要在插入时显式使用。
 5. **权限管理**: 两者都支持权限管理，但 PostgreSQL 的序列权限与表权限相关联，而 Oracle 的序列权限是独立的。
 
-
+# 
 
 
 
