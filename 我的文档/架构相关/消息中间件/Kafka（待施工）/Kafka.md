@@ -308,6 +308,7 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 新增主题时，当没有配置分区和副本参数，所以当前主题分区数量为默认值1，编号为0，副本为1，编号为所在broker的ID值。为了方便集群的管理，创建topic时，会同时在ZK中增加子节点，记录主题相关配置信息。
 
 `/config/topics` 节点中会增加first-topic节点。
+
 `/brokers/topics` 节点中会增加first-topic节点以及相应的子节点。
 
 | **节点**                               | **节点类型** | **数据名称**                                                 | **数据值** | **说明**                                                |
@@ -331,7 +332,7 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 路径中的00000000000000000000.log文件就是真正存储消息数据的文件，文件名称中的0表示当前文件的起始偏移量为0，目录下的`.index`文件和`.timeindex`文件都是数据索引文件，用于快速定位数据。只不过index文件采用偏移量的方式进行定位，而timeindex是采用时间戳的方式。
 
-## 主题创建流程
+## Topic 创建流程
 
 以命令行提交创建指令为例
 
@@ -486,6 +487,308 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 ## 发送消息
 
+### 客户端拦截器
+
+生产者API在数据准备好发送给Kafka服务器之前，允许我们对生产的数据进行统一的处理，比如校验，整合数据等等。这些处理我们是可以通过Kafka提供的拦截器完成。因为拦截器不是生产者必须配置的功能，所以大家可以根据实际的情况自行选择使用。
+
+但是要注意，这里的拦截器是可以配置多个的。执行时，会按照声明顺序执行完一个后，再执行下一个。并且某一个拦截器如果出现异常，只会跳出当前拦截器逻辑，并不会影响后续拦截器的处理。所以开发时，需要将拦截器的这种处理方法考虑进去。
+
+`org.apache.kafka.clients.producer.ProducerInterceptor` 是 Apache Kafka 客户端库中用于生产者（Producer）的一个接口。它允许开发者在消息被发送到 Kafka 集群之前，对消息进行拦截、修改或监控。`ProducerInterceptor` 提供了一种机制，可以在消息的生命周期中插入自定义的逻辑，从而实现诸如消息过滤、转换、审计、监控等功能。
+
+`ProducerInterceptor` 接口主要包含以下方法：
+
+1. **`onSend(ProducerRecord<K, V> record)`**:
+   - **描述**：在消息被序列化并分配分区之前调用。
+   - **参数**：`ProducerRecord<K, V> record` 表示即将发送的消息记录。
+   - **返回值**：可以返回修改后的 `ProducerRecord`，或者返回 `null` 来过滤掉该消息。
+   - **用途**：用于修改消息内容、添加或修改消息头，或根据业务逻辑决定是否发送消息。
+
+2. **`onAcknowledgement(RecordMetadata metadata, Exception exception)`**:
+   - **描述**：在消息被 Kafka 集群确认（acknowledged）后调用，无论消息发送成功还是失败。
+   - **参数**：
+     - `RecordMetadata metadata`：表示消息的元数据，如主题、分区、偏移量等。
+     - `Exception exception`：如果消息发送失败，这里会包含异常信息；否则为 `null`。
+   - **用途**：用于记录消息发送的结果，进行性能监控、错误处理或审计。
+
+3. **`close()`**:
+   - **描述**：在拦截器关闭时调用，用于释放资源或执行清理操作。
+   - **用途**：确保拦截器在关闭时能够正确地释放资源，避免资源泄漏。
+
+以下是一个简单的 `ProducerInterceptor` 实现示例，用于在消息发送前添加一个时间戳到消息头中：
+
+```java
+import org.apache.kafka.clients.producer.ProducerInterceptor;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.header.Headers;
+
+import java.util.Map;
+
+public class TimestampInterceptor implements ProducerInterceptor<String, String> {
+
+    @Override
+    public void configure(Map<String, ?> configs) {
+        // 配置参数（如果有的话）
+    }
+
+    @Override
+    public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
+        Headers headers = record.headers();
+        headers.add("timestamp", String.valueOf(System.currentTimeMillis()).getBytes());
+        return record;
+    }
+
+    @Override
+    public void onAcknowledgement(RecordMetadata metadata, Exception exception) {
+        if (exception == null) {
+            // 消息发送成功
+            System.out.println("Message sent successfully to " + metadata.topic() + "-" + metadata.partition());
+        } else {
+            // 消息发送失败
+            System.err.println("Failed to send message: " + exception.getMessage());
+        }
+    }
+
+    @Override
+    public void close() {
+        // 清理资源（如果有的话）
+    }
+}
+```
+
+在 Kafka 生产者的配置中，可以通过 `interceptor.classes` 属性来配置拦截器。例如：
+
+```java
+Properties props = new Properties();
+props.put("bootstrap.servers", "localhost:9092");
+props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+props.put("interceptor.classes", "com.example.TimestampInterceptor");
+
+Producer<String, String> producer = new KafkaProducer<>(props);
+```
+
+1. **性能影响**：拦截器中的逻辑可能会影响消息发送的性能，尤其是在高吞吐量的场景下。因此，应尽量保持拦截器的逻辑简洁高效。
+2. **线程安全**：拦截器可能会被多个线程同时调用，因此实现时需要注意线程安全问题。
+3. **异常处理**：在 `onSend` 和 `onAcknowledgement` 方法中，应妥善处理异常，避免因拦截器导致的生产者崩溃。
+
+### 异步发送
+
+Kafka发送数据时，底层的实现类似于生产者消费者模式。对应的，底层会由主线程代码作为生产者向缓冲区中放数据，而数据发送线程会从缓冲区中获取数据进行发送。Broker接收到数据后进行后续处理。
+
+如果Kafka通过主线程代码将一条数据放入到缓冲区后，无需等待数据的后续发送过程，就直接发送一下条数据的场合，我们就称之为异步发送。
+
+### 同步发送
+
+如果Kafka通过主线程代码将一条数据放入到缓冲区后，需等待数据的后续发送操作的应答状态，才能发送一下条数据的场合，我们就称之为同步发送。所以这里的所谓同步，就是生产数据的线程需要等待发送线程的应答（响应）结果。
+
+代码实现上，采用的是JDK1.5增加的JUC并发编程的Future接口的get方法实现。
+
+### 指定分区(队列)发送
+
+Kafka中Topic是对数据逻辑上的分类，而Partition才是数据真正存储的物理位置。所以在生产数据时，如果只是指定Topic的名称，其实Kafka是不知道将数据发送到哪一个Broker节点的。我们可以在构建数据传递Topic参数的同时，也可以指定数据存储的分区编号。
+
+指定分区传递数据是没有任何问题的。Kafka会进行基本简单的校验，比如是否为空，是否小于0之类的，但是你指定的分区是否存在就无法判断了，所以需要从Kafka中获取集群元数据信息，此时可能会因为长时间获取不到元数据信息而出现超时异常。所以如果不能确定分区编号范围的情况，不指定分区也是一个不错的选择。
+
+### 未指定分区发送
+
+如果不指定分区，Kafka会根据集群元数据中的主题分区来通过算法来计算分区编号并设定：
+
+- 如果指定了分区，直接使用
+- 如果指定了自己的分区器，通过分区器计算分区编号，如果有效，直接使用
+- 如果指定了数据Key，且使用Key选择分区的场合，采用murmur2非加密散列算法（类似于hash）计算数据Key序列化后的值的散列值，然后对主题分区数量模运算取余，最后的结果就是分区编号
+- 如果未指定数据Key，或不使用Key选择分区，那么Kafka会采用优化后的粘性分区策略进行分区选择：
+  - 没有分区数据加载状态信息时，会从分区列表中随机选择一个分区。
+  - 如果存在分区数据加载状态信息时，根据分区数据队列加载状态，通过随机数获取一个权重值
+  - 根据这个权重值在队列加载状态中进行二分查找法，查找权重值的索引值
+  - 将这个索引值加1就是当前设定的分区。
+
+增加数据后，会根据当前粘性分区中生产的数据量进行判断，是不是需要切换其他的分区。判断的标准就是大于等于批次大小（16K）的2倍，或大于一个批次大小（16K）且需要切换。如果满足条件，下一条数据就会放置到其他分区。
+
+### 分区器
+
+在某些场合中，指定的数据我们是需要根据自身的业务逻辑发往指定的分区的。所以需要自己定义分区编号规则，而不是采用Kafka自动设置就显得尤其必要了。Kafka早期版本中提供了两个分区器，不过在当前kafka版本中已经不推荐使用了。
+
+配置分区器类
+
+首先我们需要创建一个类，然后实现Kafka提供的分区类接口Partitioner，接下来重写方法。这里我们只关注partition方法即可，因为此方法的返回结果就是需要的分区编号。
+
+```java
+package com.atguigu.test;
+
+import org.apache.kafka.clients.producer.Partitioner;
+import org.apache.kafka.common.Cluster;
+
+import java.util.Map;
+
+/**
+ * TODO 自定义分区器实现步骤：
+ *      1. 实现Partitioner接口
+ *      2. 重写方法
+ *         partition : 返回分区编号，从0开始
+ *         close
+ *         configure
+ */
+public class KafkaPartitionerMock implements Partitioner {
+    /**
+     * 分区算法 - 根据业务自行定义即可
+     * @param topic The topic name
+     * @param key The key to partition on (or null if no key)
+     * @param keyBytes The serialized key to partition on( or null if no key)
+     * @param value The value to partition on or null
+     * @param valueBytes The serialized value to partition on or null
+     * @param cluster The current cluster metadata
+     * @return 分区编号，从0开始
+     */
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        return 0;
+    }
+
+    @Override
+    public void close() {
+
+    }
+
+    @Override
+    public void configure(Map<String, ?> configs) {
+
+    }
+}
+```
+
+## 可靠消息
+
+对于生产者发送的数据，我们有的时候是不关心数据是否已经发送成功的，我们只要发送就可以了。在这种场景中，消息可能会因为某些故障或问题导致丢失，我们将这种情况称之为消息不可靠。虽然消息数据可能会丢失，但是在某些需要高吞吐，低可靠的系统场景中，这种方式也是可以接受的，甚至是必须的。
+
+但是在更多的场景中，我们是需要确定数据是否已经发送成功了且Kafka正确接收到数据的，也就是要保证数据不丢失，这就是所谓的消息可靠性保证。
+
+而这个确定的过程一般是通过Kafka给我们返回的响应确认结果（Acknowledgement）来决定的，这里的响应确认结果我们也可以简称为ACK应答。根据场景，Kafka提供了3种应答处理，可以通过配置对象进行配置
+
+### ACK = 0
+
+当生产数据时，生产者对象将数据通过网络客户端将数据发送到网络数据流中的时候，Kafka就对当前的数据请求进行了响应（确认应答），如果是同步发送数据，此时就可以发送下一条数据了。如果是异步发送数据，回调方法就会被触发。
+
+这种应答方式，数据已经走网络给Kafka发送了，但这其实并不能保证Kafka能正确地接收到数据，在传输过程中如果网络出现了问题，那么数据就丢失了。也就是说这种应答确认的方式，数据的可靠性是无法保证的。不过相反，因为无需等待Kafka服务节点的确认，通信效率倒是比较高的，也就是系统吞吐量会非常高。
+
+### ACK = 1
+
+当生产数据时，Kafka Leader副本将数据接收到并写入到了日志文件后，就会对当前的数据请求进行响应（确认应答），如果是同步发送数据，此时就可以发送下一条数据了。如果是异步发送数据，回调方法就会被触发。
+
+这种应答方式，数据已经存储到了分区Leader副本中，那么数据相对来讲就比较安全了，也就是可靠性比较高。之所以说相对来讲比较安全，就是因为现在只有一个节点存储了数据，而数据并没有来得及进行备份到follower副本，那么一旦当前存储数据的broker节点出现了故障，数据也依然会丢失。
+
+### ACK = -1 (默认)
+
+当生产数据时，Kafka Leader副本和Follower副本都已经将数据接收到并写入到了日志文件后，再对当前的数据请求进行响应（确认应答），如果是同步发送数据，此时就可以发送下一条数据了。如果是异步发送数据，回调方法就会被触发。
+
+这种应答方式，数据已经同时存储到了分区Leader副本和follower副本中，那么数据已经非常安全了，可靠性也是最高的。此时，如果Leader副本出现了故障，那么follower副本能够开始起作用，因为数据已经存储了，所以数据不会丢失。
+
+不过这里需要注意，如果假设我们的分区有5个**follower**副本，编号为 1，2，3，4，5
+
+但是此时只有3个副本处于和Leader副本之间处于数据同步状态，那么此时分区就存在一个同步副本列表，我们称之为In Syn Replica，简称为ISR。此时，Kafka只要保证ISR中所有的4个副本接收到了数据，就可以对数据请求进行响应了。无需5个副本全部收到数据。
+
+## 消息重发
+
+由于网络或服务节点的故障，Kafka在传输数据时，可能会导致数据丢失，所以我们才会设置ACK应答机制，尽可能提高数据的可靠性。但其实在某些场景中，数据的丢失并不是真正地丢失，而是“虚假丢失”，比如咱们将ACK应答设置为1，也就是说一旦Leader副本将数据写入文件后，Kafka就可以对请求进行响应了。
+
+此时，如果假设由于网络故障的原因，Kafka并没有成功将ACK应答信息发送给Producer，那么此时对于Producer来讲，以为kafka没有收到数据，所以就会一直等待响应，一旦超过某个时间阈值，就会发生超时错误，也就是说在Kafka Producer眼里，数据已经丢了
+
+所以在这种情况下，kafka Producer会尝试对超时的请求数据进行重试(**retry**)操作。通过重试操作尝试将数据再次发送给Kafka。
+
+如果此时发送成功，那么Kafka就又收到了数据，而这两条数据是一样的，也就是说，导致了数据的重复。
+
+## 数据乱序
+
+数据重试(**retry**)功能除了可能会导致数据重复以外，还可能会导致数据乱序。假设我们需要将编号为1，2，3的三条连续数据发送给Kafka。每条数据会对应于一个连接请求
+
+此时，如果第一个数据的请求出现了故障，而第二个数据和第三个数据的请求正常，那么Broker就收到了第二个数据和第三个数据，并进行了应答。
+
+为了保证数据的可靠性，此时，Kafka Producer 会将第一条数据重新放回到缓冲区的第一个。进行重试操作
+
+如果重试成功，Broker收到第一条数据，你会发现。数据的顺序已经被打乱了。
+
+## 数据幂等性
+
+为了解决Kafka传输数据时，所产生的数据重复和乱序问题，Kafka引入了幂等性操作，所谓的幂等性，就是Producer同样的一条数据，无论向Kafka发送多少次，kafka都只会存储一条。注意，这里的同样的一条数据，指的不是内容一致的数据，而是指的不断重试的数据。
+
+默认幂等性是不起作用的，所以如果想要使用幂等性操作，只需要在生产者对象的配置中开启幂等性配置即可
+
+| **配置项**                                | **配置值** | **说明**                                         |
+| ----------------------------------------- | ---------- | ------------------------------------------------ |
+| **enable.idempotence**                    | true       | 开启幂等性                                       |
+| **max.in.flight.requests.per.connection** | 小于等于5  | 每个连接的在途请求数，不能大于5，取值范围为[1,5] |
+| **acks**                                  | all(-1)    | 确认应答，固定值，不能修改                       |
+| **retries**                               | >0         | 重试次数，推荐使用Int最大值                      |
+
+kafka是如何实现数据的幂等性操作呢，我们这里简单说一下流程：
+
+开启幂等性后，为了保证数据不会重复，那么就需要给每一个请求批次的数据增加唯一性标识，kafka中，这个标识采用的是连续的序列号数字。
+
+具体来说，每个生产者初始化时会被 Broker 分配一个Producer ID（PID），然后每条消息会有一个序列号（Sequence Number）。当生产者发送消息时，Broker 会检查这个 PID 和序列号，如果已经处理过这个序列号的消息，就会拒绝重复的消息，从而保证不会重复写入。
+
+PID是在生产者初始化时由Broker分配的，而序列号是针对每个分区和每个PID递增的。也就是说，每个分区维护自己的序列号，这样即使同一个生产者发送到不同的分区，也能保证各自的顺序和唯一性。
+
+在 Broker 中会给每一个分区记录生产者的生产状态：采用队列的方式缓存最近的 5 个批次数据。队列中的数据按照 seqnum 进行升序排列。这里的数字 5 是经过压力测试，均衡空间效率和时间效率所得到的值，所以为固定值，无法配置且不能修改。
+
+如果 Borker 当前新的请求批次数据在缓存的 5 个旧的批次中存在相同的，那么说明有重复，当前批次数据不做任何处理。
+
+如果 Broker 当前的请求批次数据在缓存中没有相同的，那么判断当前新的请求批次的序列号是否为缓存的最后一个批次的序列号加 1，如果是，说明是连续的，顺序没乱。那么继续，如果不是，那么说明数据已经乱了，发生异常。
+
+Broker 根据异常返回响应，通知 Producer 进行重试。Producer 重试前，需要在缓冲区中将数据重新排序，保证正确的顺序后。再进行重试即可。
+
+如果请求批次不重复，且有序，那么更新缓冲区中的批次数据。将当前的批次放置再队列的结尾，将队列的第一个移除，保证队列中缓冲的数据最多5个。
+
+从上面的流程可以看出，Kafka 的幂等性是通过消耗时间和性能的方式提升了数据传输的有序和去重，在一些对数据敏感的业务中是十分重要的。但是通过原理，咱们也能明白，这种幂等性还是有缺陷的：
+
+- 幂等性的 producer 仅做到单分区上的幂等性，即单分区消息有序不重复，多分区无法保证幂等性。
+- 只能保持生产者单个会话的幂等性，无法实现跨会话的幂等性，也就是说如果一个 producer 挂掉再重启，那么重启前和重启后的 producer 对象会被当成两个独立的生产者，从而获取两个不同的独立的生产者 ID，导致 broker 端无法获取之前的状态信息，所以无法实现跨会话的幂等。要想解决这个问题，可以采用后续的事务功能。
+
+## 数据事务
+
+Kafka 的生产者事务（Transactional Producer）功能允许在多个主题和分区上以原子性的方式发送一组消息。这意味着这些消息要么全部成功发送，要么全部失败，从而确保数据的一致性和完整性。事务功能在 Kafka 0.11 版本中引入，并在后续版本中得到了增强。
+
+为了实现事务，Kafka 引入了事务协调器（TransactionCoodinator）负责事务的处理，每个 Kafka 集群中都有一个事务协调器，负责管理事务的状态。事务协调器是一个特殊的 Kafka broker，负责跟踪事务的开始、提交和中止。
+
+具体来说，生产者在初始化时，需要配置一个唯一的事务ID，类似于下面这样
+
+```java
+// TODO 配置事务ID
+configMap.put( ProducerConfig.TRANSACTIONAL_ID_CONFIG, "my-tx-id");
+
+```
+
+### 初始化事务
+
+生产者在开始一个事务之前，需要先调用 initTransactions() 方法。
+
+首先，`initTransactions()` 方法会检查生产者是否已经配置了事务 ID（即 `TRANSACTIONAL_ID_CONFIG`）。如果没有配置事务 ID，调用 `initTransactions()` 会抛出异常，因为事务功能依赖于唯一的事务 ID。
+
+接下来，生产者会尝试与 Kafka 集群中的事务协调器建立连接。事务协调器是一个特殊的 Kafka broker，负责管理事务的状态。
+
+1. **查找事务协调器**：
+   - 生产者会向 Kafka 集群发送一个查找请求，以确定哪个 broker 是当前事务 ID 的事务协调器。
+   - Kafka 使用内部的主题 `__transaction_state` 来存储事务状态信息，事务协调器负责管理这个主题。
+
+2. **建立连接**：
+   - 一旦确定了事务协调器，生产者会与其建立连接，以便进行后续的事务操作。
+
+3. **注册事务 ID**
+
+生产者会向事务协调器发送一个注册请求，通知事务协调器一个新的事务 ID 正在被使用。如果事务 ID 已经被其他生产者使用，当前生产者会抛出异常，提示事务 ID 冲突。
+
+- **事务日志更新**：
+  - 事务协调器会在 `__transaction_state` 主题中创建一个新的事务状态记录，标记该事务 ID 为“正在初始化”。
+
+4. **初始化事务状态**
+
+事务协调器会为该事务 ID 初始化一个事务状态，包括：
+
+- **事务超时时间**：设置事务的超时时间（默认为 60 秒）。
+- **事务状态**：标记事务状态为“正在初始化”。
+
+5. **等待事务协调器响应**
+
+生产者会等待事务协调器的响应，确认事务 ID 已被成功注册和初始化。如果在指定的时间内未收到响应，生产者会抛出超时异常。
 
 
 
@@ -496,6 +799,51 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 
 
+示例代码
+
+```java
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.serialization.StringSerializer;
+import java.util.Properties;
+
+public class TransactionalProducerExample {
+    public static void main(String[] args) {
+        Properties props = new Properties();
+        props.put(ProducerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+        props.put(ProducerConfig.TRANSACTIONAL_ID_CONFIG, "my-tx-id"); // 设置事务 ID
+        props.put(ProducerConfig.ENABLE_IDEMPOTENCE_CONFIG, "true");   // 启用幂等性
+
+        KafkaProducer<String, String> producer = new KafkaProducer<>(props);
+
+        try {
+            producer.initTransactions(); // 初始化事务
+            producer.beginTransaction(); // 开始事务
+
+            // 发送消息
+            producer.send(new ProducerRecord<>("topic1", "key1", "value1"));
+            producer.send(new ProducerRecord<>("topic2", "key2", "value2"));
+
+            producer.commitTransaction(); // 提交事务
+        } catch (Exception e) {
+            producer.abortTransaction(); // 中止事务
+            e.printStackTrace();
+        } finally {
+            producer.close(); // 关闭生产者
+        }
+    }
+}
+```
+
+
+
+
+
+
+事务日志（Transaction Log）：事务协调器使用一个内部的主题（__transaction_state）来存储事务的状态信息。这个主题类似于消费者偏移量主题，用于持久化事务的状态。
 
 
 
@@ -503,8 +851,16 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 
 
+，所有的事务逻辑包括分派 PID 等都是由 TransactionCoodinator 负责实施的。TransactionCoodinator 会将事务状态持久化到该主题中。
 
 
+
+
+对于幂等性的缺陷，kafka 可以采用事务的方式解决跨会话的幂等性。基本的原理就是通过事务功能管理生产者 ID，保证事务开启后，生产者对象总能获取一致的生产者 ID。
+
+
+
+事务基本的实现思路就是通过配置的事务ID，将生产者ID进行绑定，然后存储在Kafka专门管理事务的内部主题 __transaction_state中，而内部主题的操作是由事务协调器（TransactionCoodinator）对象完成的，这个协调器对象有点类似于咱们数据发送时的那个副本Leader。其实这种设计是很巧妙的，因为kafka将事务ID和生产者ID看成了消息数据，然后将数据发送到一个内部主题中。这样，使用事务处理的流程和咱们自己发送数据的流程是很像的。接下来，我们就把这两个流程简单做一个对比。
 
 
 
