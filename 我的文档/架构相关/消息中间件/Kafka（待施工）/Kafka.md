@@ -4,26 +4,7 @@
 
 Java Message Service（JMS）是Java平台中用于消息传递的API。它类似于 JDBC，允许应用程序之间通过消息传递进行异步通信。JMS提供了一种标准化的方式来创建、发送、接收和读取消息，从而实现松耦合的、可靠的、异步的通信。
 
-主要概念
-
-1. **消息（Message）**：
-   - JMS中传递的数据单元。消息可以包含文本、对象、字节流等。
-
-2. **消息生产者（Message Producer）**：
-   - 负责创建并发送消息的组件。
-
-3. **消息消费者（Message Consumer）**：
-   - 负责接收和处理消息的组件。
-
-4. **消息中间件（Message Broker）**：
-   - 负责在消息生产者和消费者之间传递消息的中间件。常见的JMS提供者有ActiveMQ、RabbitMQ、IBM MQ等。
-
-5. **目的地（Destination）**：
-   - 消息被发送和接收的地方。JMS支持两种主要的目的地类型：
-     - **队列（Queue）**：点对点消息传递模式，一个消息只能被一个消费者接收。
-     - **主题（Topic）**：发布/订阅消息传递模式，一个消息可以被多个消费者接收。
-
-两种消息传递模式
+JMS 规定了两种消息传递模式
 
 1. **点对点模式（Point-to-Point）**：
    - 消息被发送到一个队列中，一个消息只能被一个消费者接收。
@@ -33,7 +14,7 @@ Java Message Service（JMS）是Java平台中用于消息传递的API。它类�
    - 消息被发布到一个主题中，多个消费者可以订阅该主题并接收消息。
    - 适用于广播消息给多个接收者的场景。
 
-基本使用步骤
+基本使用步骤类似于 JDBC，有一套固定的规范：
 
 1. **创建连接工厂（ConnectionFactory）**：
    - 用于创建与消息中间件的连接。
@@ -99,31 +80,29 @@ public class JMSExample {
 
 # Kafka
 
-Apache Kafka 是一个分布式的流处理平台和消息系统，但它并没有完全实现 Java Message Service（JMS）的相关协议和规范。尽管 Kafka 和 JMS 都用于消息传递，但 Kafka 的 MQ 相关功能支持较单一，转而更专注与实现超高吞吐场景。
+Apache Kafka 是一个分布式的流处理平台和消息系统，它并没有完全实现 Java Message Service（JMS）的相关协议和规范。尽管 Kafka 和 JMS 都用于消息传递，但 Kafka 仅支持发布/订阅一种消息传递模式，其更专注与实现超高吞吐场景。
 
 Kafka 主要特点是基于 Pull 的模式来处理消息消费, 追求高吞吐量, 一开始的目的就是用于日志收集和传输, 适合产生大量数据的互联网服务的数据收集业务。大型公司建议可以选用, 如果有日志采集功能, 肯定是首选 kafka 了。
 
-大数据的杀手锏, 谈到大数据领域内的消息传输, 则绕不开Kafka, 这款为大数据而生的消息中间件, 以其百万级TPS的吞吐量名声大噪, 迅速成为大数据领域的宠儿, 在数据采集、传输、存储的过程中发挥着举足轻重的作用。目前已经被 LinkedIn, Uber,  Twitter,  Netflix 等大公司所采纳。
+大数据的杀手锏, 谈到大数据领域内的消息传输, 则绕不开 Kafka, 这款为大数据而生的消息中间件, 以其百万级 TPS 的吞吐量名声大噪, 迅速成为大数据领域的宠儿, 在数据采集、传输、存储的过程中发挥着举足轻重的作用。目前已经被 LinkedIn, Uber, Twitter, Netflix 等大公司所采纳。
 
-优点: 性能卓越, 单机写入TPS约在百万条/秒, 最大的优点, 就是吞吐量高。时效性ms级可用性非常高, kafka是分布式的, 一个数据多个副本, 少数机器宕机, 不会丢失数据, 不会导致不可用, 消费者采用Pull方式获取消息,  消息有序,  通过控制能够保证所有消息被消费且仅被消费一次;有优秀的第三方Kafka Web管理界面Kafka-Manager；在日志领域比较成熟, 被多家公司和多个开源项目使用；功能支持：功能较为简单, 主要支持简单的MQ功能, 在大数据领域的实时计算以及日志采集被大规模使用
+优点: 性能卓越, 单机写入TPS约在百万条/秒, 最大的优点, 就是吞吐量高。时效性ms级可用性非常高, kafka是分布式的, 一个数据多个副本, 少数机器宕机, 不会丢失数据, 不会导致不可用, 消费者采用Pull方式获取消息, 消息有序, 通过控制能够保证所有消息被消费且仅被消费一次，有优秀的第三方 Kafka Web 管理界面 Kafka-Manager；在日志领域比较成熟, 被多家公司和多个开源项目使用；功能支持：功能较为简单, 主要支持简单的MQ功能, 在大数据领域的实时计算以及日志采集被大规模使用
 
-缺点：Kafka单机超过64个队列/分区, Load会发生明显的CPU飙高现象, 队列越多, load越高, 发送消息响应时间变长, 使用短轮询方式, 实时性取决于轮询间隔时间, **消费失败不支持重试；支持消息顺序, 但是一台代理宕机后, 就会产生消息乱序**, 社区更新较慢；
+缺点：Kafka 单机超过 64 个分区, Load 会发生明显的 CPU 飙高现象, 分区越多, load 越高, 发送消息响应时间变长, 使用短轮询方式, 实时性取决于轮询间隔时间, **消费失败不支持重试；支持消息顺序, 但是一台代理宕机后, 就会产生消息乱序**, 社区更新较慢；
 
 # 安装手册
 
 ## Kafka 与 ZooKeeper
 
-Kafka 软件依赖 ZooKeeper 来实现协调调度，其实，Kafka作为一个独立的分布式消息传输系统，还需要第三方软件进行节点间的协调调度，不能实现自我管理，无形中就导致Kafka和其他软件之间形成了耦合性，制约了Kafka软件的发展，所以从Kafka 2.8.X版本开始，Kafka就尝试增加了Raft算法实现节点间的协调管理，来代替ZooKeeper。不过Kafka官方不推荐此方式应用在生产环境中，计划在Kafka 4.X版本中完全移除ZooKeeper，让我们拭目以待。
+Kafka 软件依赖 ZooKeeper 来实现协调调度，其实，Kafka 作为一个独立的分布式消息传输系统，还需要第三方软件进行节点间的协调调度，不能实现自我管理，无形中就导致 Kafka 和其他软件之间形成了耦合性，制约了 Kafka 软件的发展，所以从 Kafka 2.8.X 版本开始，Kafka 就尝试增加了 Raft 算法实现节点间的协调管理，来代替 ZooKeeper。不过 Kafka 官方不推荐此方式应用在生产环境中，计划在 Kafka 4.X 版本中完全移除 ZooKeeper，让我们拭目以待。
 
-本文安装手册针对 Kafka_2.12_3.6.1 安装，Kafka 是基于 Scala 语言和 Java 语言开发，其中 2.12 代表 Scala 语言版本，3.6.1 为 Kafka 版本，该版本可运行与 Java 8 环境中。
+本文安装手册基于 Kafka_2.12_3.6.1 版本编写，Kafka 是基于 Scala 语言和 Java 语言开发，其中 2.12 代表 Scala 语言版本，3.6.1 为 Kafka 版本，该版本可运行于 Java 8 环境中，但官方建议运行在 Java 11 版本，未来 Kafka 4.X 版本会完全弃用 Java 8。
 
-当前Java软件开发中，主流的版本就是Java  8，而Kafka 3.X官方建议Java版本更新至Java11，但是Java8依然可用。未来Kafka 4.X版本会完全弃用Java8，不过，咱们当前学习的Kafka版本为3.6.1版本，所以使用Java8即可，无需升级。
-
-Kafka的绝大数代码都是Scala语言编写的，而Scala语言本身就是基于Java语言开发的，并且由于Kafka内置了Scala语言包，所以Kafka是可以直接运行在JVM上的，无需安装其他软件。
+Kafka 的绝大数代码都是Scala语言编写的，而 Scala 语言本身就是基于 Java 语言开发的，并且由于 Kafka 内置了 Scala 语言包，所以 Kafka 是可以直接运行在JVM上的，无需安装其他软件。
 
 注意事项：2.8.0版本前，必须安装对应的 zookeeper，2.8.0 以后可以选择性安装 zookeeper。
 
-由于当前版本软件内部依然依赖 zookeeper 进行多节点协调调度，所以启动Kafka软件之前，需要先启动ZooKeeper软件。不过因为Kafka软件本身内置了ZooKeeper软不过因为Kafka软件本身内置了ZooKeeper软调用脚本命令启动即可。
+由于当前版本软件内部依然依赖 zookeeper 进行多节点协调调度，所以启动 Kafka 软件之前，需要先启动 ZooKeeper 软件。不过因为 Kafka 软件本身内置了ZooKeeper，用脚本命令启动即可。
 
 下载软件安装包：kafka_2.12-3.6.1.tgz，下载地址：https://kafka.apache.org/downloads
 
@@ -141,11 +120,15 @@ Kafka的绝大数代码都是Scala语言编写的，而Scala语言本身就是�
 | site-docs   | 文档                        |
 | logs        | 服务日志                    |
 
+## windows 环境
 
 
 
 
-# Java API 示例
+
+
+
+# Kafka Java API 示例
 
 ## 生产者
 
@@ -247,11 +230,11 @@ public class KafkaConsumerTest {
 }
 ```
 
-# Kafka 集群概念
+# Kafka 集群概述
 
 ## Broker
 
-使用Kafka前，我们都会启动Kafka服务进程，这里的Kafka服务进程我们一般会称之为Kafka Broker或Kafka Server。因为Kafka是分布式消息系统，所以在实际的生产环境中，是需要多个服务进程形成集群提供消息服务的。所以每一个服务节点都是一个broker，而且在Kafka集群中，为了区分不同的服务节点，每一个broker都应该有一个不重复的全局ID，称之为broker.id，这个ID可以在kafka软件的配置文件server.properties中进行配置
+使用Kafka前，我们都会启动Kafka服务进程，这里的Kafka服务进程我们一般会称之为Kafka Broker或Kafka Server。因为Kafka是分布式消息系统，所以在实际的生产环境中，是需要多个服务进程形成集群提供消息服务的。所以每一个服务节点都是一个broker，而且在Kafka集群中，为了区分不同的服务节点，每一个broker都应该有一个不重复的全局ID，称之为broker.id，这个ID可以在kafka软件的配置文件server.properties中进行配置。
 
 ```properties
 ############################# Server Basics #############################
@@ -263,7 +246,7 @@ broker.id=0
 
 咱们的Kafka集群中每一个节点都有自己的ID，整数且唯一。
 
-| 主机      | kafka-broker1 | kafka-broker2 | kafka-broker3 |
+| 配置项     | kafka-broker1 | kafka-broker2 | kafka-broker3 |
 | --------- | ------------- | ------------- | ------------- |
 | broker.id | 1             | 2             | 3             |
 
@@ -273,40 +256,12 @@ Kafka是分布式消息传输系统，所以存在多个Broker服务节点，但
 
 如果在运行过程中，Controller 节点出现了故障，那么Kafka会依托于ZooKeeper软件选举其他的节点作为新的Controller，让Kafka集群实现高可用。
 
-Controller节点的选举过程：
+### Controller 节点的选举算法
 
 1. 第一次启动Kafka集群时，会同时启动多个Broker节点，每一个Broker节点就会连接ZooKeeper，并尝试创建一个临时节点 `/controller`
 2. 因为ZooKeeper中一个节点不允许重复创建，所以多个Broker节点，最终只能有一个Broker节点可以创建成功，那么这个创建成功的Broker节点就会自动作为Kafka集群控制器节点，用于管理整个Kafka集群。
 3. 没有选举成功的其他Slave节点会创建Node监听器，用于监听 `/controller`节点的状态变化。
 4. 一旦Controller节点出现故障或挂掉了，那么对应的ZooKeeper客户端连接就会中断。ZooKeeper中的 `/controller` 节点就会自动被删除，而其他的那些Slave节点因为增加了监听器，所以当监听到 `/controller` 节点被删除后，就会马上向ZooKeeper发出创建 `/controller` 节点的请求，一旦创建成功，那么该Broker就变成了新的Controller节点了。
-
-Controller节点的基本功能
-
-1. Broker管理，监听 `/brokers/ids`节点相关的变化：
-
-- Broker数量增加或减少的变化
-
-- Broker对应的数据变化
-
-2. Topic管理
-
-- 新增：监听 `/brokers/topics`节点相关的变化
-
-- 修改：监听 `/brokers/topics`节点相关的变化
-
-- 删除：监听 `/admin/delete_topics`节点相关的变化
-
-3. Partation管理
-
-- 监听 `/admin/reassign_partitions`节点相关的变化
-
-- 监听 `/isr_change_notification`节点相关的变化
-
-- 监听 `/preferred_replica_election`节点相关的变化
-
-4. 数据服务
-
-5. 启动分区状态机和副本状态机
 
 # 主题 Topic
 
@@ -323,6 +278,8 @@ Topic主题是Kafka中消息的逻辑分类，但是这个分类不应该是固�
 Kafka消息传输采用发布、订阅模式，所以消息生产者必须将数据发送到一个主题，假如发送给这个主题的数据非常多，那么主题所在broker节点的负载和吞吐量就会受到极大的考验，甚至有可能因为热点问题引起broker节点故障，导致服务不可用。一个好的方案就是将一个主题从物理上分成几块，然后将不同的数据块均匀地分配到不同的broker节点上，这样就可以缓解单节点的负载问题。这个主题的分块我们称之为：分区partition。默认情况下，topic主题创建时分区数量为1，也就是一块分区，可以指定参数`--partitions`改变。Kafka的分区解决了单一主题topic线性扩展的问题，也解决了负载均衡的问题。
 
 topic主题的每个分区都会用一个编号进行标记，一般是从0开始的连续整数数字。Partition分区是物理上的概念，也就意味着会以数据文件的方式真实存在。每个topic包含一个或多个partition，每个partition都是一个有序的队列。partition中每条消息都会分配一个有序的ID，称之为偏移量：Offset
+
+分区也可以理解为队列。
 
 ## 分区副本：Replication
 
@@ -342,9 +299,11 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 主题创建后，会创建对应的分区数据Log日志。并打开文件连接通道，随时准备写入数据。
 
-## 创建 Topic
+## Topic 的创建
 
 创建主题Topic的方式有很多种：命令行，工具，客户端 API，自动创建。在 server.properties 文件中配置参数 auto.create.topics.enable=true 时，如果访问的主题不存在，那么 Kafka 就会自动创建主题。
+
+一般来讲，新增主题操作只有 Kafka 管理员才有权限，其余一律不允许私自创建，因为只有管理员才了解集群的运行情况。
 
 新增主题时，当没有配置分区和副本参数，所以当前主题分区数量为默认值1，编号为0，副本为1，编号为所在broker的ID值。为了方便集群的管理，创建topic时，会同时在ZK中增加子节点，记录主题相关配置信息。
 
@@ -370,7 +329,7 @@ Kafka 最开始的应用场景就是日志场景或MQ场景，更多的扮演着
 
 主题创建后，需要找到一个用于存储分区数据的位置，根据上面ZooKeeper存储的节点配置信息可以知道，当前主题的分区数量为1，副本数量为1，那么数据存储的位置就是副本所在的broker节点，
 
-路径中的00000000000000000000.log文件就是真正存储消息数据的文件，文件名称中的0表示当前文件的起始偏移量为0，index文件和timeindex文件都是数据索引文件，用于快速定位数据。只不过index文件采用偏移量的方式进行定位，而timeindex是采用时间戳的方式。
+路径中的00000000000000000000.log文件就是真正存储消息数据的文件，文件名称中的0表示当前文件的起始偏移量为0，目录下的`.index`文件和`.timeindex`文件都是数据索引文件，用于快速定位数据。只不过index文件采用偏移量的方式进行定位，而timeindex是采用时间戳的方式。
 
 ## 主题创建流程
 
