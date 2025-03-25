@@ -1,5 +1,7 @@
 [TOC]
 
+[Kafka 消息丢失的原因分析](https://blog.csdn.net/zhangjianfzf/article/details/140538583?utm_medium=distribute.pc_relevant.none-task-blog-2~default~baidujs_baidulandingword~default-0-140538583-blog-108751470.235^v43^pc_blog_bottom_relevance_base5&spm=1001.2101.3001.4242.1&utm_relevant_index=3)
+
 # JMS
 
 Java Message Service（JMS）是Java平台中用于消息传递的API。它类似于 JDBC，允许应用程序之间通过消息传递进行异步通信。JMS提供了一种标准化的方式来创建、发送、接收和读取消息，从而实现松耦合的、可靠的、异步的通信。
