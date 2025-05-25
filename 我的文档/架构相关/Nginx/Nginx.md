@@ -6206,3 +6206,10 @@ http {
 6. **负载均衡锁accept_mutex**，建议开启，默认就是开启的。
 
 7. **如果使用SSL的话，而且服务器上有SSL硬件加速设备的话，请开启硬件加速。**
+
+# nginx 不停机更新配置
+
+基于 K8S 的 nginx https://cloud.tencent.com/developer/article/1636081
+基于 Consul、Consul Template https://cloud.tencent.com/developer/article/1802713
+基于 Consul，nginx-upsync-module https://cloud.tencent.com/developer/article/1508722
+
