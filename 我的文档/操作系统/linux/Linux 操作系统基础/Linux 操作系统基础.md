@@ -52,7 +52,7 @@ https://pan.baidu.com/s/1RBi-tTOZl6k3GxoOhqPUcg?pwd=yyds
 
 目前主流的两种分区表形式为 MBR（主引导记录）和 GPT（全局唯一标识分区表）
 
-一、MBR 分区表（Master Boot Record）
+### 一、MBR 分区表（Master Boot Record）
 
 MBR 是传统的分区方案，自 1983 年沿用至今，其核心特点如下：
 
@@ -65,7 +65,138 @@ MBR 是传统的分区方案，自 1983 年沿用至今，其核心特点如下�
 
 在最初设计 MBR 分区方式时，其最多仅支持 4 个分区。后续随着科技发展，4 个分区的上限已不够使用，此时即引入了扩展分区的概念，即将原本 4 个分区中的一个作为扩展分区，在扩展分区中再进行分区拆分，以达到突破分区上限的目的，这也导致了在 Linux 系统中，主分区以 1,2,3,4 来表示，拓展分区中的逻辑分区以 5 为最小分区编号。
 
-二、GPT 分区表（GUID Partition Table）
+#### 手工分区
+
+MBR 分区表使用 fdisk 命令进行手工分区
+
+#### 查看磁盘分区信息​
+
+```bash
+# 查看所有磁盘分区
+fdisk -l
+# 查看指定磁盘（如 /dev/sda）
+fdisk -l /dev/sda
+```
+
+#### 对未分配的磁盘进行分区
+
+使用 fdisk 命令进入交互模式
+
+```bash
+# 指定磁盘进行分区,由于当前磁盘还未进行分区,所以其分区还没有分区号。（如 /dev/sda）
+fdisk /dev/sda
+```
+
+fdisk 交互命令说明
+
+| 命令 | 说明 |
+| :--- | :--- |
+| a | 设置可引导标记 |
+| b | 编辑 bsd 磁盘标签 |
+| c | 设置 DOS 操作系统兼容标记 |
+| d | 删除一个分区 |
+| l | 显示已知的文件系统类型。82 为 Linux swap 分区，83 为 Linux 分区 |
+| m | 显示帮助菜单 |
+| n | 新建分区 |
+| o | 建立空白 DOS 分区表 |
+| p | 显示分区列表 |
+| q | 不保存退出 |
+| s | 新建空白 SUN 磁盘标签 |
+| t | 改变一个分区的系统 ID |
+| u | 改变显示记录单位 |
+| v | 验证分区表 |
+| w | 保存退出 |
+| x | 附加功能（仅专家） |
+
+#### 分区步骤示例
+
+n--->p 主----1分区号----1 起始柱面-----分区大小+100M----W
+n---e 扩展---2分区号---124 起始柱面---1024 柱面(所有剩余空间都分配给扩展分区)
+n---1 逻辑---不用指定分区号---124 起始柱面---+100M(指定大小)-----w
+
+步骤 1：创建主分区
+
+```
+Command (m for help): n       # 新建分区
+Partition type:
+   p   primary (0 primary, 0 extended, 4 free)
+   e   extended
+Select (default p): p         # 选择主分区
+Partition number (1-4, default 1): 1  # 分区号
+First sector (2048-20971519, default 2048): 1  # 起始柱面（实际使用建议回车用默认值）
+Last sector, +sectors or +size{K,M,G} (1-20971519...): +100M  # 分区大小
+```
+
+步骤 2：创建扩展分区
+
+```
+Command (m for help): n
+Select (default p): e         # 选择扩展分区
+Partition number (2-4, default 2): 2  # 分区号
+First sector (1024-20971519, default 1024): 124  # 起始柱面
+Last sector...: 1024          # 分配所有剩余空间（柱面数）
+```
+
+步骤 3：创建逻辑分区
+
+```
+Command (m for help): n
+Select (default p): l         # 创建逻辑分区（仅在扩展分区内可用）
+First sector (125-1024, default 125): 124  # 起始柱面
+Last sector...: +100M         # 分区大小
+```
+
+步骤 4：保存退出
+
+```
+Command (m for help): w       # 写入分区表并退出
+```
+
+柱面选择示意图
+
+```
+┌───────────────────────────────────────┐
+│ 磁盘柱面空间示意图 │
+├───────────┬───────────┬──────────────┤
+│ 主分区1 │ 扩展分区2 │ 未分配空间 │
+│ (1-123) │ (124-1024)│ (1025-end) │
+│ ├───────────┼──────────────┤
+│ │ 逻辑分区1 │ 逻辑分区2... │
+│ │ (124-224) │ (225-324) │
+└───────────┴───────────┴──────────────┘
+```
+
+有时因为系统的分区表正忙，则需要重新启动系统之后才能使新的分区表生效。
+
+```
+Command (m for help):w     <-保存退出
+The partition table has been altered!
+
+Calling ioctl() to re-read partition table.
+
+WARNING: Re-reading the partition table failed with error 16.
+
+
+
+Device or resource busy.
+The kernel still uses the old table.The new table will be used at the next reboot.       <-要求重启动，才能格式化
+Syncing disks.
+```
+
+##### partprobe 命令：重载分区表
+
+强制重读所有分区文件，重新挂载分区文件内所有分区。这不是分区必须的命令，如果没有提示重启，可以不执行，也可以重启系统
+
+```
+(Warning: Unable to open /dev/hdc read-write (Read-only file system). /dev/hdc hasbeen opened read-only.
+```
+
+上述警告:光盘只读挂载，不是错误，不用紧张) 
+
+如果这个命令不存在请安装 parted-2.1-18.e16.i686 这个软件包
+
+
+### 二、GPT 分区表（GUID Partition Table）
 
 GPT是现代分区方案，针对大容量硬盘设计，主要优势包括：
 
@@ -118,7 +249,7 @@ linux 引入 LVM 逻辑卷来实现分区拓展的目的，记住，**任何方�
 
 ## 常用的硬盘管理命令
 
-### 1、df 命令
+### df 命令
 
 ```bash
 df -ahT
@@ -128,7 +259,7 @@ df -ahT
 - `-h`：单位不再只用KB，而是换算成习惯单位
 - `-T`：多出了文件系统类型一列
 
-### 2、du 命令
+### du 命令
 
 ```
 du [选项] [目录或文件名]
@@ -143,29 +274,217 @@ du [选项] [目录或文件名]
 > **注意：**
 >  `du` 与 `df` 的区别：
 >
-> - `du` 用于统计文件大小，统计结果是准确的
+> - `du` 用于统计文件占用大小，统计结果是准确的
 > - `df` 用于统计空间大小，统计的剩余空间是准确的
 
-**附加技巧：**
+### lsof 命令
 
+lsof 命令用于列出当前系统上被进程打开的所有“文件”
+
+`lsof` 输出关键列的含义
+
+- `COMMAND`：进程的名称。
+- `PID`：进程ID。
+- `USER`：运行进程的用户。
+- `FD`：文件描述符。常见值：
+  - `cwd`：当前工作目录。
+  - `rtd`：根目录。
+  - `txt`：程序代码（文本段）。
+  - `mem`：内存映射文件。
+  - `0u`, `1u`, `2u`：标准输入、输出、错误（文件描述符 0, 1, 2）。
+  - `3u`, `4u`...：其他打开的文件。
+- `TYPE`：文件类型（如 `REG` 普通文件，`DIR` 目录，`CHR` 字符设备，`BLK` 块设备，`FIFO` 管道，`IPv4`/`IPv6` 网络套接字）。
+- `DEVICE`：设备号。
+- `SIZE/OFF`：文件大小或偏移量。
+- `NODE`：文件的 inode 号。
+- `NAME`：文件或网络连接的完整路径名/地址。
+
+由于在 Linux 系统中，一切都以文件的形式表示，于是其主要作用：
+
+#### 查看文件/目录被哪个进程占用：
+
+- •**场景：** 无法卸载磁盘分区（提示设备忙）、无法删除文件（提示文件被占用）、移动文件失败。
+- •**命令：** `lsof /path/to/file_or_directory` 或 `lsof /dev/sda1`
+- •**输出：** 显示打开该文件或目录的所有进程的详细信息（进程ID、命令名、用户等）。知道进程后，你可以选择终止它（`kill`）或等待它完成。
+
+#### 查看进程打开了哪些文件：
+
+- •**场景：** 诊断进程行为、查找进程使用的配置文件、日志文件、依赖库等；排查进程资源泄露（如打开文件过多）。
+- •**命令：** `lsof -p <PID>` (替换 `<PID>` 为具体的进程ID)
+- •**输出：** 列出该进程打开的所有文件描述符及其对应的文件。
+
+#### 查看网络连接：
+
+- **场景：** 查看哪些进程在监听端口、哪些进程建立了到特定 IP/端口的连接、排查网络服务问题、检查可疑连接。
+- **命令：**
+  - `lsof -i`：列出所有网络连接（TCP, UDP, RAW）。
+  - `lsof -i :<port>`：列出使用特定端口的所有连接（如 `lsof -i :80`）。
+  - `lsof -i tcp`：只列出 TCP 连接。
+  - `lsof -i udp`：只列出 UDP 连接。
+  - `lsof -i @<ip>`：列出与特定 IP 地址相关的连接（如 `lsof -i @192.168.1.100`）。
+  - `lsof -i @<hostname>`：列出与特定主机名相关的连接。
+- **输出：** 显示进程、用户、协议、本地地址:端口、远程地址:端口、状态（如 `LISTEN`, `ESTABLISHED`）等信息。功能上类似于 `netstat -tulnp`，但提供更多进程细节。
+
+#### 查看用户打开了哪些文件：
+
+- •**场景：** 了解特定用户的活动（如 `root` 用户打开了哪些关键文件）。
+- •**命令：** `lsof -u <username>`
+- •**输出：** 列出该用户启动的所有进程打开的所有文件。
+
+#### 查找被删除但仍被进程占用的文件：
+
+- •**场景：** 磁盘空间未释放，怀疑有文件被 `rm` 删除但仍有进程在使用它（常见于日志文件）。
+- •**命令：** `lsof +L1` 或 `lsof | grep deleted`
+- •**输出：** 在 `NAME` 列会显示 `(deleted)`。这类文件的 inode 仍然被进程持有，直到进程关闭该文件描述符后，空间才会真正释放。重启进程或杀死进程是常见的解决方法。
+
+#### 查看命令/程序使用的文件：
+
+- •**场景：** 了解一个特定程序（如 `httpd`）运行时依赖哪些文件。
+- •**命令：** `lsof -c <command_name>` (如 `lsof -c httpd`)
+- •**输出：** 列出所有以 `<command_name>` 开头的进程打开的文件。
+
+### fsck 命令：文件系统修复
+
+fsck 命令用于​​检查和修复文件系统一致性​​。它的主要作用是在文件系统出现错误、损坏或异常关机（如断电、系统崩溃）后，诊断问题并尝试修复文件系统结构。
+
+语法
+
+```bash
+fsck [选项] [设备名或挂载点]
 ```
-lsof | grep deleted
-```
 
-> 查看被删除的文件，然后可以逐个进程手动 `kill`
+`fsck` **绝对不能**在已挂载（`mounted`）且处于读写状态的文件系统上运行！这会导致灾难性的数据损坏。`fsck` 的修复操作有时可能导致数据丢失（尤其是文件内容损坏时），因为它优先保证文件系统结构的完整性。因此，**在运行 `fsck` 之前，强烈建议备份重要数据**。
 
-### 3、fsck 文件系统修复命令
+示例
 
-```
+```bash
 fsck -y /dev/sdb1
 ```
 
-- `-y`：自动修复
+一般来说在检测到上次异常关机时，系统在启动时会自动调用该命令，无需我们手动调用。一般这个命令我们用不到。
+
+### dumpe2fs 命令：显示磁盘的详细信息
+
+dumpe2fs 命令用于显示磁盘的详细状态
+
+命令语法
+
+```bash
+dumpe2fs [选项] <设备名>
+```
+
+**注意：文件系统通常需要处于未挂载状态或只读挂载状态才能安全使用 `dumpe2fs`。**
+
+示例
+
+```bash
+dumpe2fs -h /dev/sda1
+```
+
+输出示例（关键部分）：
+
+```
+Filesystem volume name:   /          # 卷标（挂载点）
+Last mounted on:          /          # 上次挂载点
+Filesystem UUID:          12345678-90ab-cdef-1234-567890abcdef # 唯一标识符
+Filesystem magic number:  0xEF53     # 标识为 ext* 文件系统
+Filesystem revision #:    1 (dynamic) # 修订版本
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype needs_recovery extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum # 启用的特性
+Filesystem flags:         signed_directory_hash
+Default mount options:    user_xattr acl # 默认挂载选项
+Filesystem state:         clean      # 状态：clean (干净) 或 not clean (需要检查)
+Errors behavior:          Continue   # 错误处理方式
+Filesystem OS type:       Linux      # 操作系统类型
+Inode count:              524288     # 总 inode 数
+Block count:              2097152    # 总块数
+Reserved block count:     104857     # 保留块数（通常给 root）
+Free blocks:              1584321    # 空闲块数
+Free inodes:              512306     # 空闲 inode 数
+First block:              0          # 第一个数据块
+Block size:               4096       # 块大小
+...
+Journal inode:            8          # 日志的 inode
+Default directory hash:   half_md4  # 目录哈希算法
+Directory Hash Seed:      abcdef12-3456-7890-abcd-ef1234567890
+Journal backup:           inode blocks # 日志备份方式
+Checksum type:            crc32c     # 校验和类型
+...
+```
+
+### stat 命令：查看文件详细信息
+
+命令语法
+
+```bash
+stat [选项]... 文件或目录...
+```
+
+- 可以同时指定多个文件或目录。
+- 使用 stat -f 或 stat --file-system 可以显示文件​​所在文件系统​​的状态信息，而不是文件本身的信息。
+
+典型输出示例
+
+```bash
+stat file.txt
+```
+
+```
+  File: file.txt
+  Size: 1024           Blocks: 8          IO Block: 4096   regular file
+Device: fd00h/64768d    Inode: 789146      Links: 1
+Access: (0644/-rw-r--r--)  Uid: ( 1000/   user)   Gid: ( 1000/   group)
+Access: 2023-10-27 14:30:00.000000000 +0800
+Modify: 2023-10-27 14:20:00.000000000 +0800
+Change: 2023-10-27 14:25:00.000000000 +0800
+ Birth: 2023-10-27 14:15:00.000000000 +0800  # 如果文件系统支持
+```
+
+### file 命令​：判断文件类型
+
+```bash
+file 文件名
+```
+
+
 
 ## 系统安装手动挂载
 
 ## 系统启动自动挂载
 当一个已挂载的分区无法正常使用时，Linux 可能表现为无法开机。
+
+# 二、文件系统
+
+## 1. Linux 文件系统的特性：
+
+### - super block（超级块）
+记录整个文件系统的信息，包括：
+- block 与 inode 的总量
+- 已经使用的 inode 和 block 的数量
+- 未使用的 inode 和 block 的数量
+- block 与 inode 的大小
+- 文件系统的挂载时间
+- 最近一次的写入时间
+- 最近一次的磁盘检验时间
+
+### - date block（数据块，也称作 block）
+用来实际保存数据的（柜子的隔断）：
+- block 的大小（1KB、2KB 或 4KB）和数量在格式化后就已经决定，不能改变，除非重新格式化
+- 每个 block 只能保存一个文件的数据
+- 文件数据小于一个 block 时，剩余空间不能被其他文件使用
+- 文件数据大于一个 block 时，会占用多个 block 块
+- Windows 磁盘碎片整理工具通过将文件占用的多个 block 整理到一起来加快读写速度
+
+### - inode（i 节点，柜子门上的标签）
+用来记录文件的以下属性：
+- 文件权限（r、w、x）
+- 文件的所有者和属组
+- 文件的大小
+- 文件的状态改变时间（ctime）
+- 文件的最近一次读取时间（atime）
+- 文件的最近一次修改时间（mtime）
+- 文件数据真正保存的 block 编号
+- 每个文件需要占用一个 inode
+
 
 # 文件系统
 
@@ -271,3 +590,13 @@ tmpfs          127609      2  127607    1% /dev/shm
 
 创建目录
 
+# type 命令​:判断命令类型
+
+该命令用于说明另一个命令是作为 shell 的内置命令存在，还是位于文件系统中的某个外部可执行文件。
+
+```bash
+type ls
+# 输出可能为：ls is aliased to `ls --color=auto'
+type cd
+# 输出可能为：cd is a shell builtin
+```
