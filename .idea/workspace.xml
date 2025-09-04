@@ -5,7 +5,39 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/01尚硅谷-云计算-Linux目录结构-系统管理-初学者注意事项.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/02尚硅谷-云计算-Linux系统管理-Linux常用命令.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/03尚硅谷-云计算-Linux系统管理-vim编辑器.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/04尚硅谷-云计算-Linux系统管理-软件安装.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/05 尚硅谷-云计算-Linux系统管理-用户管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/06 尚硅谷-云计算-Linux系统管理-权限管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/07 尚硅谷-云计算-Linux系统管理-文件系统管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/08 尚硅谷-云计算-Linux系统管理-高级文件系统管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/09 尚硅谷-云计算-Linux系统管理-shell基础.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/10 尚硅谷-云计算-Linux系统管理-shell编程.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/11 尚硅谷-云计算-Linux系统管理-启动引导与修复.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/12 尚硅谷-云计算-Linux系统管理-服务管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/13 尚硅谷-云计算-Linux系统管理-系统管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/14 尚硅谷-云计算-Linux系统管理-日志管理.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/新建文件夹/001_尚硅谷-Linux云计算-网络服务-网络服务概述.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/新建文件夹/002_尚硅谷-Linux云计算-网络服务-网络服务基础.pdf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/新建文件夹/003_尚硅谷-Linux云计算-网络服务-网络服务基础.pdf" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/03尚硅谷-云计算-Linux目录结构-系统管理-初学者注意事项.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/04尚硅谷-云计算-Linux系统管理-Linux常用命令.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/05尚硅谷-云计算-Linux系统管理-vim编辑器.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/06尚硅谷-云计算-Linux系统管理-软件安装.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/07 尚硅谷-云计算-Linux系统管理-用户管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/08 尚硅谷-云计算-Linux系统管理-权限管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/09 尚硅谷-云计算-Linux系统管理-文件系统管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/10 尚硅谷-云计算-Linux系统管理-高级文件系统管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/11 尚硅谷-云计算-Linux系统管理-shell基础.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/12 尚硅谷-云计算-Linux系统管理-shell编程.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/13 尚硅谷-云计算-Linux系统管理-启动引导与修复.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/14 尚硅谷-云计算-Linux系统管理-服务管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/15 尚硅谷-云计算-Linux系统管理-系统管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/16 尚硅谷-云计算-Linux系统管理-日志管理.pdf" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/Linux 操作系统基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础/Linux 操作系统基础.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -122,6 +154,7 @@
       <workItem from="1755612557253" duration="1420000" />
       <workItem from="1755786308820" duration="4851000" />
       <workItem from="1755937337609" duration="753000" />
+      <workItem from="1756992221802" duration="2108000" />
     </task>
     <servers />
   </component>
