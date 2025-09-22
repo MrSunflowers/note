@@ -39,10 +39,114 @@ https://pan.baidu.com/s/1RBi-tTOZl6k3GxoOhqPUcg?pwd=yyds
 常见的优化手段包括
 
 - 预读：每次读取数据的时间不仅仅读取所需要的数据，还将所请求数据附近的数据进行读取
-- 延迟写：同样，根据时间局部性原理，最近被访问的数据有可能再次被访问，因此当数据更改之后不马上写回磁盘，而是继续放在内存中，以备接下来的请求读取或者修改，是减少磁盘IO的另一个有效手段，例如 mysql 的 buffer pool,当一个修改请求被commit之后，并不会立刻写回磁盘，而是将修改的页标记为“脏”，然后根据某种机制通过checkpoint或lazy writer写回磁盘。
+- 延迟写：同样，根据时间局部性原理，最近被访问的数据有可能再次被访问，因此当数据更改之后不马上写回磁盘，而是继续放在内存中，以备接下来的请求读取或者修改，是减少磁盘IO的另一个有效手段，例如 mysql 的 buffer pool，当一个修改请求被commit之后，并不会立刻写回磁盘，而是将修改的页标记为“脏”，然后根据某种机制通过checkpoint或lazy writer写回磁盘。
 - 根据磁盘原理不难看出，如果所请求的数据在磁盘物理磁道之间是连续的，那么会减少磁头的移动距离，从而减少了寻道时间。因此相关的数据放在连续的物理空间上会减少寻道时间。mysql 中，通过聚集索引使得数据根据主键在物理磁盘上连续，从而减少了寻道时间。
 
-## 固态硬盘
+# 系统启动过程
+
+操作系统一般存储在外存（如硬盘）中，CPU 无法直接对其取指令并执行。因此，如何将操作系统加载到内存并开始执行是计算机系统设计时需要考虑的一个问题。具体来说，操作系统启动需要解决以下两个问题：
+
+1. 在操作系统正式工作之前，计算机应如何方式将操作系统加载到内存中并将系统控制权交给操作系统。
+2. 在操作系统装载的过程中应如何确认操作系统存储在硬盘的哪个位置。
+
+计算机在启动时从一个固定的位置读取一小段程序[通常称为BIOS(Basic Input/Output System，基本输入输出系统)]并运行，进而利用这一小段程序一步步加载操作系统。这个过程被称为系统引导(bootstrapping)过程。
+
+BIOS 需要提前写入 CPU 可直接寻址的位置——内存。在计算机中，基本的内存由RAM(Random Access Memory，随机访问存储器)和ROM(Read-Only Memory，只读存储器)组成。BIOS的存储需要满足掉电不丢失的特性，因此需要用ROM的非易失性来持久保存BIOS。在不同体系架构的CPU上，不同的固化硬件逻辑不同，使得CPU上电启动后指定的首次取指的地址可能存在区别。例如，x86架构CPU约定当CPU启动后从地址CS:IP = 0xF000:0xFFF0加载指令执行。因此，存储BIOS的ROM应根据不同体系架构固化映射到相应的内存地址区域。
+
+以基于x86架构的个人计算机为例，当用户启动计算机的电源时，计算机硬件会自动产生一个中断信号(CPU复位信号)。这个中断信号触发CPU初始化其指令寄存器(例如x86架构下的CS，IP寄存器)，使CPU从特定的内存位置(BIOS所在位置)开始执行。BIOS先完成加电自检(Power-On Self-Test，POST)和硬件初始化工作，再到硬盘中寻找一段为BootLoader的程序，由BootLoader进一步将操作系统加载到内存中。系统引导过程引入BootLoader加载操作系统，而不直接由BIOS将操作系统加载到内存，主要是考虑到以下问题：BIOS作为整个计算机系统启动时执行的第一段程序，应尽量保证其执行的正确性。若将过多的功能集成到BIOS中，会导致BIOS代码膨胀、复杂性增大而不方便维护。同时，BIOS固化在BIOS芯片中，正常情况下是不对其进行修改的，所以它也无法处理软件不断变化的情况。
+
+BootLoader存储在硬盘的启动扇区，通常是第0条磁道第1个扇区。通过在启动扇区中写入特定的字符，可标识该硬盘是可引导的。例如，在MBR(Master Boot Record，主引导记录)格式下，若启动扇区的512B中最后两字节为0x55和0xAA，则标识该设备是可引导的。在确认该硬盘是可引导设备之后，BIOS程序就将BootLoader加载到内存的特定位置，进而跳转到BootLoader并开始执行，把CPU控制权移交给BootLoader。
+
+BootLoader的基本功能包括：初始化硬件设备、为操作系统准备RAM内存，再从硬盘的特定扇区(通常第2个扇区)读入操作系统内核，进而将CPU控制权移交给操作系统内核。
+
+## Linux 系统启动实例
+
+在 Linux 中，在找到可引导设备后，BIOS 会从其中读取 MBR 分区表并移交 CPU 控制权。
+
+在 MBR 中，前 446B 是启动代码，启动代码在取得CPU控制权后，负责检查分区表是否正确，随后将CPU控制权交给x86架构计算机Linux操作系统所用的主流BootLoader——GRUB（GRand Unified BootLoader，全面统一引导加载程序）；其后的64B为分区表，分区表用于硬盘分区，使得每个分区都可安装一个操作系统镜像；最后2B用于标识MBR（若值为0xAA55，则说明该扇区是MBR）。
+
+为了节省空间，操作系统内核通常以压缩形式存储。因此，在指定的内核被加载到内存中并开始执行后，它必须首先从文件的压缩版本中解压，才能继续进行其他操作。内核在开始运行后，将初始化内部的数据结构，检测系统内存在的各个硬件并激活相应的驱动程序以及挂载根文件系统。
+
+## Linux 运行级别
+
+经过以上步骤，应用程序的基本运行环境已经建立，随后第一个运行的应用程序便是init程序，该程序将依据 `/etc/inittab` 文件内容进行初始化工作。`/etc/inittab` 文件最主要的作用就是设定Linux的运行等级。例如设定格式为“:id:5:initdefault:”，表明 Linux 将运行在等级5上，即启动的为常见带图形界面的Linux操作系统。Linux的运行等级的关系如下：
+
+- 0 表示关机；
+- 1 表示单用户模式；
+- 2 表示无网络支持的多用户模式；
+- 3 表示有网络支持的多用户模式；
+- 4 为保留模式，暂未使用；
+- 5 表示有网络支持和X Window支持的多用户模式；
+- 6 表示重新引导系统，即系统重启。
+
+在Linux 系统中可以使用 `runlevel` 命令来查看系统的运行级别，命令如下:
+
+```bash
+[root@localhost ~]# runlevel
+N 3
+```
+
+在这个命令的结果中，“N 3” 中的 N 代表进入这个级别之前，上一个级别是什么，3 代表当前级别｡ “N” 就是 None 的意思，也就是说系统是开机直接进入的 3 运行级别 ，没有上一个运行级别｡ 那如果是从图形界面切换到字符界面的话，再查看运行级别，就应该是这样的:
+
+```bash
+[root@localhost ~]# runlevel
+5 3
+```
+
+手工改变当前的运行级别使用 init 命令(注意着不是 init 进程) 即可，命令如下:
+
+```bash
+[root@localhost ~]# init 5
+```
+
+进入图形界面，当然要已经安装了图形界面才可以
+
+```bash
+[root@localhost ~]# init 0
+```
+
+关机
+
+```bash
+[root@localhost ~]# init 6
+```
+
+重启
+
+不过要注意使用 init 命令关机和重启动 ，并不是太安全 ，容易造成数据丢失 ｡所以推荐大家还是使用 shutdown 命令进行关机和重启
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+在设定运行等级后，Linux 操作系统执行的第一个用户程序是 /etc/rc.d/rc.sysinit 脚本程序，它的功能包括设定环境变量（PATH）、网络配置、启动交换（swap）分区、设定 /proc 等。最后执行login程序，用户输入账号和密码登录系统。
 
 # 分区
 
@@ -60,7 +164,7 @@ https://pan.baidu.com/s/1RBi-tTOZl6k3GxoOhqPUcg?pwd=yyds
 
 在进行操作系统安装之前首先需要对磁盘进行分区，无论是任何操作系统，这一步骤都是必须的。
 
-磁盘分区表是硬盘上用于管理分区信息的核心数据结构，**它独立于操作系统而存在**，用于定义硬盘空间如何被划分为不同的逻辑部分。通常存储在硬盘的第一个物理扇区，这个扇区被称为 主引导记录（Master Boot Record, MBR） 或（对于 UEFI/GPT 分区）GUID 分区表头（GUID Partition Table Header）。
+磁盘分区表是硬盘上用于管理分区信息的核心数据结构，**它独立于操作系统而存在**，用于定义硬盘空间如何被划分为不同的逻辑部分。通常存储在硬盘的第一个物理扇区，这个扇区被称为 主引导记录（Master Boot Record， MBR） 或（对于 UEFI/GPT 分区）GUID 分区表头（GUID Partition Table Header）。
 
 主流的两种分区表形式为 MBR（主引导记录）和 GPT（全局唯一标识分区表）。
 
@@ -75,7 +179,7 @@ MBR 是传统的分区方案，自 1983 年沿用至今，其核心特点如下�
 
 由于历史原因，现在的操作系统还是有一大部分使用 MBR 分区方式，其最大特点即存在逻辑分区特性
 
-在最初设计 MBR 分区方式时，其最多仅支持 4 个分区。后续随着科技发展，4 个分区的上限已不够使用，此时即引入了扩展分区的概念，即将原本 4 个分区中的一个作为扩展分区，在扩展分区中再进行分区拆分，以达到突破分区上限的目的，这也导致了在 Linux 系统中，主分区以 1,2,3,4 来表示，拓展分区中的逻辑分区以 5 为最小分区编号。
+在最初设计 MBR 分区方式时，其最多仅支持 4 个分区。后续随着科技发展，4 个分区的上限已不够使用，此时即引入了扩展分区的概念，即将原本 4 个分区中的一个作为扩展分区，在扩展分区中再进行分区拆分，以达到突破分区上限的目的，这也导致了在 Linux 系统中，主分区以 1，2，3，4 来表示，拓展分区中的逻辑分区以 5 为最小分区编号。
 
 在博文“[Linux启动过程分析](http://blog.chinaunix.net/uid-23069658-id-3142047.html)”中提到过MBR，它是存在于硬盘的0柱面，0磁头，1扇区里，占512字节的空间。这512字节里包含了主引导程序Bootloader和磁盘分区表DPT。其中Bootloader占446字节，分区表占64字节，一个分区要占用16字节，64字节的分区表只能被划分4个分区，这也就是目前我们的硬盘最多只能支持4个分区记录的原因。
 
@@ -104,7 +208,7 @@ GPT是现代分区方案，针对大容量硬盘设计，主要优势包括：
 | **交互模式**        | **强交互式** (命令提示符)               | 弱交互式 (命令驱动) 或 非交互脚本化           |
 | **文件系统操作**    | 基本无 (仅分区)                         | **可创建文件系统** (`mkpart`的 `fs-type`参数) |
 | **调整分区大小**    | 非常有限或危险                          | **相对安全地调整分区大小** (`resizepart`)     |
-| **单位**            | 柱面 (默认)，可切换扇区                 | **智能单位** (MB, GB, %, s 等)                |
+| **单位**            | 柱面 (默认)，可切换扇区                 | **智能单位** (MB， GB， %， s 等)                |
 | **输出信息**        | 较简洁                                  | **更详细** (包含文件系统类型等)               |
 | **易用性 (初学者)** | 命令较多需记忆                          | 命令较少，但参数复杂                          |
 | **脚本化/自动化**   | 较难                                    | **更适合** (`-s`选项)                         |
@@ -117,26 +221,26 @@ GPT是现代分区方案，针对大容量硬盘设计，主要优势包括：
 
 2. **交互模式:**
 
-- **`fdisk`:** 采用**强交互式命令行模式**。启动后 (`fdisk /dev/sdX`)，会进入一个专属的命令提示符环境 (如 `Command (m for help):`)。用户需要在这个环境中输入单字母命令 (如 `n`创建新分区, `d`删除分区, `p`打印分区表, `w`写入并退出, `q`不保存退出等) 来操作分区表。操作完成后需要显式写入 (`w`) 才会生效。
-- **`parted`:** 采用**命令驱动模式**。虽然也可以启动一个交互式 shell (`parted /dev/sdX`)，然后输入命令 (如 `print`, `mkpart`, `rm`, `resizepart`, `quit`)，但它更像是在一个普通的 shell 里运行命令。更重要的是，`parted`**非常适合在脚本中非交互式使用** (例如 `parted /dev/sdX mklabel gpt mkpart primary ext4 1MiB 100%`)。操作通常是“即时”的，某些危险操作 (如 `rm`) 可能不需要额外的确认步骤 (务必小心！)。
+- **`fdisk`:** 采用**强交互式命令行模式**。启动后 (`fdisk /dev/sdX`)，会进入一个专属的命令提示符环境 (如 `Command (m for help):`)。用户需要在这个环境中输入单字母命令 (如 `n`创建新分区， `d`删除分区， `p`打印分区表， `w`写入并退出， `q`不保存退出等) 来操作分区表。操作完成后需要显式写入 (`w`) 才会生效。
+- **`parted`:** 采用**命令驱动模式**。虽然也可以启动一个交互式 shell (`parted /dev/sdX`)，然后输入命令 (如 `print`， `mkpart`， `rm`， `resizepart`， `quit`)，但它更像是在一个普通的 shell 里运行命令。更重要的是，`parted`**非常适合在脚本中非交互式使用** (例如 `parted /dev/sdX mklabel gpt mkpart primary ext4 1MiB 100%`)。操作通常是“即时”的，某些危险操作 (如 `rm`) 可能不需要额外的确认步骤 (务必小心！)。
 
 3. **功能范围:**
 
 - **`fdisk`:** 核心功能集中在**创建、删除、修改分区类型、查看分区表**等基本分区操作上。它**不直接处理文件系统**。你需要分区后，再使用 `mkfs`等命令在分区上创建文件系统。
-- **`parted`:** 功能更广泛。除了基本的分区操作 (`mkpart`, `rm`, `name`, `set`设置标志如 `boot`)，它还能：
-  - **创建文件系统：** `mkpart`命令可以直接指定 `fs-type`参数 (如 `ext4`, `xfs`, `fat32`, `ntfs`, `btrfs`)，在创建分区的同时（或之后）创建文件系统（底层调用 `mkfs`）。`(mkfs`命令在 `parted`中已被弃用，推荐在分区后用 `mkfs`工具）。
+- **`parted`:** 功能更广泛。除了基本的分区操作 (`mkpart`， `rm`， `name`， `set`设置标志如 `boot`)，它还能：
+  - **创建文件系统：** `mkpart`命令可以直接指定 `fs-type`参数 (如 `ext4`， `xfs`， `fat32`， `ntfs`， `btrfs`)，在创建分区的同时（或之后）创建文件系统（底层调用 `mkfs`）。`(mkfs`命令在 `parted`中已被弃用，推荐在分区后用 `mkfs`工具）。
   - **调整分区大小：** `resizepart`命令可以**相对安全地调整分区大小**（通常需要文件系统本身支持在线调整，如 `resize2fs`for ext4）。这是 `fdisk`难以安全完成的复杂操作。
   - **更详细的信息：** `print`命令输出通常比 `fdisk -l`更详细，包括文件系统类型（如果已创建）、分区标志、更人性化的尺寸单位等。
-  - **操作分区标志：** `set`命令可以方便地设置/取消设置分区标志（如 `boot`, `esp`, `lvm`, `raid`等）。
+  - **操作分区标志：** `set`命令可以方便地设置/取消设置分区标志（如 `boot`， `esp`， `lvm`， `raid`等）。
 
 4. **单位和易用性:**
 
 - **`fdisk`:** 默认使用**柱面 (cylinders)** 作为单位，这对现代磁盘来说是一个抽象且不直观的概念。虽然可以切换为扇区 (sectors)，但计算起始和结束位置需要用户自己进行扇区数的换算。
-- **`parted`:** 默认使用**更人性化的单位**，如 **MB, GB, %** (百分比)，或者精确的扇区 (`s`)。例如，`mkpart primary ext4 1MiB 100%`表示从 1MiB 开始到磁盘末尾创建一个主分区。这大大简化了操作，减少了计算错误。`print`的输出也默认使用易读的单位。
+- **`parted`:** 默认使用**更人性化的单位**，如 **MB， GB， %** (百分比)，或者精确的扇区 (`s`)。例如，`mkpart primary ext4 1MiB 100%`表示从 1MiB 开始到磁盘末尾创建一个主分区。这大大简化了操作，减少了计算错误。`print`的输出也默认使用易读的单位。
 
 5. **底层操作与风险:**
 
-- 两者都是直接操作磁盘分区表的底层工具。**任何写入操作 (`fdisk`的 `w`, `parted`的大多数修改命令) 都有导致数据丢失的风险。** 操作前务必**备份重要数据**并**确认目标磁盘正确无误**。
+- 两者都是直接操作磁盘分区表的底层工具。**任何写入操作 (`fdisk`的 `w`， `parted`的大多数修改命令) 都有导致数据丢失的风险。** 操作前务必**备份重要数据**并**确认目标磁盘正确无误**。
 - `parted`的某些操作（如 `resizepart`）虽然设计上更安全，但**调整包含数据的分区大小始终是高风险操作**，强烈建议先备份。
 
 
@@ -153,7 +257,7 @@ GPT是现代分区方案，针对大容量硬盘设计，主要优势包括：
   - 你需要**调整现有分区的大小** (`resizepart`)。
   - 你希望在分区时**直接指定文件系统类型** (虽然之后仍需 `mkfs`)。
   - 你需要**非交互式/脚本化**地进行分区操作。
-  - 你更喜欢使用 **MB, GB 等直观单位** 而不是柱面或手动计算扇区。
+  - 你更喜欢使用 **MB， GB 等直观单位** 而不是柱面或手动计算扇区。
   - 你需要查看**更详细的分区信息**或设置**分区标志**。
 
 **对于现代 Linux 系统和新硬件（尤其是大容量 SSD/HDD），`parted`通常是更强大、更灵活、更推荐的工具，特别是因为它对 GPT 的原生支持。** 然而，`fdisk`在操作小型 MBR 磁盘或某些特定场景下仍有其价值。`gdisk`则是专门为 GPT 设计的、类似于 `fdisk`交互模式的工具，是另一个处理 GPT 磁盘的好选择。
@@ -176,7 +280,7 @@ fdisk -l /dev/sda
 使用 fdisk 命令进入交互模式
 
 ```bash
-# 指定磁盘进行分区,由于当前磁盘还未进行分区,所以其分区还没有分区号。（如 /dev/sda）
+# 指定磁盘进行分区，由于当前磁盘还未进行分区，所以其分区还没有分区号。（如 /dev/sda）
 fdisk /dev/sda
 ```
 
@@ -208,12 +312,12 @@ fdisk 交互命令说明
 ```
 Command (m for help): n       # 新建分区
 Partition type:
-   p   primary (0 primary, 0 extended, 4 free)
+   p   primary (0 primary， 0 extended， 4 free)
    e   extended
 Select (default p): p         # 选择主分区
-Partition number (1-4, default 1): 1  # 分区号
-First sector (2048-20971519, default 2048): 1  # 起始柱面（实际使用建议回车用默认值）
-Last sector, +sectors or +size{K,M,G} (1-20971519...): +100M  # 分区大小
+Partition number (1-4， default 1): 1  # 分区号
+First sector (2048-20971519， default 2048): 1  # 起始柱面（实际使用建议回车用默认值）
+Last sector， +sectors or +size{K，M，G} (1-20971519...): +100M  # 分区大小
 ```
 
 步骤 2：创建扩展分区
@@ -221,8 +325,8 @@ Last sector, +sectors or +size{K,M,G} (1-20971519...): +100M  # 分区大小
 ```
 Command (m for help): n
 Select (default p): e         # 选择扩展分区
-Partition number (2-4, default 2): 2  # 分区号
-First sector (1024-20971519, default 1024): 124  # 起始柱面
+Partition number (2-4， default 2): 2  # 分区号
+First sector (1024-20971519， default 1024): 124  # 起始柱面
 Last sector...: 1024          # 分配所有剩余空间（柱面数）
 ```
 
@@ -231,7 +335,7 @@ Last sector...: 1024          # 分配所有剩余空间（柱面数）
 ```
 Command (m for help): n
 Select (default p): l         # 创建逻辑分区（仅在扩展分区内可用）
-First sector (125-1024, default 125): 124  # 起始柱面
+First sector (125-1024， default 125): 124  # 起始柱面
 Last sector...: +100M         # 分区大小
 ```
 
@@ -300,13 +404,13 @@ parted /dev/sdb
 | :---------------------------------------- | :---------------------------------------------------------- |
 | **帮助与信息**                            |                                                             |
 | `help [COMMAND]`                          | 显示所有命令或指定命令的帮助信息。                          |
-| `print [devices\|free\|list,all\|NUMBER]` | 显示分区表、活动设备、空闲空间、所有指定分区信息。          |
+| `print [devices\|free\|list，all\|NUMBER]` | 显示分区表、活动设备、空闲空间、所有指定分区信息。          |
 | `version`                                 | 显示 `parted`版本信息。                                     |
 | `quit`                                    | 退出 `parted`程序。                                         |
 | **磁盘与设备操作**                        |                                                             |
-| `mklabel, mktable LABEL-TYPE`             | 创建新的磁盘标签（即分区表类型，如 `gpt`, `msdos`）。       |
+| `mklabel， mktable LABEL-TYPE`             | 创建新的磁盘标签（即分区表类型，如 `gpt`， `msdos`）。       |
 | `select DEVICE`                           | 选择需要编辑的设备（如 `/dev/sdb`）。                       |
-| `unit UNIT`                               | 设置输入和显示时使用的默认单位（如 `MB`, `GB`, `%`, `s`）。 |
+| `unit UNIT`                               | 设置输入和显示时使用的默认单位（如 `MB`， `GB`， `%`， `s`）。 |
 | **分区管理**                              |                                                             |
 | `mkpart PART-TYPE [FS-TYPE] START END`    | 创建一个新分区。                                            |
 | `mkpartfs PART-TYPE FS-TYPE START END`    | **（已弃用）** 创建分区并同时建立文件系统。                 |
@@ -332,7 +436,7 @@ parted 交互模式核心命令详解
 
 2. 分区表操作
 
-- mklabel, mktable LABEL-TYPE: 为磁盘创建新的分区表类型（即磁盘标签）。这是对磁盘进行分区前必须的第一步操作。常见的 LABEL-TYPE 有：
+- mklabel， mktable LABEL-TYPE: 为磁盘创建新的分区表类型（即磁盘标签）。这是对磁盘进行分区前必须的第一步操作。常见的 LABEL-TYPE 有：
     ◦ gpt: 适用于现代硬件和大容量硬盘（>2TB）。
     ◦ msdos: 传统的 MBR 分区表。
 
@@ -341,14 +445,14 @@ parted 交互模式核心命令详解
 - mkpart PART-TYPE [FS-TYPE] START END: 创建一个新分区。这是最关键的创建命令。
     ◦   PART-TYPE: 分区类型，如 primary（主分区）、extended（扩展分区）、logical（逻辑分区），对于 GPT 分区则简单使用 primary 即可。
     ◦   [FS-TYPE]: 此处请注意：这里指定的文件系统类型（如 ext4）仅在分区表上做一个标识，并不会真正格式化分区。真正的格式化需要使用 mkfs 命令。
-    ◦   START END: 分区的起始和结束位置，可以使用多种单位，如 1MiB, 100GiB 或百分比 100%。建议从 1MiB 开始以保证最佳性能（4K对齐）。
+    ◦   START END: 分区的起始和结束位置，可以使用多种单位，如 1MiB， 100GiB 或百分比 100%。建议从 1MiB 开始以保证最佳性能（4K对齐）。
 - rm NUMBER: 删除指定编号的分区。
 - resize NUMBER START END: 调整指定编号分区的大小。这是一个高风险操作，务必谨慎使用。
 
 4. 文件系统与分区标志操作
 
 - mkfs NUMBER FS-TYPE: 在指定分区上创建文件系统（格式化）。例如 mkfs 1 ext4 将第一个分区格式化为 ext4。注意：此操作会摧毁分区上所有现有数据！
-- set NUMBER FLAG STATE: 设置分区的标志。例如，为引导分区设置 boot 标志：set 1 boot on。其他常见标志包括 esp (EFI系统分区), lvm, raid等。
+- set NUMBER FLAG STATE: 设置分区的标志。例如，为引导分区设置 boot 标志：set 1 boot on。其他常见标志包括 esp (EFI系统分区)， lvm， raid等。
 
 5. 高级功能
 
@@ -361,7 +465,7 @@ parted 交互模式核心命令详解
 
 1.  操作流程：对一块新磁盘的标准操作流程是 select -> mklabel -> mkpart -> print (确认) -> quit -> 使用 mkfs 命令格式化。
 2.  重要提示：上文中提到的 mkpartfs 命令（创建分区并直接格式化）在较新的 parted 版本中已被标记为废弃。官方推荐的做法是分开操作：先用 mkpart 创建分区，再用 mkfs 系列命令进行格式化。这样更安全、更灵活。
-3.  风险意识：parted 命令的操作通常是直接生效的（没有单独的“写入”步骤，如 fdisk 的 w），在 rm, mklabel 等破坏性操作前一定要再三确认，以免造成数据丢失。
+3.  风险意识：parted 命令的操作通常是直接生效的（没有单独的“写入”步骤，如 fdisk 的 w），在 rm， mklabel 等破坏性操作前一定要再三确认，以免造成数据丢失。
 
 #### 查看磁盘分区信息
 
@@ -369,7 +473,7 @@ parted 交互模式核心命令详解
 
 ```bash
 (parted) print
-Model: VMware, VMware Virtual S (scsi)
+Model: VMware， VMware Virtual S (scsi)
 Disk /dev/sdb: 21.5GB
 Sector size (logical/physical): 512B/512B
 Partition Table: msdos
@@ -383,7 +487,7 @@ Number  Start     End       Size      Type      File system  Flags
 
 磁盘整体信息
 
-- **Model**: `VMware, VMware Virtual S (scsi)`
+- **Model**: `VMware， VMware Virtual S (scsi)`
   - 硬盘参数，显示为 VMware 虚拟机中的虚拟 SCSI 硬盘。
 - **Disk**: `/dev/sdb: 21.5GB`
   - 磁盘设备名为 `/dev/sdb`，总容量为 21.5 GB。
@@ -408,7 +512,7 @@ Number  Start     End       Size      Type      File system  Flags
 2.  分区结构为：
     -   1 个主分区 (`1`)，**未格式化**（无文件系统）。
     -   1 个扩展分区 (`2`)，作为容器，**本身不能被格式化**。
-    -   2 个逻辑分区 (`5`, `6`) 位于扩展分区内，均已被格式化为 **ext4** 文件系统。
+    -   2 个逻辑分区 (`5`， `6`) 位于扩展分区内，均已被格式化为 **ext4** 文件系统。
 3.  `parted` 的 `print` 指令能有效识别已存在的 ext4 文件系统，但其格式化功能可能受限。
 
 
@@ -446,14 +550,14 @@ Number  Start     End       Size      Type      File system  Flags
 5. 内核警告信息
 
 ```bash
-警告:WARNING:the kernel failed to re-read the partition table on /dev/sdb(设备或资源忙). As a result, it may not reflect all of your changes until after reboot.
+警告:WARNING:the kernel failed to re-read the partition table on /dev/sdb(设备或资源忙). As a result， it may not reflect all of your changes until after reboot.
 ```
 *提示：需要重启系统后更改才能完全生效。*
 
 6. 查看修改后的分区表
 ```bash
 (parted) print
-Model: VMware, VMware Virtual S (scsi)
+Model: VMware， VMware Virtual S (scsi)
 Disk /dev/sdb: 21.5GB
 Sector size (logical/physical): 512B/512B
 Partition Table: gpt
@@ -498,7 +602,7 @@ Number  Start  End  Size  File system  Name  标志
 
 ```bash
 (parted) print
-Model: VMware, VMware Virtual S (scsi)
+Model: VMware， VMware Virtual S (scsi)
 Disk /dev/sdb: 21.5GB
 Sector size (logical/physical): 512B/512B
 Partition Table: gpt
@@ -547,7 +651,7 @@ Partition Table: gpt
 
 执行 `print` 命令后显示的信息：
 ```
-Model: VMware, VMware Virtual S (scsi)
+Model: VMware， VMware Virtual S (scsi)
 Disk /dev/sdb: 21.5GB
 Sector size (logical/physical): 512B/512B
 Partition Table: gpt
@@ -585,7 +689,7 @@ Number  Start   End     Size    File system  Name  标志
 执行 `print` 命令后显示的信息：
 
 ```bash
-Model: VMware, VMware Virtual S (scsi)
+Model: VMware， VMware Virtual S (scsi)
 Disk /dev/sdb: 21.5GB
 Sector size (logical/physical): 512B/512B
 Partition Table: gpt
@@ -645,8 +749,8 @@ Changed system type of partition 1 to 82 (Linux swap / Solaris)
 
 ```bash
 [root@localhost ~]# mkswap /dev/sdb1
-Setting up swapspace version 1, size = 522076 KiB
-no label, UUID=c3351dc3-f403-419a-9666-c24615e170fb
+Setting up swapspace version 1， size = 522076 KiB
+no label， UUID=c3351dc3-f403-419a-9666-c24615e170fb
 ```
 
 成功创建交换分区，显示版本、大小和UUID信息
@@ -700,7 +804,7 @@ Swap:        2047992          0    2047992
 | 操作系统             | 主流文件系统                 | 特点与考量                                                   |
 | :------------------- | :--------------------------- | :----------------------------------------------------------- |
 | **Windows**          | **NTFS**                     | 为PC和服务器设计，强调**安全性**（完整的ACL权限控制）、**可靠性**（日志功能）和**功能性**（支持加密、压缩、磁盘配额）。**ReFS** 是其新一代文件系统，专注于超大规模和数据中心场景。 |
-| **Linux**            | **ext4**, **XFS**, **Btrfs** | 选择多样，生态丰富。**ext4** 是稳健通用的选择；**XFS** 在处理大文件和并发I/O上性能极佳，常用于企业级应用；**Btrfs** 则专注于高级功能，如快照、子卷、数据校验和RAID。 |
+| **Linux**            | **ext4**， **XFS**， **Btrfs** | 选择多样，生态丰富。**ext4** 是稳健通用的选择；**XFS** 在处理大文件和并发I/O上性能极佳，常用于企业级应用；**Btrfs** 则专注于高级功能，如快照、子卷、数据校验和RAID。 |
 | **macOS**            | **APFS**                     | 为**闪存/固态硬盘（SSD）** 优化设计，核心特性是**写时复制（COW）**、**空间共享**（为多个卷动态分配容量）和**极快的目录快照**（这是Time Machine备份速度快的基础）。 |
 | **移动端 (Android)** | **F2FS**                     | 由三星开发，专为**NAND闪存**特性设计，能有效减少读写放大，延长闪存寿命，提升读写性能。 |
 | **跨平台/外部存储**  | **exFAT**                    | 由微软开发，旨在解决FAT32不支持大文件（>4GB）和大分区（>2TB）的问题，同时保持其**轻量化和高兼容性**的特点，是U盘和SD卡的理想选择。 |
@@ -711,7 +815,7 @@ Swap:        2047992          0    2047992
 
 由于磁盘中存储的数据众多，EXT4 文件系统将存储空间分为 Inode 存储区和数据块存储区，其中 Inode 区为数据块索引存储区，主要存储数据块的索引信息，即数据块在磁盘的位置信息。
 
-数据块存储区存储文件的实际内容，数据块的大小是固定的，在创建 EXT4 文件系统时可以通过 -b 选项设定（通常为 1KB, 2KB, 4KB）
+数据块存储区存储文件的实际内容，数据块的大小是固定的，在创建 EXT4 文件系统时可以通过 -b 选项设定（通常为 1KB， 2KB， 4KB）
 
 假设数据块大小被规定为 4KB ，现在有一个 6KB 的文件，其占用的数据块实际上是 2 块，2 块数据块的总大小为 8KB，而文件仅占用 6 KB，值得注意的是，当文件未完全使用数据块的空间时，剩余空间也无法分配给其他文件使用，即**数据块是磁盘存储的最小单位**。
 
@@ -811,8 +915,8 @@ mke2fs -t ext4 -b 2048 /dev/sdb6
 
 | **硬件类型**      | **设备文件名**            | **命名规则说明**                        |
 | :---------------- | :------------------------ | :-------------------------------------- |
-| IDE硬盘           | `/dev/hd[a-d]`            | `a`: 主盘, `b`: 从盘                    |
-| SATA/SCSI/USB硬盘 | `/dev/sd[a-p]`            | 按检测顺序分配（sda, sdb, ...）         |
+| IDE硬盘           | `/dev/hd[a-d]`            | `a`: 主盘， `b`: 从盘                    |
+| SATA/SCSI/USB硬盘 | `/dev/sd[a-p]`            | 按检测顺序分配（sda， sdb， ...）         |
 | 光驱              | `/dev/cdrom`或 `/dev/sr0` | 通常为/dev/sr0的符号链接                |
 | 软盘              | `/dev/fd[0-1]`            | fd0: 第一软驱                           |
 | 25针打印机        | `/dev/1p[0-2]`            | 并口打印机(LPT端口)                     |
@@ -986,8 +1090,8 @@ lsof 命令用于列出当前系统上被进程打开的所有“文件”
   - `rtd`：根目录。
   - `txt`：程序代码（文本段）。
   - `mem`：内存映射文件。
-  - `0u`, `1u`, `2u`：标准输入、输出、错误（文件描述符 0, 1, 2）。
-  - `3u`, `4u`...：其他打开的文件。
+  - `0u`， `1u`， `2u`：标准输入、输出、错误（文件描述符 0， 1， 2）。
+  - `3u`， `4u`...：其他打开的文件。
 - `TYPE`：文件类型（如 `REG` 普通文件，`DIR` 目录，`CHR` 字符设备，`BLK` 块设备，`FIFO` 管道，`IPv4`/`IPv6` 网络套接字）。
 - `DEVICE`：设备号。
 - `SIZE/OFF`：文件大小或偏移量。
@@ -1012,13 +1116,13 @@ lsof 命令用于列出当前系统上被进程打开的所有“文件”
 
 - **场景：** 查看哪些进程在监听端口、哪些进程建立了到特定 IP/端口的连接、排查网络服务问题、检查可疑连接。
 - **命令：**
-  - `lsof -i`：列出所有网络连接（TCP, UDP, RAW）。
+  - `lsof -i`：列出所有网络连接（TCP， UDP， RAW）。
   - `lsof -i :<port>`：列出使用特定端口的所有连接（如 `lsof -i :80`）。
   - `lsof -i tcp`：只列出 TCP 连接。
   - `lsof -i udp`：只列出 UDP 连接。
   - `lsof -i @<ip>`：列出与特定 IP 地址相关的连接（如 `lsof -i @192.168.1.100`）。
   - `lsof -i @<hostname>`：列出与特定主机名相关的连接。
-- **输出：** 显示进程、用户、协议、本地地址:端口、远程地址:端口、状态（如 `LISTEN`, `ESTABLISHED`）等信息。功能上类似于 `netstat -tulnp`，但提供更多进程细节。
+- **输出：** 显示进程、用户、协议、本地地址:端口、远程地址:端口、状态（如 `LISTEN`， `ESTABLISHED`）等信息。功能上类似于 `netstat -tulnp`，但提供更多进程细节。
 
 #### 查看用户打开了哪些文件：
 
@@ -1170,4 +1274,4 @@ type ls
 # 输出可能为：ls is aliased to `ls --color=auto'
 type cd
 # 输出可能为：cd is a shell builtin
-```
+```)

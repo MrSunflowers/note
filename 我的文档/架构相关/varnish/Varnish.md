@@ -5624,7 +5624,7 @@ param.set：设置param的值
 ## Varnishd
 
 命令语法
-```
+```bash
 varnishd [-a address[:port]] [-b host[:port]] [-d] [-F] [-f config] [-g group] [-h type[,options]] [-i identity] [-l shmlogsize] [-n name] [-P file] [-p param=value] [-s type[,options]] [-T address[:port]] [-t ttl] [-u user] [-V] [-w min[,max[,timeout]]]
 ```
 
@@ -5692,7 +5692,7 @@ varnishd [-a address[:port]] [-b host[:port]] [-d] [-F] [-f config] [-g group] [
 
 **simple_list**是一种简单的doubly-linked链表。这种数据结构的特点是每个节点都有两个指针，一个指向前一个节点，另一个指向后一个节点。虽然这种数据结构实现简单，但在生产环境中并不推荐使用。原因在于它的查找效率较低，时间复杂度为O(n)，不适合需要频繁查找和插入的场景。
 
-**classic**是一种标准的hash table，也是默认使用的Hash算法。hash table通过将键值对存储在数组的桶（buckets）中，利用哈希函数将键映射到数组索引，从而实现快速查找。其优点是查找、插入和删除的平均时间复杂度为O(1)，非常适合需要高效数据访问的场景。然而，hash table的性能依赖于哈希函数的质量和桶的数量。如果哈希函数设计不当或桶的数量不足，可能会导致大量的哈希冲突，从而影响性能。
+**classic**是一种标准的hash tabl e，也是默认使用的Hash算法。hash table通过将键值对存储在数组的桶（buckets）中，利用哈希函数将键映射到数组索引，从而实现快速查找。其优点是查找、插入和删除的平均时间复杂度为O(1)，非常适合需要高效数据访问的场景。然而，hash table的性能依赖于哈希函数的质量和桶的数量。如果哈希函数设计不当或桶的数量不足，可能会导致大量的哈希冲突，从而影响性能。
 
 **critbit**是一种自适应的树结构，相比传统的B-tree，critbit-tree几乎不用锁，性能更好。critbit-tree是一种基于字典树的变种，适用于需要频繁插入和查找的场景。其特点是每个节点存储一个键值对和一个临界位，通过比较键的临界位来决定分支方向。由于不需要锁机制，critbit-tree在高并发环境下表现出色，能够有效减少锁竞争，提高系统的整体性能。
 
