@@ -59,7 +59,7 @@ BootLoader存储在硬盘的启动扇区，通常是第0条磁道第1个扇区�
 
 BootLoader的基本功能包括：初始化硬件设备、为操作系统准备RAM内存，再从硬盘的特定扇区(通常第2个扇区)读入操作系统内核，进而将CPU控制权移交给操作系统内核。
 
-## Linux 系统启动实例
+## Linux 系统启动过程
 
 在 Linux 中，在找到可引导设备后，BIOS 会从其中读取 MBR 分区表并移交 CPU 控制权。
 
@@ -69,7 +69,9 @@ BootLoader的基本功能包括：初始化硬件设备、为操作系统准备R
 
 ## Linux 运行级别
 
-经过以上步骤，应用程序的基本运行环境已经建立，随后第一个运行的应用程序便是init程序，该程序将依据 `/etc/inittab` 文件内容进行初始化工作。`/etc/inittab` 文件最主要的作用就是设定Linux的运行等级。例如设定格式为“:id:5:initdefault:”，表明 Linux 将运行在等级5上，即启动的为常见带图形界面的Linux操作系统。Linux的运行等级的关系如下：
+经过以上步骤，应用程序的基本运行环境已经建立，随后第一个运行的应用程序便是 init 程序，该程序将依据 `/etc/inittab` 文件内容进行初始化工作。
+
+`/etc/inittab` 文件最主要的作用就是设定 Linux 的运行等级。例如设定格式为 `:id:5:initdefault:`，表明 Linux 将运行在等级5上，即启动的为常见带图形界面的Linux操作系统。Linux的运行等级的关系如下：
 
 - 0 表示关机；
 - 1 表示单用户模式；
@@ -86,7 +88,7 @@ BootLoader的基本功能包括：初始化硬件设备、为操作系统准备R
 N 3
 ```
 
-在这个命令的结果中，“N 3” 中的 N 代表进入这个级别之前，上一个级别是什么，3 代表当前级别｡ “N” 就是 None 的意思，也就是说系统是开机直接进入的 3 运行级别 ，没有上一个运行级别｡ 那如果是从图形界面切换到字符界面的话，再查看运行级别，就应该是这样的:
+在这个命令的结果中，“N 3” 中的 N 代表进入这个级别之前，上一个级别是什么，3 代表当前级别。 “N” 就是 None 的意思，也就是说系统是开机直接进入的 3 运行级别 ，没有上一个运行级别。 那如果是从图形界面切换到字符界面的话，再查看运行级别，就应该是这样的:
 
 ```bash
 [root@localhost ~]# runlevel
@@ -113,40 +115,424 @@ N 3
 
 重启
 
-不过要注意使用 init 命令关机和重启动 ，并不是太安全 ，容易造成数据丢失 ｡所以推荐大家还是使用 shutdown 命令进行关机和重启
+不过要注意使用 init 命令关机和重启动 ，并不是太安全 ，容易造成数据丢失 。所以推荐大家还是使用 shutdown 命令进行关机和重启
 
+## 系统默认运行级别
 
+`/etc/inittab` 文件内容
 
+```bash
+[root@localhost ~]# vim /etc/inittab
 
+inittab is only used by upstart for the default runlevel.
 
+ADDING OTHER CONFIGURATION HERE WILL HAVE NO EFFECT ON YOUR SYSTEM.
 
+System initialization is started by /etc/init/rcS.conf
 
+#系统会先调用/etc/init/rcS.conf
 
+Individual runlevels are started by /etc/init/rc.conf
 
+#再调用/etc/init/rc.conf，在不同的运行级别启动不同的服务
 
+Ctrl-Alt-Delete is handled by /etc/init/control-alt-delete.conf
 
+#通过这个配置文件判断Ctrl+Alt+Delete 热启动键是否可用
 
+Terminal gettys are handled by /etc/init/tty.conf and /etc/init/serial.conf，
 
+with configuration in /etc/sysconfig/init.
 
+#判断系统可以启动的本地终端数量，及终端的基本设置(如颜色)
 
+For information on how to write upstart event handlers， or how
 
+upstart works， see init(5)， init(8)， and initctl(8).
 
+Default runlevel. The runlevels used are:
 
+0 - halt (Do NOT set initdefault to this)
 
+1 - Single user mode
 
+2 - Multiuser， without NFS (The same as 3， if you do not have networking)
 
+3 - Full multiuser mode
 
+4 - unused
 
+5 - X11
 
+6 - reboot (Do NOT set initdefault to this)
 
+#就是刚刚的0-6 的运行级别的说明
 
+id:3:initdefault:
 
+#这就是系统的默认运行级别，也就是系统开机后直接进入哪个运行级别
+```
 
+**注意** 这里的默认运行级别只能写 3 或 5，其他的级别要不就是关机重启，要不就是保留或单用户， 都不能作为系统默认运行级别的。
 
+在 CentOS 7 中，该文件已失效，其引入了 ​​“targets”​​ 的概念来实现类似的功能。
 
+与传统运行级别的类比：
 
+- multi-user.target: 类似于过去的​​运行级别 3​​。这是一个多用户、纯文本命令行的界面模式，也是服务器最常见的运行模式。
+- graphical.target: 类似于过去的​​运行级别 5​​。在 multi-user 的基础上，额外启动了图形界面（GUI）。
+- rescue.target: 类似于单用户模式，用于系统修复。
+- emergency.target: 更紧急的救援模式。
+
+查看当前默认 Target
+
+```bash
+systemctl get-default
+```
+
+设置默认 Target​​
+
+```bash
+systemctl set-default TARGET.target
+```
+
+例如，如果希望服务器每次启动后进入命令行界面，可以执行：
+
+```bash
+systemctl set-default multi-user.target
+```
+
+如果希望进入图形界面，则执行：
+
+```bash
+systemctl set-default graphical.target
+```
 
 在设定运行等级后，Linux 操作系统执行的第一个用户程序是 /etc/rc.d/rc.sysinit 脚本程序，它的功能包括设定环境变量（PATH）、网络配置、启动交换（swap）分区、设定 /proc 等。最后执行login程序，用户输入账号和密码登录系统。
+
+## 软件开机自启动
+
+** `/etc/rc.d/rc.local` 文件 **
+
+这个配置文件会在用户登陆之前读取，是在所有系统服务启动之后执行的最后一个脚本，这个文件中写入什么命令，在每次系统启动时都会执行一次。也就是说，我如果有任何需要在系统启动就运行的工作，只需要写入 `/etc/rc.d/rc.local` 这个配置文件即可。这个文件内容如下:
+
+```bash
+[root@localhost ~]# vi /etc/rc.d/rc.local
+
+#!/bin/sh
+
+This script will be executed after all the other init scripts.You can put your own initialization stuff in here if you don't want to do the full Sys V style init stuff.
+
+touch /var/lock/subsys/local
+#默认会 touch 这个文件，每次系统启动时 touch 这个文件，这个文件的修改时间就是系统的启动时间了。
+/etc/rc.d/init.d/httpd start
+#如果写入 RPM 包安装的 apache 的启动命令，apache 服务就会开机时自动启动了。
+```
+
+该文件在 CentOS 7 中不再发挥其作用，该文件虽然存在，但其注释内容包含了非常关键的信息，文件开头明确指出 “THIS FILE IS ADDED FOR COMPATIBILITY PURPOSES”，这意味着它只是为了向后兼容旧的习惯或脚本而保留的。
+
+注释强烈建议用户创建自己的 ​​systemd services​​ 或 ​​udev rules​​ 来在启动时运行脚本，而不是使用这个文件。这是官方的最佳实践推荐。
+
+最关键的一点是，“this script will NOT be run after all other services”。在旧系统中，rc.local 是在所有系统服务启动之后执行的最后一个脚本。但在 systemd 的并行启动机制下，它的执行时机不再有这种保证，可能会在其他服务启动之前或之中执行，这可能会引发依赖性问题。
+
+注释还提醒用户，必须手动执行 `chmod +x /etc/rc.d/rc.local` 命令给这个文件添加可执行权限，否则它不会在启动时运行。
+
+CentOS 7 默认使用 systemd 作为初始化系统。绝大多数通过 yum 安装的软件包都会自动配置好 systemd 服务单元。
+
+使用 `systemctl enable` 命令。这个命令并不会现在启动服务，而是创建一个符号链接，告诉系统在下次启动时自动运行该服务。
+
+```bash
+systemctl enable httpd
+```
+
+
+​成功提示: `Created symlink from /etc/systemd/system/multi-user.target.wants/httpd.service to /usr/lib/systemd/system/httpd.service.`
+
+这表示 `systemd` 已经配置好在多用户模式下自动启动 `httpd`。
+
+可以执行以下命令来确认服务是否已启用和运行：
+
+```bash
+systemctl is-enabled httpd
+```
+
+显示 enabled则表示已成功设置开机自启。
+
+
+可以执行以下命令来检查当前运行状态
+
+```bash
+systemctl status httpd
+```
+
+显示 active (running) 则表示服务正在运行。
+
+之后，可以使用以下命令来管理服务：
+
+- systemctl start httpd - 启动服务
+- systemctl stop httpd - 停止服务
+- systemctl restart httpd - 重启服务
+- systemctl reload httpd - 重新加载配置（不中断服务）
+- systemctl disable httpd - ​​禁用​​开机自启动
+
+对于 httpd 或任何其他通过官方仓库安装的软件，​​请始终使用 `systemctl enable <服务名>` 来设置开机自启动​​。这是 CentOS 7/RHEL 7 及更新版本的正确做法。
+
+## 启动引导程序
+
+Lilo 作为 Linux 的早期版本的引导程序，现已经不是很常见了，目前主流的引导程序是 grub，grub 相比来讲有很多优势，主要有:
+
+- 支持更多的文件系统;
+- grub 的主程序可以直接在文件系统中查找内核文件;
+- 在系统启动时，可以利用grub 的交互界面编辑和修改启动选项;
+- 可以动态的修改grub 的配置文件，这样在修改配置文件之后不需要重新安装grub，而只需 要重新启动就可以生效了。
+
+### `/boot/grub` 目录
+
+grub 的作用有以下几个:
+
+- 第一是加载操作系统的内核;
+- 第二是拥有一个可以让用户选择的菜单，来选择到底启动哪个系统;
+- 第三还可以调用其他的启动引导程序，来实现多系统引导。
+
+grub 的配置文件主要是放置在 `/boot/grub/` 目录中的，我们来看看这个目录下到底有哪些文件吧:
+
+```bash
+[root@localhost ~]# cd /boot/grub/
+[root@localhost grub]# ll -h
+总用量 274K
+-rw-r--r--. 1 root root 63 4 月 10 21:49 device.map
+#grub 中硬盘的设备文件名与系统的设备文件名的对应文件
+-rw-r--r--. 1 root root 14K 4 月 10 21:49 e2fs_stage1_5
+#ext2/ext3 文件系统的stage 1.5 文件
+-rw-r--r--. 1 root root 13K 4 月 10 21:49 fat_stage1_5
+#FAT 文件系统的stage 1.5 文件
+-rw-r--r--. 1 root root 12K 4 月 10 21:49 ffs_stage1_5
+#FFS 文件系统的stage 1.5 文件
+-rw-------. 1 root root 737 4 月 10 21:49 grub.conf
+#grub 的配置文件
+-rw-r--r--. 1 root root 12K 4 月 10 21:49 iso9660_stage1_5
+#iso9660 文件系统的Stage 1.5 文件
+-rw-r--r--. 1 root root 13K 4 月 10 21:49 jfs_stage1_5
+#jfs 文件系统的Stage 1.5 文件
+lrwxrwxrwx. 1 root root 11 4 月 10 21:49 menu.lst -> ./grub.conf
+#grub 的配置文件。和grub.conf 是软链接，所以两个文件修改哪个都可以
+-rw-r--r--. 1 root root 12K 4 月 10 21:49 minix_stage1_5
+#minix 文件系统的Stage 1.5 文件
+-rw-r--r--. 1 root root 15K 4 月 10 21:49 reiserfs_stage1_5
+#reiserfs 文件系统的Stage 1.5 文件
+-rw-r--r--. 1 root root 1.4K 11 月 15 2010 splash.xpm.gz
+#系统启动时，grub 程序的背景图像
+-rw-r--r--. 1 root root 512 4 月 10 21:49 stage1
+#安装到引导扇区中的stage1 的备份文件
+-rw-r--r--. 1 root root 124K 4 月 10 21:49 stage2
+#stage2 的备份文件
+-rw-r--r--. 1 root root 12K 4 月 10 21:49 ufs2_stage1_5
+#UFS 文件系统的Stage 1.5 文件
+-rw-r--r--. 1 root root 12K 4 月 10 21:49 vstafs_stage1_5
+#vstafs 文件系统的Stage 1.5 文件
+-rw-r--r--. 1 root root 14K 4 月 10 21:49 xfs_stage1_5
+#xfs 文件系统的Stage 1.5 文件
+```
+
+其实这个目录中主要就是 grub 的配置文件和各种文件系统的 stage1.5 文件。不过 grub 的配置文件有两个 /boot/grub/grub.conf 和 /boot/grub/menu.lst，这两个配置文件是软链接，所以修改哪一个都可以。
+
+### Grub 的配置文件
+
+在 grub 中分区的表示方法
+
+| 硬盘           | 分区           | Linux中设备文件名 | Grub中设备文件名 |
+| -------------- | -------------- | ----------------- | ---------------- |
+| 第一块SCSI硬盘 | 第一个主分区   | /dev/sda1         | hd (0，0)        |
+| 第一块SCSI硬盘 | 第二个主分区   | /dev/sda2         | hd(0，1)         |
+| 第一块SCSI硬盘 | 扩展分区       | /dev/sda3         | hd (0，2)        |
+| 第一块SCSI硬盘 | 第一个逻辑分区 | /dev/sda5         | hd(0，4)         |
+| 第二块SCSI硬盘 | 第一个主分区   | /dev/sdb1         | hd(1，0)         |
+| 第二块SCSI硬盘 | 第二个主分区   | /dev/sdb2         | hd(1，1)         |
+| 第二块SCSI硬盘 | 扩展分区       | /dev/sdb3         | hd(1，2)         |
+| 第二块SCSI硬盘 | 第一个逻辑分区 | /dev/sdb5         | hd(1，4)         |
+|                |                |                   |                  |
+
+
+```bash
+[root@localhost ~]# vi /boot/grub/grub.conf
+default=0
+timeout=5
+splashimage=(hd0，0)/grub/splash.xpm.gz
+hiddenmenu
+#以上为grub 整体设置
+
+
+title CentOS (2.6.32-279.el6.i686)
+	root (hd0，0)
+	kernel		 /vmlinuz-2.6.32-279.el6.i686 ro
+root=UUID=b9a7a1a8-767f-4a87-8a2b-a535edb362c9 rd_NO_LUKS KEYBOARDTYPE=pc KEYTABLE=usrd_NO_MD crashkernel=auto LANG=zh_CN.UTF-8 rd_NO_LVM rd_NO_DM rhgb quiet
+	initrd /initramfs-2.6.32-279.el6.i686.img
+```
+
+其中
+
+default=0
+
+表示默认启动第一个系统。也就是如果在等待时间结束后，用户没有选择进入哪一个系统，那么系统会默认进入第一个系统。如果有多系统并存，那么每个系统都会有自己的 title 字段，如果想要默认进入第二个系统，这里就可以设为 default=1。
+
+timeout=5
+
+表示等待时间，默认是 5 秒。也就是进入系统时，如果 5 秒内用户没有按下任意键，那么系统会进入 default 字段定义的系统。当然可以手工修改这个等待时间，如果 timeout=0 则不会等待直接进入系统，timeout=-1 则是一直等待用户输入，而不会自动进入系统。
+
+splashimage=(hd0，0)/grub/splash.xpm.gz
+
+这里是指定 grub 启动时的背景图像文件的保存位置的。记得 CentOS 6.x 启动时后台的蓝色图像吧，就是这个文件的作用。不过这个文件具体在哪里啊?已经说过了hd(0，0)代表第一个硬盘的第一个分区，而系统安装时 /boot 分区就是第一个分区，所以这个背景图像的实际位置就是 /boot/grub/splash.xpm.gz。
+
+hiddenmenu
+
+隐藏菜单。启动时默认只能看到读秒，而不能看到菜单，如果想要看到菜单需要按任意键。如果注释了这句话，那么启动时就能直接看到菜单了。
+
+以上就是grub 的整体设置，下面我们介绍CentOS 系统的启动设置:
+
+title CentOS (2.6.32-279.el6.i686)
+
+title 就是标题的意思，也就是说在 title 后面写入的是什么，那么系统启动时在 grub 的启动菜单中看到的就是什么。
+
+root (hd0，0)
+
+是指启动程序的保存分区。这里要注意啊，这个 root 并不是管理员。在系统中，/boot 分区是独立划分的，而且设备文件名为/dev/sda1，所以在grub 中，就被描述为hd(0，0)。
+
+kernel
+
+/vmlinuz-2.6.32-279.el6.i686 ro root=UUID=b9a7a1a8-767f-4a87-8a2b-a535edb362c9 rd_NO_LUKS KEYBOARDTYPE=pc KEYTABLE=us rd_NO_MD crashkernel=auto LANG=zh_CN.UTF-8 rd_NO_LVM rd_NO_DM rhgb quiet
+
+- /vmlinuz-2.6.32-279.el6.i686:指定了内核文件的位置，这里的/是指/boot 分区。
+- ro:启动时以只读方式挂载根文件系统，这是为了不让启动过程影响磁盘内的文件系统。
+- root=UUID=b9a7a1a8-767f-4a87-8a2b-a535edb362c9:指定根文件系统的所在位置。这里和以前的 Linux 版本不太一样了，不再是通过分区的设备文件名或卷标号来指定，而是通过分区的 UUID 来进行指定。那么如何查询分区的 UUID 号呢?方法有很多种，最简单的办法就是查询 /etc/fstab 文件，命令如下:
+
+```bash
+[root@localhost ~]# cat /etc/fstab | grep "/ "
+
+UUID=b9a7a1a8-767f-4a87-8a2b-a535edb362c9 / ext4 defaults 1 1
+```
+
+可以看到 “/” 分区的 UUID 和 kernel 行中的 UUID 是匹配的。注意一下， grep 后的“/ ”，在/后是有空格的。 
+
+- rd_NO_LUKS:禁用LUKS，LUKS 用于给磁盘加密
+- rd_NO_MD:禁用软RAID。 
+- rd_NO_DM:禁用硬RAID。 
+- rd_NO_LVM:禁用LVM。以上禁用都只是在启动过程中禁用，是为了加速系统启动的。 KEYBOARDTYPE=pc KEYTABLE=us:键盘类型。  
+- crashkernel=auto:自动为crashkernel 预留内存。 
+- LANG=zh_CN.UTF-8:语言环境  
+- rhgb:(redhat graphics boot)用图片来代替启动过程中的文字信息。启动完成之后可以使用dmesg 命令来查看这些文字信息。 
+- quiet:隐藏启动信息，只显示重要信息。
+
+initrd /initramfs-2.6.32-279.el6.i686.img:指定了initramfs 内存文件系统镜像文件 的所在位置。
+
+### grub 加密
+
+```bash
+[root@localhost ~]# grub-md5-crypt
+Password:
+Retype password:
+#输入两次密码
+Y84LB1$8tMY2PibScmuOCc8z8U35/
+#生成加密密码字串
+```
+
+这样就可以生成加密密码字串，这个字串是采用md5 加密的，就是你的密码经 md5 编码之后的。我们会利用这个加密密码字串来加密 grub 配置文件。
+
+grub 菜单整体加密
+
+如果只是加密单个启动菜单，grub 的编辑模式是不能锁定的，还是可以按“e”键进入编辑模式。 而且进入编辑模式后，是可以删除password 字段的，再按“b”(boot 启动)键就可以不用密码直 接进入系统。这时就需要给grub 菜单整体加密了，整体加密后，如果想进入grub 编辑界面必须输入 正确的密码。加密方法其实只是把password 字段换个位置而已，具体方法如下:
+
+```bash
+[root@localhost ~]# vi /boot/grub/grub.conf
+default=0
+timeout=5
+password --md5  Y84LB1$8tMY2PibScmuOCc8z8U35/ #password 选项放在整体设置处。
+splashimage=(hd0，0)/grub/splash.xpm.gz
+```
+
+但是这样加密，启动 CentOS 时，是不需要密码就能正常启动的。那我如果既需要 grub 的整体加密，又需要系统启动时输入正确的密码。那应该怎么做呢?很简单，方法如下:
+
+```bash
+default=0
+timeout=5
+password --md5 Y84LB1$8tMY2PibScmuOCc8z8U35/
+splashimage=(hd0，0)/grub/splash.xpm.gz
+hiddenmenu
+title CentOS (2.6.32-279.el6.i686)
+	lock
+#在title 字段，加入 lock。代表锁死，如果不输入正确的 grub 密码也不能启动
+```
+
+## 系统修复模式
+
+### 单用户模式
+
+我们先来看看单用户模式是怎么使用的吧。Linux 的单用户模式有些类似 Windows 的安全模式，只启动最少的程序用于系统修复。在单用户模式(运行级别为1)中，Linux 引导进入根 shell，网络被禁用，只有少数进程运行。单用户模式可以用来修改文件系统损坏､还原配置文件､移动用户数据 等。
+
+单用户模式常见的错误修复
+
+#### 遗忘 root 密码
+
+这是管理员最容易犯的错误，那么应该如何修复呢?当然是使用单用户模式进行修复了，进入单 用户模式最大的特点就是不需要输入用户名和密码就能登录。既然已经登录了单用户模式，那么直接 给root 用户设定新密码即可。命令如下:
+
+```bash
+[root@localhost /]# passwd root
+```
+
+#### 修改系统默认运行级别
+
+如果我们把系统的默认运行级别修改错误，比如改为了0 或6，系统就不能正常启动了。这时也 可以利用单用户模式进行修复，只要直接修改默认运行级别配置文件/etc/inittab，把系统默认运行 级别修改回来即可。命令如下:
+
+```bash
+[root@localhost /]# vi /etc/inittab
+id:3:initdefault:
+#把默认运行级别修改为3 或5。注意系统的默认运行级别只能使用 3 或 5
+```
+
+绝大多数系统错误都可以通过单用户模式进行修复，理论上是只要能够进入单用户模式，那么系统错误就可以被单用户模式修复。当然判断系统到底是哪里出现了问题，是需要不断的经验积累的。
+
+### 光盘修复模式
+
+如何进入光盘修复模式呢?首先你需要有系统光盘，或系统修复光盘。我们这里只需要把CentOS 6.x 的第一张光盘放入光驱，然后重启系统。修改BIOS 的启动顺序，让系统从光盘启动。
+
+光盘修复模式常见的错误修复
+
+#### 重要系统文件丢失，导致系统无法启动
+
+如果系统中的重要系统文件丢失，当然会导致系统无法正常启动。这时也可以利用光盘修复模式 修复。我们假设把/etc/inittab 文件丢失了，我们通过系统启动过程知道这个文件是定义系统默认运 行级别的，如果丢失了这个文件，系统当然不能正常启动，这时就需要进入光盘修复模式中了。然后需要利用chroot 命令。命令格式如下:
+
+```bash
+[root@localhost ~]# chroot 目录名
+```
+
+chroot 命令的作用是“change root directory”改变系统根目录的意思。也就是可以把根目录 暂时移动到某个目录当中。我们是通过光盘启动的光盘修复模式，所以我们现在所在的根目录不是真 正的系统根目录，而是光盘的模拟根目录。系统根目录被当成外来设备放在了/mnt/sysimage/目录中。 这时就需要chroot 命令把我们现在的所在目录移动成真正的系统根目录。命令如下:
+
+```bash
+bash-4.1# chroot /mnt/sysimage
+```
+
+这条命令执行之后，当前的根目录就已经是真正的系统根目录了。如果系统有任何错误都可以直 接修复。比如/etc/inittab 文件丢失了。这时如果我们曾经备份过系统重要文件，只需要把备份文件 重新复制到/etc/目录下即可。如果没有备份的文件，就需要从rpm 包中提取inittab 文件，然后复制了。具体命令如下:
+
+```bash
+bash-4.1# chroot /mnt/sysimage
+#改变主目录
+sh-4.1# cd /root
+#进入root 目录。因为默认进入的是/目录，如果不进入root，一会提取的inittab 文件会
+#报错
+sh-4.1# rpm -qf /etc/inittab
+initscripts-9.03.31-2.el6.centos.i686
+#查询下/etc/inittab 文件属于哪个包。如果系统中文件丢失不能查询，需要通过其他Linux
+#系统查询
+sh-4.1# mkdir /mnt/cdrom
+#建立挂载点
+sh-4.1# mount /dev/sr0 /mnt/cdrom
+#挂载光盘
+sh-4.1# rpm2cpio /mnt/cdrom/Packages/initscripts-9.03.31-2.el6.centos.i686.rpm | cpio -idv ./etc/inittab
+#提取inittab 文件到当前目录
+sh-4.1# cp etc/inittab /etc/inittab
+#复制inittab 文件到指定位置
+```
+
+注意此命令执行时不能将文件直接恢复至/etc 目录，只能提取到当前目录下，且恢复的文件名称 所在路径要写完整的绝对路径。提取文件成功后，将其复制到根分区所在的/mnt/sysimage 目录下相 应位置即可。
 
 # 分区
 
@@ -1244,34 +1630,10 @@ Change: 2023-10-27 14:25:00.000000000 +0800
 file 文件名
 ```
 
-# 磁盘配额
-
-
-
-# LVM 逻辑卷管理
+## LVM 逻辑卷管理
 
 传统分区分区完成后不支持动态扩展，这与操作系统无关，在 Windows 系统中虽然存在可以更改分区的第三方软件，但分区本身并不提供动态更改分区的方法，第三方软件的做法是不合法的强行更改分区表来更改分区，这可能导致分区损坏，导致数据丢失，是不可取的。
 
 linux 引入 LVM 逻辑卷来实现分区拓展的目的，记住，**任何方式的分区管理都不应对分区进行缩减**，虽然 LVM 可以支持分区压缩，但这可能会导致数据丢失。
 
-# 安装
-
-略
-
-安装日志
-
-- `/root/install.log`：存储安装在系统中的软件包及其版本信息
-- `/root/install.log.syslog`：存储安装过程中留下的事件记录
-- `/root/anaconda-ks.cfg`：以Kickstart配置文件格式记录安装过程中设置的选项信息
-
-
-# type 命令:判断命令类型
-
-该命令用于说明另一个命令是作为 shell 的内置命令存在，还是位于文件系统中的某个外部可执行文件。
-
-```bash
-type ls
-# 输出可能为：ls is aliased to `ls --color=auto'
-type cd
-# 输出可能为：cd is a shell builtin
-```)
+# 123
