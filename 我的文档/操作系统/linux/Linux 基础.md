@@ -1,6 +1,4 @@
-https://pan.baidu.com/s/1RBi-tTOZl6k3GxoOhqPUcg?pwd=yyds
 
-提取图中文字并转化为md文档格式
 
 [TOC]
 
@@ -1636,4 +1634,367 @@ file 文件名
 
 linux 引入 LVM 逻辑卷来实现分区拓展的目的，记住，**任何方式的分区管理都不应对分区进行缩减**，虽然 LVM 可以支持分区压缩，但这可能会导致数据丢失。
 
-# 123
+待定
+
+
+# 网络服务
+
+在现有的计算机网络体系中，虽然 IPV6 协议已经问世多年，但其与 IPV4 协议完全不兼容，这就导致其普及率一直不高，IPV4协议对互联网的格局与影响异常巨大，可以说整个网络体系都是基于 IPV4 协议构建的。
+
+IPv4 地址：32位，通常表示为 4 个十进制数（如  192.168.1.1 ），总量约 43 亿个。如今各种各样的计算机设备层出不穷，全球IPv4地址早在2011年就已分配完毕。所有新加入互联网的设备、网站和服务都无法再获得公网IPv4地址。继续依赖IPv4就像在土地有限的岛上盖房，只能不断地加盖违建（NAT 网络地址转换协议）来勉强维持。
+
+为了适应当下IP地址短缺的情况，我们把IP地址分为公网网段和局域网网段，所有局域网网段内的设备无法直接连接公网，必须依赖一个具有公网IP的设备将局域网流量以公网IP进行通信，这就是网络的基本结构。
+
+以一个典型家庭网络为例，其由一个路由器与连接到路由器的多个设备组成，路由器负责转发其局域网内部的流量，维持通信，局域网内的设备的IP地址由路由器通过DHCP协议分配，这样，局域网内的IP地址无论如何分配，都不会影响到外部的网络，这也是现在基于IPV4的IP地址还可以使用的原因。
+
+如此即可节省公网 IP：使成百上千的设备可以共享一个公网IPv4地址上网。
+
+但也带来了一定程度的安全隐私问题：局域网内的设备并不直接暴露在公网上，对外界来说，所有流量都来自于路由器的公网IP，起到了天然的防火墙作用。
+
+## 网卡
+
+在 CentOS 7 中，默认的网卡文件为 `/etc/sysconfig/network-scripts/ifcfg-ens33` 
+
+内容示例
+
+```bash
+TYPE=Ethernet
+PROXY_METHOD=none
+BROWSER_ONLY=no
+BOOTPROTO=static
+DEFROUTE=yes
+IPV4_FAILURE_FATAL=no
+IPV6INIT=yes
+IPV6_AUTOCONF=yes
+IPV6_DEFROUTE=yes
+IPV6_FAILURE_FATAL=no
+IPV6_ADDR_GEN_MODE=stable-privacy
+NAME=ens33
+UUID=2a5a6694-f7c7-46f6-a223-4ec416b1e2cf
+DEVICE=ens33
+ONBOOT=yes
+PREFIX=24
+IPADDR=192.168.1.100
+GATEWAY=192.168.1.1
+NETMASK=255.255.255.0
+DNS1=192.168.1.1
+```
+
+详细说明：
+
+- TYPE=Ethernet : 指定网络接口的类型。Ethernet表示这是一个以太网接口。对于绝大多数有线网卡，此值保持不变。
+- PROXY_METHOD=none : 指定代理配置方法。none表示此接口不使用任何代理自动配置（如 PAC）。这个参数通常不需要修改。
+- BROWSER_ONLY=no : 与 PROXY_METHOD相关。no表示代理设置不仅适用于浏览器，也适用于系统范围内的所有网络流量。通常保持默认值 no。
+- BOOTPROTO=static : 定义接口如何获取其 IP 地址。
+  - static或 none: 表示使用手动配置的静态 IP 地址（如示例中的 IPADDR, NETMASK等）。
+  - dhcp: 表示通过 DHCP 服务器自动获取 IP 地址、子网掩码、网关等配置。
+  - bootp: 使用较旧的 BOOTP 协议获取配置。
+- DEFROUTE=yes : 定义此接口是否为系统的默认路由（默认网关）。
+  - yes: 表示通过此接口配置的网关（GATEWAY）将被设置为系统的默认路由。通常主网卡会设置为 yes。
+  - no: 表示此接口的网关不作为默认路由。
+- IPV4_FAILURE_FATAL=no : 定义 IPv4 配置失败是否视为严重错误。
+  - no: 如果此接口的 IPv4 配置失败（例如，设置了静态 IP 但该 IP 冲突），系统不会完全终止网络服务，可能会继续尝试启动接口或回退。
+  - yes: 如果 IPv4 配置失败，则此接口的启动会失败。
+- IPV6INIT=yes : 定义此接口是否为系统的默认路由（默认网关）。yes: 启用接口的 IPv6 支持。no: 禁用接口的 IPv6 支持。
+- IPV6_AUTOCONF=yes : 是否在此接口上使用 IPv6 的无状态地址自动配置（SLAAC）。当 yes时，接口会监听路由器广播（RA）并自动生成 IPv6 地址。
+- IPV6_DEFROUTE=yes : 类似于 DEFROUTE，但针对 IPv6。定义是否通过此接口接收的 IPv6 路由器广播（RA）来设置默认路由。
+- IPV6_FAILURE_FATAL=no : 类似于 IPV4_FAILURE_FATAL，但针对 IPv6。定义 IPv6 配置失败是否视为严重错误。
+- IPV6_ADDR_GEN_MODE=stable-privacy : 定义 IPv6 地址的生成模式，主要用于保护隐私。
+  - stable-privacy: 基于网络前缀和一个稳定生成的秘密密钥生成地址，每次重启后保持不变，但不同网络生成的地址不同。这是较新且推荐的安全和隐私模式。
+  - eui64: 使用传统的基于接口 MAC 地址的模式生成后缀。
+- NAME=ens33 : 为此连接配置定义一个描述性的名称。这是一个逻辑名称，通常由用户或网络管理工具（如 NetworkManager）设置，用于易于识别。它可以与物理设备名（DEVICE）不同。
+- UUID=2a5a6694-f7c7-46f6-a223-4ec416b1e2cf : 此连接配置的唯一标识符（Universally Unique Identifier）。由系统自动生成，用于唯一识别这个特定的连接配置文件。通常不需要手动修改。
+- ​​DEVICE=ens33 : 指定此配置文件所应用到的物理或逻辑网络设备的名称。这个名称必须与系统实际识别到的设备名一致（可通过 ip link命令查看），例如 ens33, eth0, enp0s3等。这是​​非常重要​​的参数。
+- ONBOOT=yes : 定义是否在系统启动时自动激活此网络接口。
+  - yes: 开机自动启动。
+  - no: 开机不启动，需要手动激活（例如使用 ifup <device-name>命令）。
+- ​​PREFIX=24 : 定义 IPv4 地址的子网掩码，使用 CIDR 表示法。24等同于 255.255.255.0。它与 NETMASK参数是等价的，通常只需设置其中一个（现代配置更推荐使用 PREFIX）。
+- IPADDR=192.168.1.100 : 为此接口设置的静态 IPv4 地址。只有当 BOOTPROTO 为 static 或 none 时，此参数才有效。
+- ​​GATEWAY=192.168.1.1 : 设置系统的默认网关 IPv4 地址。通常指向你的路由器地址。只有当 BOOTPROTO 为 static 或 none，并且 DEFROUTE=yes 时，此参数才有效。
+- ​​NETMASK=255.255.255.0 : 定义 IPv4 地址的子网掩码，使用传统的点分十进制表示法。它与 PREFIX 参数功能相同，通常只需设置其中一个。如果同时设置了 PREFIX 和 NETMASK，它们必须匹配。
+- DNS1=192.168.1.1 : 设置主 DNS 服务器的 IPv4 地址。可以指定多个 DNS 服务器，参数名依次为 DNS2, DNS3 等。这些 DNS 设置通常会被写入 /etc/resolv.conf 文件。注意：如果系统使用了 NetworkManager 且其配置为管理 resolv.conf，这里的设置可能会被覆盖。
+
+
+
+
+
+
+## CentOS 6.x/7.x 对比
+
+### 文件系统
+- **CentOS 6.x**: EXT4  
+  单个文件系统容量达1EB，单个文件大小16TB。
+- **CentOS 7.x**: XFS  
+  默认支持8EB文件系统，最大文件大小9EB，最大文件系统尺寸18EB。
+
+### 防火墙、内核版本及默认数据库
+| 特性 | CentOS 6.x | CentOS 7.x |
+|------|------------|------------|
+| 防火墙 | iptables | firewalld |
+| 内核版本 | 2.6.x-x | 3.10.x-x |
+| 默认数据库 | MySQL | MariaDB |
+
+### 系统配置对比
+| 配置项 | CentOS 6.x | CentOS 7.x |
+|--------|------------|------------|
+| 时间同步 | `ntpq -p` | `chronyc sources` |
+| 修改时区 | `/etc/sysconfig/clock` | `timedatectl set-timezone Asia/Shanghai` |
+| 修改语言 | `/etc/sysconfig/i18n` | `localectl set-locale LANG=zh_CN.UTF-8` |
+| 主机名配置文件 | `/etc/sysconfig/network` | `/etc/hostname` |
+| 永久修改主机名 | 编辑配置文件 | `hostnamectl set-hostname atguigu.com` |
+
+### 网络服务管理
+| 操作行为 | CentOS 6.x | CentOS 7.x |
+|----------|------------|------------|
+| 启动服务 | `service 服务名 start` | `systemctl start 服务名` |
+| 关闭服务 | `service 服务名 stop` | `systemctl stop 服务名` |
+| 重启服务 | `service 服务名 restart` | `systemctl restart 服务名` |
+| 查看状态 | `service 服务名 status` | `systemctl status 服务名` |
+| 所有服务状态 | `service --status-all` | `systemctl list-units` |
+| 设置自启动 | `chkconfig 服务名 on` | `systemctl enable 服务名` |
+| 取消自启动 | `chkconfig 服务名 off` | `systemctl disable 服务名` |
+| 查看自启动状态 | `chkconfig --list` | `systemctl list-unit-files` |
+
+### 网络配置
+
+#### 网卡命名差异
+- **CentOS 6.x**: 传统命名（eth0, eth1）
+- **CentOS 7.x**: 一致性命名（ens33, enp0s3等）
+
+#### 网卡配置文件
+**路径**: `/etc/sysconfig/network-scripts/ifcfg-ens33`  
+**内容示例**:
+```bash
+DEVICE=ens33          # 设备名称
+NAME=ens33            # 网卡名称
+BOOTPROTO=static      # 连接方式(dhcp/static)
+ONBOOT=yes            # 是否开机加载
+IPADDR=192.168.12.250 # IP地址
+NETMASK=255.255.255.0 # 子网掩码(PREFIX=24)
+GATEWAY=192.168.12.1  # 网关
+DNS1=8.8.8.8          # DNS服务器
+```
+
+#### 修改 CentOS 7 网卡名为 eth0
+```bash
+# 备份并修改配置文件
+cp -a ifcfg-ens33 ifcfg-eth0
+sed -i 's/NAME=ens33/NAME=eth0/' ifcfg-eth0
+sed -i 's/DEVICE=ens33/DEVICE=eth0/' ifcfg-eth0
+
+# 修改grub配置
+vi /etc/default/grub
+# 添加参数: net.ifnames=0 biosdevname=0
+GRUB_CMDLINE_LINUX="crashkernel=auto rhgb quiet net.ifnames=0 biosdevname=0"
+
+# 更新grub并重启
+grub2-mkconfig -o /boot/grub2/grub.cfg
+reboot
+```
+
+## 常见网络协议和端口
+
+### 网络地址体系
+- **IP地址**: 网络层逻辑地址（IPv4/IPv6）
+- **MAC地址**: 链路层物理地址（如00-23-5A-15-99-42）
+
+### TCP/IP五层模型及协议
+1. **应用层**: FTP, HTTP, SMTP, Telnet, DNS
+2. **传输层**: TCP, UDP
+3. **网络层**: IP, ICMP, ARP
+4. **数据链路层**: PPP协议
+5. **物理层**: 硬件接口规范
+
+### 常用端口及服务
+| 端口 | 服务 | 用途 |
+|------|------|------|
+| 20/21 | FTP | 文件传输 |
+| 22 | SSH | 安全远程管理 |
+| 23 | Telnet | 不安全远程管理 |
+| 25 | SMTP | 邮件发送 |
+| 80 | HTTP | 网页服务 |
+| 443 | HTTPS | 加密网页服务 |
+| 3306 | MySQL | 数据库连接 |
+| 53 | DNS | 域名解析 |
+
+**端口配置文件**: `/etc/services`
+
+## Linux下网关路由配置
+
+### 网关与路由概念
+- **网关**: 不同网段间数据转发的出口设备
+- **路由**: 数据从源到目的的路径选择规则
+
+### 路由表查看与配置
+```bash
+# 查看路由表
+route -n
+ip route show
+
+# 添加临时默认网关
+route add default gw 192.168.1.1
+
+# 永久设置网关(修改网卡配置文件)
+GATEWAY=192.168.1.1
+```
+
+## Linux下网络管理命令
+
+### DNS配置
+**配置文件**:
+- 全局: `/etc/resolv.conf`  
+  `nameserver 8.8.8.8`
+- 局部: 网卡配置文件中的`DNS1=8.8.8.8`
+- 本地解析: `/etc/hosts`
+
+**测试命令**:
+```bash
+nslookup www.baidu.com  # 域名解析测试
+dig @8.8.8.8 www.baidu.com  # 详细DNS查询
+```
+
+### 网络状态查看
+```bash
+# 查看所有连接
+netstat -tulnp
+ss -an
+
+# 查看接口信息
+ifconfig
+ip addr show
+
+# 查看路由表
+route -n
+ip route
+```
+
+### 网络诊断工具
+```bash
+# 连通性测试
+ping -c 4 -i 0.5 www.baidu.com  # 发送4个数据包，间隔0.5秒
+
+# 路径追踪
+traceroute www.baidu.com
+mtr www.baidu.com  # 实时路由追踪
+
+# 端口扫描(需安装nmap)
+nmap -sP 192.168.1.0/24  # 探测网段存活主机
+nmap -sT 192.168.1.1  # 扫描TCP端口
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+域名解析服务(DNS)
+动态主机配置服务(DHCP)
+文件传输服务(FTP/Samba)
+网络文件系统服务(NFS)
+万维网服务(Apache/Nginx/Tomcat)
+邮件服务(Mail)
+日志服务(ELK)
+数据备份服务(Rsync)
+数据库服务(MySQL/Redis)
+
+
+# DHCP 局域网内 IP 地址分配协议
+
+
+# DNS 域名解析协议
+
+计算机域名系统旨在使用简单且容易记忆的方式来描述网络地址。
+
+一个网址包含以下几个部分
+
+www.baidu.com
+
+以上述域名为例，其完整域名为 www.baidu.com.
+
+起解析顺序从右向左
+
+- .:代表根域，在IPV4系统下，全世界一共有13个根服务器，其作用类似于 Linux 的 / 路径，是域名解析系统的起点。
+- com:代表顶级域名，分布在根域名之下，类似于二级目录，类似的还有 org、edu、cn等。
+- baidu:代表二级域名，分布在顶级域名服务器下，类似于三级目录，由各企业和个人申请。
+- www:代表次级域名，分布在二级域名服务器之下。
+- hju0:有的次级域名下还有一层，一般代表某台主机的主机名。
+
+## 域名解析过程
+
+域名解析过程从浏览器出发，先查看本地缓存是否存在，然后查看本机host文件是否存在，然后查询DNS服务器是否存在，然后由DNS服务器向根域名服务器发起请求，获取到其对应的com域名所在的顶级域名服务器，再到顶级域名服务器中查询二级域名服务器baidu的位置，再到二级域名服务器中查询次级域名服务器www的位置，找到后返回至DNS服务器，DNS服务器缓存到本地，然后返回至客户机，域名解析结束。
+
+## DNS 服务器及其集群搭建
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

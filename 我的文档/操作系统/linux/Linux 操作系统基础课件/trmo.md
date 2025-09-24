@@ -2,3 +2,7 @@
 1. 修正原文中的错误
 2. 格式清晰明确
 3. 保留完整源文件内容
+
+[](https://pan.baidu.com/s/1RBi-tTOZl6k3GxoOhqPUcg?pwd=yyds
+
+提取图中文字并转化为md文档格式)
