@@ -14,3 +14,10 @@
 2. 格式清晰明确
 3. 保留完整源文件内容
 4. 对内容不足之处加以补充
+
+
+关闭防火墙
+systemctl disable firewalld
+systemctl is-enabled firewalld
+
+我在学习 Linux 相关知识，包含 CentOS 系列和 Ubuntu 系列，请帮我分析接下来对话中的错误以及不足之处

@@ -136,21 +136,21 @@ BootLoader的基本功能包括：初始化硬件设备、为操作系统准备R
 
 为了节省空间，操作系统内核通常以压缩形式存储。因此，在指定的内核被加载到内存中并开始执行后，它必须首先从文件的压缩版本中解压，才能继续进行其他操作。内核在开始运行后，将初始化内部的数据结构，检测系统内存在的各个硬件并激活相应的驱动程序以及挂载根文件系统。
 
-## Linux 运行级别
+### Linux 运行级别
 
 经过以上步骤，应用程序的基本运行环境已经建立，随后第一个运行的应用程序便是 init 程序，该程序将依据 `/etc/inittab` 文件内容进行初始化工作。
 
-`/etc/inittab` 文件最主要的作用就是设定 Linux 的运行等级。例如设定格式为 `:id:5:initdefault:`，表明 Linux 将运行在等级5上，即启动的为常见带图形界面的Linux操作系统。Linux的运行等级的关系如下：
+`/etc/inittab` 文件最主要的作用就是设定 Linux 的运行等级。例如设定格式为 `:id:5:initdefault:`，表明 Linux 将运行在等级 5 上，即启动的为常见带图形界面的 Linux 操作系统。Linux 的运行等级的关系如下：
 
 - 0 表示关机；
 - 1 表示单用户模式；
 - 2 表示无网络支持的多用户模式；
 - 3 表示有网络支持的多用户模式；
 - 4 为保留模式，暂未使用；
-- 5 表示有网络支持和X Window支持的多用户模式；
+- 5 表示有网络支持和 X Window 支持的多用户模式；
 - 6 表示重新引导系统，即系统重启。
 
-在Linux 系统中可以使用 `runlevel` 命令来查看系统的运行级别，命令如下:
+在 Linux 系统中可以使用 `runlevel` 命令来查看系统的运行级别，命令如下:
 
 ```bash
 [root@localhost ~]# runlevel
@@ -164,7 +164,7 @@ N 3
 5 3
 ```
 
-手工改变当前的运行级别使用 init 命令(注意着不是 init 进程) 即可，命令如下:
+手工改变当前的运行级别使用 init 命令 (注意着不是 init 进程) 即可，命令如下:
 
 ```bash
 [root@localhost ~]# init 5
@@ -186,7 +186,7 @@ N 3
 
 不过要注意使用 init 命令关机和重启动 ，并不是太安全 ，容易造成数据丢失 。所以推荐大家还是使用 shutdown 命令进行关机和重启
 
-## 系统默认运行级别
+### 系统默认运行级别
 
 `/etc/inittab` 文件内容
 
@@ -246,9 +246,9 @@ id:3:initdefault:
 
 在设定运行等级后，Linux 操作系统执行的第一个用户程序是 /etc/rc.d/rc.sysinit 脚本程序，它的功能包括设定环境变量（PATH）、网络配置、启动交换（swap）分区、设定 /proc 等。最后执行login程序，用户输入账号和密码登录系统。
 
-在现代 Linux 系统的发展中，现代 Linux 发行版（如 RHEL 7/CentOS 7 及以后、Ubuntu 15.04 及以后、Debian 8 及以后等）已经转向使用 ​​systemd​​ 作为初始化系统。
+### 在 systemd 系统下的变化
 
-在 systemd 系统下的变化：
+在现代 Linux 系统的发展中，现代 Linux 发行版（如 RHEL 7/CentOS 7 及以后、Ubuntu 15.04 及以后、Debian 8 及以后等）已经转向使用 systemd 作为初始化系统。
 
 - `systemd`使用 **“目标 (target)”** 来替代“运行级别”的概念。
 - 为了保持兼容性，`systemd`也提供了与传统运行级别对应的目标单元（`.target`），它们本质上是符号链接。
@@ -265,7 +265,7 @@ id:3:initdefault:
 
 在 systemd 系统上，`runlevel`命令仍然可用，但返回的信息可能意义不大，因为它只是为了兼容而存在。
 
-**更推荐的方式**是使用 `systemctl`命令来查看当前的默认目标（即等效的运行级别）：
+**更推荐的方式**是使用 `systemctl` 命令来查看当前的默认目标（即等效的运行级别）：
 
 查看当前“运行级别：
 
@@ -279,9 +279,9 @@ systemctl get-default
 systemctl list-units --type=target
 ```
 
-切换“运行级别”​​：
+切换“运行级别”：
 
-虽然 init 3 或 init 5 这样的命令通常仍然有效（systemd 会将其转换为对应的目标操作），但 ​​推荐使用 systemctl命令​​：
+虽然 init 3 或 init 5 这样的命令通常仍然有效（systemd 会将其转换为对应的目标操作），但 推荐使用 systemctl 命令：
 
 ```bash
 # 切换到字符界面 (运行级别 3)
@@ -297,28 +297,12 @@ sudo systemctl reboot
 sudo systemctl poweroff
 ```
 
-设置默认启动目标（相当于修改 /etc/inittab中的 initdefault）：
+设置默认启动目标（相当于修改 /etc/inittab 中的 initdefault）：
 
 ```bash
 sudo systemctl set-default multi-user.target # 默认启动到字符界面
 sudo systemctl set-default graphical.target # 默认启动到图形界面
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 ## 软件开机自启动
 
@@ -341,7 +325,7 @@ touch /var/lock/subsys/local
 
 该文件在 CentOS 7 中不再发挥其作用，该文件虽然存在，但其注释内容包含了非常关键的信息，文件开头明确指出 “THIS FILE IS ADDED FOR COMPATIBILITY PURPOSES”，这意味着它只是为了向后兼容旧的习惯或脚本而保留的。
 
-注释强烈建议用户创建自己的 ​​systemd services​​ 或 ​​udev rules​​ 来在启动时运行脚本，而不是使用这个文件。这是官方的最佳实践推荐。
+注释强烈建议用户创建自己的 systemd services 或 udev rules 来在启动时运行脚本，而不是使用这个文件。这是官方的最佳实践推荐。
 
 最关键的一点是，“this script will NOT be run after all other services”。在旧系统中，rc.local 是在所有系统服务启动之后执行的最后一个脚本。但在 systemd 的并行启动机制下，它的执行时机不再有这种保证，可能会在其他服务启动之前或之中执行，这可能会引发依赖性问题。
 
@@ -355,7 +339,6 @@ CentOS 7 默认使用 systemd 作为初始化系统。绝大多数通过 yum 安
 systemctl enable httpd
 ```
 
-
 成功提示: `Created symlink from /etc/systemd/system/multi-user.target.wants/httpd.service to /usr/lib/systemd/system/httpd.service.`
 
 这表示 `systemd` 已经配置好在多用户模式下自动启动 `httpd`。
@@ -367,7 +350,6 @@ systemctl is-enabled httpd
 ```
 
 显示 enabled则表示已成功设置开机自启。
-
 
 可以执行以下命令来检查当前运行状态
 
@@ -383,18 +365,68 @@ systemctl status httpd
 - systemctl stop httpd - 停止服务
 - systemctl restart httpd - 重启服务
 - systemctl reload httpd - 重新加载配置（不中断服务）
-- systemctl disable httpd - ​​禁用​​开机自启动
+- systemctl disable httpd - 禁用开机自启动
 
-对于 httpd 或任何其他通过官方仓库安装的软件，​​请始终使用 `systemctl enable <服务名>` 来设置开机自启动​​。这是 CentOS 7/RHEL 7 及更新版本的正确做法。
+对于 httpd 或任何其他通过官方仓库安装的软件，请始终使用 `systemctl enable <服务名>` 来设置开机自启动。这是 CentOS 7/RHEL 7 及更新版本的正确做法。
 
-## 启动引导程序
+当您有一个自己编写的脚本、或从源码编译安装的软件（它们通常不会通过 yum 安装，所以没有现成的 .service 文件），您应该为其创建一个自定义的 systemd 服务单元。
 
-Lilo 作为 Linux 的早期版本的引导程序，现已经不是很常见了，目前主流的引导程序是 grub，grub 相比来讲有很多优势，主要有:
+步骤如下
+
+1. 创建服务文件
+
+服务文件通常放在 /etc/systemd/system/ 目录下。例如，为您的一个监控脚本 my_monitor.sh 创建服务：
+
+```bash
+sudo vi /etc/systemd/system/my-monitor.service
+```
+
+2. 编写服务单元内容
+
+一个最基本的服务文件内容如下
+
+```bash
+[Unit]
+Description=My Custom Monitoring Script # 服务描述
+After=network.target # 指定在什么目标之后启动，表示网络就绪后启动
+
+[Service]
+ExecStart=/usr/local/bin/my_monitor.sh # 要执行的核心命令或脚本的绝对路径
+Type=simple # 服务类型，简单运行为主进程
+User=nobody # 以什么用户身份运行（可选，出于安全考虑）
+Restart=on-failure # 失败时自动重启
+
+[Install]
+WantedBy=multi-user.target # 指定在哪个系统目标下启用，表示系统进入多用户模式时启动这个服务
+```
+
+3. 重新加载 systemd 配置
+
+```bash
+sudo systemctl daemon-reload
+```
+
+4. 启用并启动服务
+
+```bash
+# 设置开机自启
+sudo systemctl enable my-monitor.service
+
+# 立即启动服务
+sudo systemctl start my-monitor.service
+
+# 检查状态
+sudo systemctl status my-monitor.service
+```
+
+## 启动引导程序(待完善)
+
+Lilo 作为 Linux 的早期版本的引导程序，现已经不是很常见了，目前主流的引导程序是 grub，grub 相比 Lilo 来讲有很多优势，主要有:
 
 - 支持更多的文件系统;
 - grub 的主程序可以直接在文件系统中查找内核文件;
 - 在系统启动时，可以利用grub 的交互界面编辑和修改启动选项;
-- 可以动态的修改grub 的配置文件，这样在修改配置文件之后不需要重新安装grub，而只需 要重新启动就可以生效了。
+- 可以动态的修改 grub 的配置文件，这样在修改配置文件之后不需要重新安装grub，而只需要重新启动就可以生效了。
 
 ### `/boot/grub` 目录
 
@@ -1740,14 +1772,11 @@ Change: 2023-10-27 14:25:00.000000000 +0800
 file 文件名
 ```
 
-## LVM 逻辑卷管理
+## LVM 逻辑卷管理（待完善）
 
 传统分区分区完成后不支持动态扩展，这与操作系统无关，在 Windows 系统中虽然存在可以更改分区的第三方软件，但分区本身并不提供动态更改分区的方法，第三方软件的做法是不合法的强行更改分区表来更改分区，这可能导致分区损坏，导致数据丢失，是不可取的。
 
 linux 引入 LVM 逻辑卷来实现分区拓展的目的，记住，**任何方式的分区管理都不应对分区进行缩减**，虽然 LVM 可以支持分区压缩，但这可能会导致数据丢失。
-
-待定
-
 
 # 网络服务
 
@@ -1770,9 +1799,9 @@ IPv4 地址：32位，通常表示为 4 个十进制数（如  192.168.1.1 ）
 1. **网络部分 (Network Portion)**：就像是一个城市的**邮政编码**或一个小区的名字。它标识了设备所在的**网络区域**。同一个网络内的所有设备，其IP地址的网络部分必须完全相同。
 2. **主机部分 (Host Portion)**：就像是邮政编码区域内的**具体街道门牌号**。它标识了该网络内的**特定设备**。同一个网络内，每个设备的主机部分必须唯一。
 
-而​​子网掩码的唯一作用，就是明确地告诉计算机，IP地址中的哪一部分是“网络部分”，哪一部分是“主机部分”​​。
+而子网掩码的唯一作用，就是明确地告诉计算机，IP地址中的哪一部分是“网络部分”，哪一部分是“主机部分”。
 
-规则是：​​将子网掩码与IP地址进行​​按位“与”运算​​（逻辑AND），就能直接得出该IP地址所在的​​网络地址​​。
+规则是：将子网掩码与IP地址进行按位“与”运算（逻辑AND），就能直接得出该IP地址所在的网络地址。
 
 例
 
@@ -1789,7 +1818,7 @@ IPv4 地址：32位，通常表示为 4 个十进制数（如  192.168.1.1 ）
 | **按位与运算** |                 |                                       |
 | **网络地址**   | `192.168.1.0`   | `11000000.10101000.00000001.00000000` |
 
-看二进制就非常清晰了：​​子网掩码中的 1 像一堵墙，挡住了IP地址中对应的主机部分，只露出了网络部分。​​ 结果 192.168.1.0就是 192.168.1.100所在的网络地址。
+看二进制就非常清晰了：子网掩码中的 1 像一堵墙，挡住了IP地址中对应的主机部分，只露出了网络部分。 结果 192.168.1.0就是 192.168.1.100所在的网络地址。
 
 其两种表示方法
 
@@ -1837,7 +1866,7 @@ IPv4 地址：32位，通常表示为 4 个十进制数（如  192.168.1.1 ）
 
 ## 早期网络地址分类
 
-IPv4 地址主要分为五类：​​A、B、C、D、E​​。其中 A、B、C 类是用于分配给主机和网络的​​单播地址​​，D类用于​​组播​​，E类保留用于​​实验​​。
+IPv4 地址主要分为五类：A、B、C、D、E。其中 A、B、C 类是用于分配给主机和网络的单播地址，D类用于组播，E类保留用于实验。
 
 我们可以通过查看IP地址的第一个字节（即第一个十进制数）来快速判断其类别：
 
@@ -1849,12 +1878,12 @@ IPv4 地址主要分为五类：​​A、B、C、D、E​​。其中 A、B、C
 | **D类**  | `1110`           | **224 - 239**            | N/A                        | 组播地址（一组主机）   |
 | **E类**  | `1111`           | **240 - 255**            | N/A                        | 保留（用于研究、实验） |
 
-特殊说明：​
+特殊说明：
 
-- 127.x.x.x​​ 是一个特殊的A类网络段，用于环回测试（如 127.0.0.1是本机地址）。
-​​- 0.x.x.x​​ 曾经被用作特定用途，现在通常表示无效或默认路由。
+- 127.x.x.x 是一个特殊的A类网络段，用于环回测试（如 127.0.0.1是本机地址）。
+- 0.x.x.x 曾经被用作特定用途，现在通常表示无效或默认路由。
 
-这三类地址的结构都分为​​网络部分（Net ID）​​ 和​​主机部分（Host ID）​​。
+这三类地址的结构都分为网络部分（Net ID） 和主机部分（Host ID）。
 
 1. A类地址 (Class A)
 
@@ -1899,7 +1928,7 @@ IPv4 地址主要分为五类：​​A、B、C、D、E​​。其中 A、B、C
 
 ## 无类域间路由 (CIDR)
 
-为了解决有类编址的弊端，​​有类编址早已被淘汰​​，取而代之的是 ​​CIDR​​。
+为了解决有类编址的弊端，有类编址早已被淘汰，取而代之的是 CIDR。
 
 - **核心思想**：**打破A、B、C类的固定边界**，允许以任意长度来划分网络位和主机位，而不再是固定的8位、16位或24位。
 - **表示方法**：使用 **斜线记法**，如 `192.168.1.0/24`。`/24`表示前24位是网络位。它也可以写成 `192.168.1.0/26`，表示前 26 位是网络位，这样就把一个 C 类网段划分成了更小的子网。
@@ -1933,7 +1962,7 @@ IANA专 门保留了三个 IP 地址段作为私有地址，这些地址不会�
 
 ## 连接公私网的桥梁:网络地址转换协议（NAT）
 
-现代IPv4通过将地址划分为​​公网IP​​和​​私有IP​​，并借助​​NAT技术​​在二者间进行转换，巧妙地应对了地址枯竭的危机。
+现代IPv4通过将地址划分为公网IP和私有IP，并借助NAT技术在二者间进行转换，巧妙地应对了地址枯竭的危机。
 
 NAT的工作原理，就像是小区门口的一位尽职的“邮件管家”
 
@@ -2060,7 +2089,7 @@ DNS1=192.168.1.1
   - eui64: 使用传统的基于接口 MAC 地址的模式生成后缀。
 - NAME=ens33 : 为此连接配置定义一个描述性的名称。这是一个逻辑名称，通常由用户或网络管理工具（如 NetworkManager）设置，用于易于识别。它可以与物理设备名（DEVICE）不同。
 - UUID=2a5a6694-f7c7-46f6-a223-4ec416b1e2cf : 此连接配置的唯一标识符（Universally Unique Identifier）。由系统自动生成，用于唯一识别这个特定的连接配置文件。通常不需要手动修改。
-- DEVICE=ens33 : 指定此配置文件所应用到的物理或逻辑网络设备的名称。这个名称必须与系统实际识别到的设备名一致（可通过 ip link命令查看），例如 ens33, eth0, enp0s3等。这是​​非常重要​​的参数。
+- DEVICE=ens33 : 指定此配置文件所应用到的物理或逻辑网络设备的名称。这个名称必须与系统实际识别到的设备名一致（可通过 ip link命令查看），例如 ens33, eth0, enp0s3等。这是非常重要的参数。
 - ONBOOT=yes : 定义是否在系统启动时自动激活此网络接口。
   - yes: 开机自动启动。
   - no: 开机不启动，需要手动激活（例如使用 ifup <device-name>命令）。
@@ -2072,8 +2101,8 @@ DNS1=192.168.1.1
 
 ### 网卡操作
 
-- ifup​​： ​​Interface UP​​。用于​​启用​​一个网络接口，根据其配置文件为其配置IP地址、子网掩码、网关、DNS等所有网络参数，并将其启动。
-- ifdown​​： ​​Interface DOWN​​。用于​​禁用​​一个网络接口，清除其IP地址等配置，并将其关闭。
+- ifup： Interface UP。用于启用一个网络接口，根据其配置文件为其配置IP地址、子网掩码、网关、DNS等所有网络参数，并将其启动。
+- ifdown： Interface DOWN。用于禁用一个网络接口，清除其IP地址等配置，并将其关闭。
 
 它们通过读取定义在 /etc/sysconfig/network-scripts/(CentOS/RHEL/Fedora) 或 /etc/network/interfaces(Debian/Ubuntu) 等位置的配置文件来工作。
 
@@ -2082,7 +2111,7 @@ sudo ifup <网络接口名>
 sudo ifdown <网络接口名>
 ```
 
-必须使用 sudo或 root 权限​​，因为配置网络接口是系统级操作。
+必须使用 sudo或 root 权限，因为配置网络接口是系统级操作。
 
 ```bash
 # 启用网卡 eth0
@@ -2152,11 +2181,11 @@ sudo ifdown ens33  # 先关闭接口
 sudo ifup ens33    # 再重新启用接口，新的配置即会生效
 ```
 
-注意事项与现代替代方案
+### 注意事项与现代替代方案
 
-​ifup/ifdown已逐渐被淘汰​​：在现代化的 Linux 发行版（如 RHEL 8/CentOS 8、最新的Ubuntu）中，传统的 network-scripts包已被弃用，转而使用 ​​NetworkManager​​ 服务及其配套工具（如 nmcli, nmtui）。
+ifup/ifdown已逐渐被淘汰：在现代化的 Linux 发行版（如 RHEL 8/CentOS 8、最新的Ubuntu）中，传统的 network-scripts 包已被弃用，转而使用 NetworkManager 服务及其配套工具（如 nmcli, nmtui）。
 
-检查工具是否存在​​：如果你的系统没有 ifup 和 ifdown 命令，说明它可能完全使用 NetworkManager。此时应使用 nmcli：
+检查工具是否存在：如果你的系统没有 ifup 和 ifdown 命令，说明它可能完全使用 NetworkManager。此时应使用 nmcli：
 
 ```bash
 # 启用连接
@@ -2165,7 +2194,7 @@ sudo nmcli connection up <connection-name>
 sudo nmcli connection down <connection-name>
 ```
 
-重启网络服务​​：更彻底的方法是重启整个网络服务（在传统系统上）：
+重启网络服务：更彻底的方法是重启整个网络服务（在传统系统上）：
 
 ```bash
 sudo systemctl restart network
@@ -2354,19 +2383,257 @@ www.baidu.com
 
 # 用户管理
 
+## 用户信息
 
+在 Linux 系统中，系统的用户信息存储在 /etc/passwd 文件中，其内容示例如下：
 
+```bash
+root:x:0:0:root:/root:/bin/bash
+bin:x:1:1:bin:/bin:/sbin/nologin
+daemon:x:2:2:daemon:/sbin:/sbin/nologin
+adm:x:3:4:adm:/var/adm:/sbin/nologin
+lp:x:4:7:lp:/var/spool/lpd:/sbin/nologin
+sync:x:5:0:sync:/sbin:/bin/sync
+shutdown:x:6:0:shutdown:/sbin:/sbin/shutdown
+halt:x:7:0:halt:/sbin:/sbin/halt
+mail:x:8:12:mail:/var/spool/mail:/sbin/nologin
+operator:x:11:0:operator:/root:/sbin/nologin
+games:x:12:100:games:/usr/games:/sbin/nologin
+ftp:x:14:50:FTP User:/var/ftp:/sbin/nologin
+nobody:x:99:99:Nobody:/:/sbin/nologin
+systemd-network:x:192:192:systemd Network Management:/:/sbin/nologin
+dbus:x:81:81:System message bus:/:/sbin/nologin
+polkitd:x:999:998:User for polkitd:/:/sbin/nologin
+sshd:x:74:74:Privilege-separated SSH:/var/empty/sshd:/sbin/nologin
+postfix:x:89:89::/var/spool/postfix:/sbin/nologin
+chrony:x:998:996::/var/lib/chrony:/sbin/nologin
+```
 
+其中，每一行表示一个用户信息，格式为：
 
+```bash
+username:password:userid:groupid:comment:home directory:shell
+```
 
+每项的含义如下：
+- username: 用户名
+- password: 密码位
+- userid: 用户id
+  - 在 Linux 中，0 表示超级用户，将一个用户设置为超级用户时，将 userid 设置为 0 即可，不过不建议建立多个超级用户
+  - 1-499 为系统用户（伪用户），这些用户是不能登录系统的，而是由系统服务使用，其中 1-99 为系统保留用户，系统自动创建，100-499是预留给用户创建系统账号的。
+  - 500-60000为普通用户，建立的用户id从500开始，从2.6.x内核开始，Linux 系统用户id已经可以支持2^32这么多了。
+- groupid: 用户组id，建立用户时，若不指定用户所属组，则用户组id默认与用户id一致
+- comment: 描述
+- home directory: 主目录
+- shell: 登录后默认使用的 shell 程序所在位置
 
+在现代的 CentOS 和 Ubuntu 发行版中，UID 范围的划分发生了一些变化，更通用的标准是
 
+- 0: 超级用户 (root)。UID 0 是最高权限的唯一标识。
+- 1-999: 系统用户 (System users)。这些用户通常由软件包在安装时自动创建，用于运行系统服务或守护进程。他们通常没有登录 Shell（如 /usr/sbin/nologin或 /bin/false），这是为了系统安全。
+- 1000+: 普通用户 (Regular users)。在系统安装后，由管理员创建的第一个普通用户的 UID 通常从 1000 开始，之后创建的用户会依次递增（1001, 1002...）。
 
+**关于密码位 (重要安全概念)**
 
+在非常古老的系统上，加密后的密码确实直接存储在这个字段。出于安全原因，现在所有的现代 Linux 系统都使用了 shadow password suite。这里的 x是一个占位符，它意味着用户的加密密码实际上并不存储在 /etc/passwd文件中，而是被移动到了 /etc/shadow 文件里。
 
+而 /etc/shadow 文件权限是 000(rw-------，仅 root 可读)，这比全世界可读的 /etc/passwd(权限为 644) 要安全得多。
 
+## 用户密码
 
+用户密码文件存储在 /etc/shadow 文件中，其内容示例如下：
 
+```bash
+root:$6$7mDpR5mc1Py9qAKz$YiJYJ6OLas2RONTVugT7KV3TClFjEA/ahFgrrCvPGlUch57wObt3ic6sxC0H13ssY9Xo6xSlw4Hc.BC9xwdZD/::0:99999:7:::
+bin:*:18353:0:99999:7:::
+daemon:*:18353:0:99999:7:::
+adm:*:18353:0:99999:7:::
+lp:*:18353:0:99999:7:::
+sync:*:18353:0:99999:7:::
+shutdown:*:18353:0:99999:7:::
+halt:*:18353:0:99999:7:::
+mail:*:18353:0:99999:7:::
+operator:*:18353:0:99999:7:::
+games:*:18353:0:99999:7:::
+ftp:*:18353:0:99999:7:::
+nobody:*:18353:0:99999:7:::
+systemd-network:!!:20353::::::
+dbus:!!:20353::::::
+polkitd:!!:20353::::::
+sshd:!!:20353::::::
+postfix:!!:20353::::::
+chrony:!!:20353::::::
+```
+
+其中，每一行表示一个用户密码信息，格式为：
+```bash
+username:password:last change time:minimum time:maximum time:warn time:inactivity time:expire time:reserved
+```
+
+其中，每一项的含义如下：
+
+- username: 用户名
+- password: 加密后的密码
+  - 密码为空时，表示用户密码为空，即用户不能登录系统
+  - 我们也可以在密码前手动添加 "!" 或 “*"，来使密码暂时失效，达到临时禁用密码的效果。
+  - 注意所有的伪用户的密码都是 “!!”, 表示密码为空, 不能登录系统,新创建的用户密码也是 “!!"
+- last change time: 密码最后修改时间(时间戳)，以 1970-01-01 为起点，单位为天
+- minimum time: 密码最小修改时间，两次密码修改间隔时间
+- maximum time: 密码最大修改时间，密码有效期
+- warn time: 密码修改到期前多少天发出警告
+- inactivity time: 密码过期后宽限天数
+- expire time: 密码失效时间，这里也为时间戳格式，如果超过了失效时间，即使密码没有过期，用户也无法登录系统
+- reserved: 保留字段
+
+**时间戳转换示例**:
+```bash
+# 将Shadow中的“天数”时间戳转换为日期
+# 例如：last change time 为 15775
+date -d "1970-01-01 + 15775 days" +%F
+# 输出：2013-03-11
+
+# 将日期转换为Shadow中的“天数”时间戳
+# 例如：想知道 2020-03-11 对应的时间戳
+echo $(($(date -d "2020-03-11" +%s) / 86400))
+# 输出：18336
+```
+
+**加密密码字段解析**
+
+加密密码本身的格式，它遵循一个标准的命名法，格式：$id$salt$hash
+
+- id : 表示所采用的加密算法。 
+  - $1$： MD5 (现在被认为不安全，应避免使用)
+  - $2a$或 $2y$： Blowfish
+  - $5$： SHA-256
+  - $6$： SHA-512 (这是示例中 root用户使用的，也是现代 Linux 系统的默认标准，更安全)
+- salt： 一个随机字符串，用于防止彩虹表攻击。即使两个用户密码相同，加密后的哈希值也会因为 salt 不同而完全不同。
+- hash： 将用户的密码明文与 salt 组合后，再经过上述算法加密得到的最终哈希值。
+
+**关于 !!与 * 的细微区别**
+
+- *通常用于系统账户（如 bin, daemon），表示该账户完全被锁定，不能用于密码认证。passwd -l <username>命令会在加密密码前加 !!，但有些系统实现可能会使用 *。
+- !!通常表示密码从未被设置过。这正是 useradd 命令创建新用户后的默认状态。运行 passwd -l <username> 也会使用这个。
+- 本质上，只要加密密码字段不是以 $id$ 开头，而是任何其他字符，该账户的密码认证就会被阻止。所以 !, *, !! 甚至 invalid 都可以达到禁用效果。
+
+虽然可以直接编辑 /etc/shadow 文件来管理密码，但这非常危险，容易出错导致用户无法登录。更安全、更推荐的方法是使用专用命令：
+
+`chage`： 用于查看和修改密码过期策略的强大工具。
+- `chage -l <username>`： 列出用户的密码策略详情。
+- `chage -M 90 <username>`： 将密码最大有效期设置为 90 天。
+- `chage -E $(date -d "+180 days" +%F) <username>`： 设置账户在 180 天后过期。
+
+`passwd`： 用于管理密码本身。
+- `passwd -S <username>`： 查看用户的密码状态（`PS`为已设置，`LK`为被锁定，`NP`无密码）。
+- `passwd -l <username>`/ `passwd -u <username>`： 锁定/解锁用户密码。
+
+## 用户组信息
+
+用户组用于管理用户权限，组内用户可以进行权限共享，建立用户时，若不指定用户所属组，则用户组id默认与用户id一致，这个与用户同名的组，且 GID 等于 UID 的组，被称为用户的主组 (Primary Group) 或 初始组 (Initial Group)。
+
+一个用户还可以被加入到其他多个附加组 (Supplementary Groups) 中，这些关系记录在 /etc/group 文件里。加入附加组是为了获取该组所拥有的额外权限（例如，将用户加入 sudo组以授予管理权限，加入 docker组以允许使用 Docker 引擎）。
+
+用户组信息文件存储在 /etc/group 文件中，其内容示例如下：
+
+```bash
+root:x:0:
+bin:x:1:
+daemon:x:2:
+sys:x:3:
+adm:x:4:
+tty:x:5:
+disk:x:6:
+lp:x:7:
+mem:x:8:
+kmem:x:9:
+wheel:x:10:
+cdrom:x:11:
+mail:x:12:postfix
+man:x:15:
+dialout:x:18:
+floppy:x:19:
+games:x:20:
+tape:x:33:
+video:x:39:
+ftp:x:50:
+lock:x:54:
+audio:x:63:
+nobody:x:99:
+users:x:100:
+utmp:x:22:
+utempter:x:35:
+input:x:999:
+systemd-journal:x:190:
+systemd-network:x:192:
+dbus:x:81:
+polkitd:x:998:
+ssh_keys:x:997:
+sshd:x:74:
+postdrop:x:90:
+postfix:x:89:
+chrony:x:996:
+```
+
+其中，每一行表示一个用户组信息，格式为：
+
+```bash
+groupname:password:groupid:username1,username2,username3...
+```
+
+每项的含义如下：
+- groupname: 用户组名
+- password: 密码位
+- groupid: 用户组id
+- username1,username2,username3...: 该用户组的附加成员（Supplementary Members）列表。这些用户以该组作为他们的附加组,这个字段并不定义谁的主组是这个组。 一个用户的主组（Primary Group） 是由 /etc/passwd 文件中的 GID字段决定的。
+
+组密码和 /etc/passwd一样，这里的 x也是一个占位符，表示真正的组密码（如果设置了的话）存储在 /etc/gshadow文件中。然而，在现代 Linux 系统管理中，为组设置密码是一种非常古老且极不安全的做法，强烈不推荐使用。几乎 100% 的情况下，这个字段都是 x。管理权限的方式是通过 sudo策略，而不是组密码。可以认为这个功能已经被废弃。
+
+特权组 wheel与 sudo
+
+- 在 CentOS / RHEL / Fedora 等 Red Hat 系发行版中，默认的特权组名称是 wheel。
+- 在 Ubuntu / Debian 等发行版中，默认的特权组名称是 sudo。
+- 它们的目的是完全一样的：被列入该组的用户可以使用 sudo 命令获得 root 权限。这只是历史遗留造成的命名差异。
+
+## 其他用户相关目录信息
+
+- 用户家目录 : 默认位于`/home/用户名`,超级用户 root 的家目录是 /root 家目录的权限通常设置为 755(drwxr-xr-x)，所有者是用户本身。这确保了用户对自己目录有完全权限，而其他用户只能进入和列表，但不能创建或删除文件。
+  - 家目录下存放着用户的个性化配置文件，通常以点号开头（隐藏文件），如：
+  - ~/.bashrc: Bash shell 的配置脚本。
+  - ~/.bash_profile 或 ~/.profile: 登录时的配置脚本
+  - ~/.ssh/: 存放SSH密钥的目录。
+- 用户邮箱目录 : 默认位于 `/var/spool/mail/用户名`。在Linux系统中，每个用户都有一个默认的本地邮箱，用于接收系统发送的通知、mail命令发送的邮件或由 cron任务产生的输出。除非你专门配置了本地邮件传输代理（如Postfix, Sendmail）或在服务器上运行需要发送本地通知的服务，否则这个邮箱对于现代桌面用户或许多服务器用户来说可能很少被主动使用。但系统关键警报仍可能发送到这里。可以使用 mail命令来查看此邮箱的内容。
+- 用户模板目录 : 默认位于 `/etc/skel` 新建用户时会复制此目录内容到用户家目录，这是系统管理员进行标准化配置的利器。你可以预先在 `/etc/skel` 目录中放置一些文件，这样所有新创建的用户都能拥有一致的初始环境。
+
+## 创建用户（）（）
+
+创建用户可以使用 useradd 命令，例如：
+
+命令语法：
+
+useradd [options] <username>
+
+**常用选项**:
+
+- `-u`: 指定UID
+- `-g`: 指定初始组
+- `-G`: 指定附加组
+- `-c`: 添加用户说明
+- `-d`: 指定家目录(绝对路径)
+- `-s`: 指定登录shell
+
+创建用户示例：
+
+```bash
+useradd -u 1000 -g 1000 -G sudo -c "Linux User" -d /home/linuxuser -s /bin/bash linuxuser
+```
+
+命令含义：
+- `-u 1000`: 设置用户UID为1000
+- `-g 1000`: 设置用户GID为1000
+- `-G sudo`: 将用户加入sudo组
+- `-c "Linux User"`: 添加用户说明
+- `-d /home/linuxuser`: 设置用户家目录为/home/linuxuser
+- `-s /bin/bash`: 设置用户登录shell为/bin/bash
 
 
 
