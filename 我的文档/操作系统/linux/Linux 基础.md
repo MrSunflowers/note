@@ -2510,7 +2510,7 @@ echo $(($(date -d "2020-03-11" +%s) / 86400))
 - salt： 一个随机字符串，用于防止彩虹表攻击。即使两个用户密码相同，加密后的哈希值也会因为 salt 不同而完全不同。
 - hash： 将用户的密码明文与 salt 组合后，再经过上述算法加密得到的最终哈希值。
 
-**关于 !!与 * 的细微区别**
+**关于 !! 与 * 的细微区别**
 
 - *通常用于系统账户（如 bin, daemon），表示该账户完全被锁定，不能用于密码认证。passwd -l <username>命令会在加密密码前加 !!，但有些系统实现可能会使用 *。
 - !!通常表示密码从未被设置过。这正是 useradd 命令创建新用户后的默认状态。运行 passwd -l <username> 也会使用这个。
@@ -2604,7 +2604,7 @@ groupname:password:groupid:username1,username2,username3...
 - 用户邮箱目录 : 默认位于 `/var/spool/mail/用户名`。在Linux系统中，每个用户都有一个默认的本地邮箱，用于接收系统发送的通知、mail命令发送的邮件或由 cron任务产生的输出。除非你专门配置了本地邮件传输代理（如Postfix, Sendmail）或在服务器上运行需要发送本地通知的服务，否则这个邮箱对于现代桌面用户或许多服务器用户来说可能很少被主动使用。但系统关键警报仍可能发送到这里。可以使用 mail命令来查看此邮箱的内容。
 - 用户模板目录 : 默认位于 `/etc/skel` 新建用户时会复制此目录内容到用户家目录，这是系统管理员进行标准化配置的利器。你可以预先在 `/etc/skel` 目录中放置一些文件，这样所有新创建的用户都能拥有一致的初始环境。
 
-## 创建用户（）（）
+## 创建用户
 
 创建用户可以使用 useradd 命令，例如：
 
@@ -2615,16 +2615,18 @@ useradd [options] <username>
 **常用选项**:
 
 - `-u`: 指定UID
-- `-g`: 指定初始组
+- `-g`: 指定初始组，在实际操作中，我们通常不指定 -g [GID]，而是指定 -g [组名]。系统会自动为你分配一个与用户同名且 GID 与 UID 相同的主组。手动指定 GID 容易造成混乱。更常见的做法是省略 -g选项，或者使用 -g users这样的组名来指定一个已存在的组作为主组。
 - `-G`: 指定附加组
 - `-c`: 添加用户说明
 - `-d`: 指定家目录(绝对路径)
 - `-s`: 指定登录shell
+- `-m`: 指定创建用户时自动创建家目录，如果没有 -m 选项，useradd默认不会创建家目录（即使 CREATE_HOME yes在 /etc/login.defs中设置了）
+- `--create-home`: 与 -m 选项功能相同，创建用户时自动创建家目录
 
 创建用户示例：
 
 ```bash
-useradd -u 1000 -g 1000 -G sudo -c "Linux User" -d /home/linuxuser -s /bin/bash linuxuser
+useradd -u 1000 -g 1000 -G sudo -c "Linux User" -d /home/linuxuser -s /bin/bash 
 ```
 
 命令含义：
@@ -2635,38 +2637,362 @@ useradd -u 1000 -g 1000 -G sudo -c "Linux User" -d /home/linuxuser -s /bin/bash 
 - `-d /home/linuxuser`: 设置用户家目录为/home/linuxuser
 - `-s /bin/bash`: 设置用户登录shell为/bin/bash
 
+创建用户时，系统会使用一些默认值，这些默认值主要存储在 /etc/default/useradd 和 /etc/login.defs 文件中。
 
+下面分别看下文件内容
 
+/etc/default/useradd
 
+```bash
+# useradd defaults file
+GROUP=100
+HOME=/home
+INACTIVE=-1
+EXPIRE=
+SHELL=/bin/bash
+SKEL=/etc/skel
+CREATE_MAIL_SPOOL=yes
+```
 
+其中每项的含义如下：
+- GROUP: 创建的用户的初始组ID，默认为100，这个配置项在现代 Linux 发行版中通常被注释掉或不再起主要作用。用户主组的创建行为主要由 /etc/login.defs中的 USERGROUPS_ENAB控制。当 USERGROUPS_ENAB yes时，useradd会创建一个与用户同名的新组作为其主组，这是默认且推荐的行为。GROUP=100是一个历史遗留的备用选项。
+- HOME: 创建用户的家目录，默认为/home
+- INACTIVE: 创建用户的密码失效时间，默认为-1，表示密码永不过期
+- EXPIRE: 创建用户的密码过期时间，默认为空
+- SHELL: 创建用户的登录shell，默认为/bin/bash
+- SKEL: 创建用户时复制的模板目录，默认为/etc/skel
+- CREATE_MAIL_SPOOL: 创建用户时是否创建邮箱目录，默认为yes
 
+/etc/login.defs
 
+```bash
+#
+# Please note that the parameters in this configuration file control the
+# behavior of the tools from the shadow-utils component. None of these
+# tools uses the PAM mechanism, and the utilities that use PAM (such as the
+# passwd command) should therefore be configured elsewhere. Refer to
+# /etc/pam.d/system-auth for more information.
+#
 
+# *REQUIRED*
+#   Directory where mailboxes reside, _or_ name of file, relative to the
+#   home directory.  If you _do_ define both, MAIL_DIR takes precedence.
+#   QMAIL_DIR is for Qmail
+#
+#QMAIL_DIR      Maildir
+MAIL_DIR        /var/spool/mail
+#MAIL_FILE      .mail
 
+# Password aging controls:
+#
+#       PASS_MAX_DAYS   Maximum number of days a password may be used.
+#       PASS_MIN_DAYS   Minimum number of days allowed between password changes.
+#       PASS_MIN_LEN    Minimum acceptable password length.
+#       PASS_WARN_AGE   Number of days warning given before a password expires.
+#
+PASS_MAX_DAYS   99999
+PASS_MIN_DAYS   0
+PASS_MIN_LEN    5
+PASS_WARN_AGE   7
 
+#
+# Min/max values for automatic uid selection in useradd
+#
+UID_MIN                  1000
+UID_MAX                 60000
+# System accounts
+SYS_UID_MIN               201
+SYS_UID_MAX               999
 
+#
+# Min/max values for automatic gid selection in groupadd
+#
+GID_MIN                  1000
+GID_MAX                 60000
+# System accounts
+SYS_GID_MIN               201
+SYS_GID_MAX               999
 
+#
+# If defined, this command is run when removing a user.
+# It should remove any at/cron/print jobs etc. owned by
+# the user to be removed (passed as the first argument).
+#
+#USERDEL_CMD    /usr/sbin/userdel_local
 
+#
+# If useradd should create home directories for users by default
+# On RH systems, we do. This option is overridden with the -m flag on
+# useradd command line.
+#
+CREATE_HOME     yes
 
+# The permission mask is initialized to this value. If not specified,
+# the permission mask will be initialized to 022.
+UMASK           077
 
+# This enables userdel to remove user groups if no members exist.
+#
+USERGROUPS_ENAB yes
 
+# Use SHA512 to encrypt password.
+ENCRYPT_METHOD SHA512
+```
 
+其中每项的含义如下：
 
+- MAIL_DIR        /var/spool/mail : 指定用户默认的邮件目录
+- PASS_MAX_DAYS   99999: 密码最大有效期，代表多少天之后必须修改密码，默认为99999
+- PASS_MIN_DAYS   0: 指定两次修改密码之间的间隔天数，代表第一次修改密码之后，第二次修改密码之前，必须间隔多少天才能修改密码，默认为0，表示没有限制。
+- PASS_MIN_LEN    5: 密码最小长度，默认为5，但是现在用户登录时的验证已经被 PAM 模块所取代，所以这个选项不生效。
+- PASS_WARN_AGE   7: 密码过期提醒，指定多少天之前密码过期，系统会提醒用户修改密码，默认为7天。
+- UID_MIN                  1000: 创建用户的最小UID，默认为1000
+- UID_MAX                 60000: 创建用户最大的UID，默认为60000
+- GID_MIN                  1000: 创建组的最小GID，默认为1000
+- GID_MAX                 60000: 创建组最大的GID，默认为60000
+- SYS_UID_MIN               201: 系统用户的最小UID，默认为201
+- SYS_UID_MAX               999: 系统用户最大的UID，默认为999
+- SYS_GID_MIN               201: 系统组的最小GID，默认为201
+- SYS_GID_MAX               999: 系统组最大的GID，默认为999
+- CREATE_HOME     yes: 创建用户时是否创建家目录，默认为yes
+- UMASK           077: 创建用户家目录的权限，默认为077
+- USERGROUPS_ENAB yes: 这是实现“为用户创建同名主组”功能的开关。如果设置为 no，并且没有指定 -g选项，用户可能会被添加到 /etc/default/useradd中定义的 GROUP中（通常是 users 组），这是一种不太常用的模式。
+- ENCRYPT_METHOD SHA512: 密码加密方式，默认为SHA512
 
+**useradd 与 adduser 的区别**
 
+这是一个非常常见的困惑点，尤其是在 Ubuntu 和 Debian 上：
+- useradd：是一个底层的、可脚本化的二进制命令。它只严格按照你提供的选项和系统默认值来执行操作，没有交互式提示。你上面学习的就是这个命令。
+- adduser：是一个高层的、perl 编写的交互式脚本（在 Ubuntu/Debian 上）。它更加“友好”：
+  - 它会主动提示你输入密码、全名等信息。
+  - 它默认会自动创建家目录 (-m)。
+  - 它会提示你确认信息是否正确。
+  - 在 CentOS/RHEL 上，adduser 仅仅是 useradd的一个软链接（symbolic link），所以两者是完全一样的。
 
+## 设置用户密码
 
+创建用户时，用户密码默认为空，可以通过以下命令设置用户密码，命令语法为：
 
+```bash
+passwd [options] [username]
+```
+其中，username 为用户名，options 为选项，可以有如下选项：
+- -d: 删除用户密码,使其可无密码登录
+- -e: 强制用户密码过期,强制用户下次登录时必须更改密码
+- -l: 锁定用户
+- -u: 解锁用户
+- --stdin: 从标准输入读取密码（非标准选项，常见于CentOS，Ubuntu中不存在）
 
+**示例**:
 
+创建用户 alice，并设置密码为 <PASSWORD>
 
+```bash
+# 设置用户密码
+echo "123" | passwd --stdin user1
+# 强制用户首次登录修改密码
+chage -d 0 user1
+```
+chage 命令是管理密码和账户过期策略的标准工具
 
+- chage -l user1：列出用户的所有密码和账户过期信息。
+- chage -M 90 user1：设置密码最长为90天。
+- chage -E $(date -d "+6 months" +%Y-%m-%d) user1：设置账户在6个月后过期。
 
+## 修改用户信息
 
+修改用户信息可以通过以下命令完成，命令语法为：
 
+```bash
+usermod [options] [username]
+```
 
+其中，username 为用户名，options 为选项，可以有如下选项：
 
+- `-u`: 修改UID
+- `-d`: 修改家目录
+- `-c`: 修改用户说明
+- `-g`: 修改初始组
+- `-G`: 修改附加组
+- `-s`: 修改登录shell
+- `-e`: 修改失效日期(YYYY-MM-DD)
+- `-L`: 锁定用户
+- `-U`: 解锁用户
+- `-l`: 修改用户名(不推荐)
 
+## 删除用户
+
+删除用户可以通过以下命令完成，命令语法为：
+
+```bash
+userdel [options] [username]
+```
+
+其中，username 为用户名，options 为选项，可以有如下选项：
+
+- `-r`: 同时删除用户家目录和邮箱
+
+**删除用户时的常见问题与解决方案**
+
+无法删除用户，提示“user is currently used by process”
+原因：该用户仍有正在运行的进程
+解决方案：
+找到并终止所有属于该用户的进程。使用 ps或 pgrep命令查找，然后用 kill或 killall终止。
+```bash
+# 查找用户 'username' 的所有进程
+pgrep -u username
+# 或
+ps -aux | grep username
+
+# 强制终止用户 'username' 的所有进程
+sudo killall -9 -u username
+# 或使用 pkill
+sudo pkill -9 -u username
+```
+终止进程后，再执行 userdel命令。
+
+**关于用户文件的清理**
+
+userdel(即使使用 -r选项) 并不会删除属于该用户的其他文件。
+
+例如，如果该用户在系统其他位置（如 /tmp、/var/www等）创建或拥有文件，这些文件将继续保留在磁盘上，但其所有者会变为一个不再存在的 UID（数字）。
+
+最佳实践：在删除用户后，可以使用 find命令来查找并清理这些“无主文件”。
+
+```bash
+# 查找所有属于已删除用户（UID为1001）的文件
+sudo find / -user 1001 -exec ls -l {} \;
+
+# 找到后，你可以决定是删除它们还是更改其所有者
+# 例如，删除所有属于UID 1001的文件（请极度谨慎！）
+# sudo find / -user 1001 -exec rm -rf {} \;
+```
+
+**用户组的关系**
+
+如果该用户是一个用户组的主要成员（即该组是通过 useradd自动创建的、与用户同名的组），并且 USERGROUPS_ENAB在 /etc/login.defs中设置为 yes（默认），那么使用 userdel -r通常会同时删除这个同名的用户组，因为该组已经没有其他成员了。
+
+如果该用户只是某个已存在组的附加成员，删除用户不会影响这些组的存在。
+
+## 切换用户身份
+
+切换用户身份可以通过以下命令完成，命令语法为：
+
+```bash
+su [options] [username]
+```
+其中，username 为用户名，options 为选项，可以有如下选项：
+
+- `-`: 连带环境变量一起切换
+- `-c`: 仅执行一次命令，用于以另一个用户的身份执行单条命令然后立刻返回。这在脚本中非常有用。
+
+**示例**:
+```bash
+# 切换用户并执行命令
+su - user1 -c "ls -l"
+```
+
+在 Ubuntu 中，默认情况下，root 用户密码未启用。初始用户自动拥有 sudo 权限。执行管理任务的唯一方式就是使用 sudo。
+在 CentOS 中，在安装时会要求你设置 root 密码。初始用户默认没有 sudo 权限，除非你在安装时特意指定或之后手动配置。
+
+**示例**:
+```bash
+# 使用 sudo 安装软件（Ubuntu 和 CentOS 的通用最佳实践）
+sudo apt update        # Ubuntu
+sudo dnf update        # CentOS 8+
+sudo yum update        # CentOS 7
+
+# 使用 sudo 启动一个 root shell（如果确实需要）
+sudo -i                # 相当于 'su - root'，但使用自己的密码且操作被记录
+sudo -s                # 相当于 'su root'，启动一个非登录的 root shell
+```
+
+## 创建用户组
+
+创建用户组可以通过以下命令完成，命令语法为：
+
+```bash
+groupadd [options] [groupname]
+ ```
+其中，groupname 为用户组名，options 为选项，可以有如下选项：
+
+- `-g`: 指定GID
+
+## 删除用户组
+
+删除用户组可以通过以下命令完成，命令语法为：
+```bash
+groupdel [options] [groupname]
+ ```
+其中，groupname 为用户组名，options 为选项，可以有如下选项：
+- `-f`: 强制删除，即使它仍是某些用户的主组。这是一个非常危险的操作，可能会导致那些用户出现问题，应避免使用。
+
+> 注意: 不能删除作为其他用户初始组的组
+
+## 管理组成员
+
+添加组成员可以通过以下命令完成，命令语法为：
+```bash
+gpasswd [options] [groupname] [username]
+ ```
+其中，groupname 为用户组名，username 为用户名，options 为选项，可以有如下选项：
+
+- `-a 用户名`: 添加用户到组
+- `-d 用户名`: 从组中删除用户
+
+**示例**:
+```bash
+# 添加用户到组
+gpasswd -a user1 grouptest
+# 从组中删除用户
+gpasswd -d user1 grouptest
+```
+
+```bash
+# 两种方法都可以将 user1 添加到 grouptest (附加组)
+sudo gpasswd -a user1 grouptest  # 方法一：以组为中心
+sudo usermod -aG grouptest user1 # 方法二：以用户为中心 (更常用)
+
+# 查看 user1 属于哪些组
+groups user1
+```
+
+## 改变有效组
+
+newgrp 命令用于临时切换用户的有效主组（effective primary group），从而影响新创建文件的属组。，命令语法为：
+
+newgrp会启动一个新的子 Shell。当你完成操作后，需要输入 exit来退出这个子 Shell，才能返回到原来的组环境。
+
+```bash
+newgrp [groupname]
+ ```
+其中，groupname 为用户组名
+
+**示例**:
+```bash
+# 创建测试组
+groupadd group1
+
+# 添加用户到组
+gpasswd -a user1 group1
+
+# 切换用户
+su - user1
+
+# 创建文件(属组为初始组)
+touch test1
+
+# 切换有效组
+newgrp group1
+
+# 创建文件(属组为当前有效组)
+touch test2
+
+# 查看结果
+ll test1 test2
+```
+
+# 权限管理
 
 
 
