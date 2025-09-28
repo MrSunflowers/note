@@ -4,14 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/deployment.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/sshConfigs.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/webServers.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux用户管理教程修正版-f72f466b4d.md" beforeDir="false" />
-    </list>
+    <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -138,7 +131,7 @@
       <workItem from="1758029294125" duration="14000" />
       <workItem from="1758893556060" duration="9672000" />
       <workItem from="1758949992005" duration="620000" />
-      <workItem from="1758950719484" duration="7370000" />
+      <workItem from="1758950719484" duration="7509000" />
     </task>
     <servers />
   </component>
