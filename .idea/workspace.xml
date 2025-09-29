@@ -6,6 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -135,6 +136,7 @@
       <workItem from="1758949992005" duration="620000" />
       <workItem from="1758950719484" duration="7509000" />
       <workItem from="1759062833452" duration="4892000" />
+      <workItem from="1759150856760" duration="2801000" />
     </task>
     <servers />
   </component>
