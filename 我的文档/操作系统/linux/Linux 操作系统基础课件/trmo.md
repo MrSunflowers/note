@@ -21,3 +21,5 @@ systemctl disable firewalld
 systemctl is-enabled firewalld
 
 我在学习 Linux 相关知识，包含 CentOS 系列和 Ubuntu 系列，请帮我分析接下来对话中的错误以及不足之处
+
+我在学习 计算机网络 相关知识，在后续对话中请围绕这个主题展开
