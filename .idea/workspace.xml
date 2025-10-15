@@ -4,10 +4,7 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" afterDir="false" />
-    </list>
+    <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="默认变更列表" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -143,7 +140,7 @@
       <workItem from="1760240869081" duration="5481000" />
       <workItem from="1760361963626" duration="5729000" />
       <workItem from="1760445967958" duration="6974000" />
-      <workItem from="1760531430410" duration="5398000" />
+      <workItem from="1760531430410" duration="5532000" />
     </task>
     <servers />
   </component>
