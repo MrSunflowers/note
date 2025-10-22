@@ -1,0 +1,101 @@
+GET https://api.deepseek.com/user/balance
+Content-Type: application/json
+Authorization: Bearer sk-86783b3a7b194e2aa0205dcc35bc11fc
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2024.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+Cookie: HWWAFSESID=5123d9a29eb6aa01cd; HWWAFSESTIME=1761058554084
+content-length: 0
+
+<> 2025-10-21T225857.200.json
+
+###
+
+GET https://api.deepseek.com/models
+Content-Type: application/json
+Authorization: Bearer sk-86783b3a7b194e2aa0205dcc35bc11fc
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2024.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+Cookie: HWWAFSESID=5123d9a29eb6aa01cd; HWWAFSESTIME=1761058554084
+content-length: 0
+
+<> 2025-10-21T225709.200.json
+
+###
+
+POST https://api.deepseek.com
+Content-Type: application/json
+Authorization: Bearer sk-86783b3a7b194e2aa0205dcc35bc11fc
+Content-Length: 265
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2024.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+
+{
+  "model": "deepseek-chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一位经验丰富的助手，请以助手的身份回答问题。"
+    },
+    {
+      "role": "user",
+      "content": "你是谁？"
+    }
+  ],
+  "stream": false
+}
+
+###
+
+GET https://api.deepseek.com
+Content-Type: application/json
+Authorization: Bearer sk-86783b3a7b194e2aa0205dcc35bc11fc
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2024.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+content-length: 265
+
+{
+  "model": "deepseek-chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一位经验丰富的助手，请以助手的身份回答问题。"
+    },
+    {
+      "role": "user",
+      "content": "你是谁？"
+    }
+  ],
+  "stream": false
+}
+
+###
+
+GET https://api.deepseek.com/v1
+Content-Type: application/json
+Authorization: Bearer sk-86783b3a7b194e2aa0205dcc35bc11fc
+User-Agent: IntelliJ HTTP Client/IntelliJ IDEA 2024.1
+Accept-Encoding: br, deflate, gzip, x-gzip
+Accept: */*
+content-length: 265
+
+{
+  "model": "deepseek-chat",
+  "messages": [
+    {
+      "role": "system",
+      "content": "你是一位经验丰富的助手，请以助手的身份回答问题。"
+    },
+    {
+      "role": "user",
+      "content": "你是谁？"
+    }
+  ],
+  "stream": false
+}
+
+###
+

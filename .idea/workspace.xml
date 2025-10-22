@@ -5,8 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="默认变更列表">
+      <change afterPath="$PROJECT_DIR$/我的文档/AI/AI 大模型/大模型基础.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 基础.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -40,6 +40,9 @@
   </component>
   <component name="PropertiesComponent">{
   &quot;keyToString&quot;: {
+    &quot;HTTP 请求.generated-requests | DeepSeek 列出模型#2.executor&quot;: &quot;Run&quot;,
+    &quot;HTTP 请求.generated-requests | DeepSeek#2.executor&quot;: &quot;Run&quot;,
+    &quot;HTTP 请求.generated-requests | DeepSeek.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowPanel.toolwindow.highlight.mappings&quot;: &quot;true&quot;,
     &quot;WebServerToolWindowPanel.toolwindow.highlight.symlinks&quot;: &quot;true&quot;,
@@ -63,7 +66,7 @@
       <recent name="D:\data\GitHub Repository\note\我的文档\datebase\mySql" />
     </key>
   </component>
-  <component name="RunManager">
+  <component name="RunManager" selected="HTTP 请求.generated-requests | DeepSeek 列出模型#2">
     <configuration name="D:/Data/GitHub Repository/note" type="GradleRunConfiguration" factoryName="Gradle" temporary="true">
       <ExternalSystemSettings>
         <option name="executionName" />
@@ -84,8 +87,20 @@
       <RunAsTest>false</RunAsTest>
       <method v="2" />
     </configuration>
+    <configuration name="generated-requests | DeepSeek 列出模型#2" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$APPLICATION_CONFIG_DIR$/scratches/generated-requests.http" index="3" requestIdentifier="DeepSeek 列出模型#2" runType="运行单个请求">
+      <method v="2" />
+    </configuration>
+    <configuration name="generated-requests | DeepSeek" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$APPLICATION_CONFIG_DIR$/scratches/generated-requests.http" requestIdentifier="DeepSeek" runType="运行单个请求">
+      <method v="2" />
+    </configuration>
+    <configuration name="generated-requests | DeepSeek#2" type="HttpClient.HttpRequestRunConfigurationType" factoryName="HTTP Request" temporary="true" nameIsGenerated="true" path="$APPLICATION_CONFIG_DIR$/scratches/generated-requests.http" index="2" requestIdentifier="DeepSeek#2" runType="运行单个请求">
+      <method v="2" />
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="HTTP 请求.generated-requests | DeepSeek 列出模型#2" />
+        <item itemvalue="HTTP 请求.generated-requests | DeepSeek#2" />
+        <item itemvalue="HTTP 请求.generated-requests | DeepSeek" />
         <item itemvalue="Gradle.D:/Data/GitHub Repository/note" />
       </list>
     </recent_temporary>
@@ -148,6 +163,8 @@
       <workItem from="1760879415599" duration="179000" />
       <workItem from="1760879602179" duration="2963000" />
       <workItem from="1760964758561" duration="4697000" />
+      <workItem from="1761049450873" duration="7810000" />
+      <workItem from="1761138741727" duration="3800000" />
     </task>
     <servers />
   </component>
