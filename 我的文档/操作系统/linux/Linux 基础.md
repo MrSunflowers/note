@@ -4085,7 +4085,7 @@ systemd 的功能远比 SysVinit 强大，因此有一些在 CentOS 6 时代没�
 - 当你执行 `service httpd start`时，系统实际上会在底层将其翻译成 `systemctl start httpd.service`来执行。
 - 同样，`chkconfig httpd on` 也会被翻译成 `systemctl enable httpd.service`。
 
-### yum 安装
+## yum
 
 在真实场景中，我们几乎永远不会直接从官网下载一个这样的 .rpm 文件然后用 rpm -ivh 命令来安装。因为软件会有复杂的依赖关系（Dependencies）。httpd 可能依赖 httpd-tools, apr, apr-util 等特定的版本。手动安装时，需要自己一个一个找到并安装所有这些依赖包，这是一个极其繁琐且容易出错的“依赖地狱”过程。
 
@@ -4096,7 +4096,134 @@ systemd 的功能远比 SysVinit 强大，因此有一些在 CentOS 6 时代没�
 - `yum`(CentOS 7)
 - `dnf`(CentOS 8+, Fedora，是 `yum`的下一代版本)
 
-包管理器（`yum`/`dnf`）维护着一个巨大的**软件仓库（Repository）** 数据库。当你执行 `sudo yum install httpd`时，它会：
+**yum**（Yellowdog Updater, Modified）是 **RPM 包管理器**的一个**前端工具**。yum 是一个基于仓库的、自动解决依赖关系的 RPM 包管理前端工具。
+
+### 核心功能与常用命令
+
+**安装软件**
+
+- `yum install package_name`
+- **作用：** 自动从仓库下载指定的软件包及其所有依赖包，然后按顺序安装。
+- **示例：** `yum install httpd`安装 Apache Web 服务器。
+
+**更新软件**
+
+- `yum update package_name`
+- **作用：** 更新指定的软件包到仓库中的最新版本。如果不指定包名（`yum update`），则更新系统所有可更新的软件包。这是**系统升级最常用的命令**。
+
+**卸载软件**
+
+- `yum remove package_name`
+- **作用：** 卸载指定的软件包，并尝试移除那些不再被任何软件依赖的包。
+
+**搜索软件**
+
+- `yum search keyword`
+- **作用：** 在仓库的所有软件包名称和描述中搜索关键字，帮助你找到需要的软件。
+- **示例：** `yum search python3`
+
+**查看软件信息**
+
+- `yum info package_name`
+- **作用：** 显示软件包的详细信息，如版本、发布号、大小、描述等，在安装前非常有用。
+
+**列出软件包**
+
+- `yum list [all|installed|available]`
+- **作用：**
+  - `yum list installed`：列出所有已安装的包。
+  - `yum list available`：列出仓库中可用但未安装的包。
+  - `yum list all`：列出所有包。
+
+**清理缓存**
+
+- `yum clean all`
+- **作用：** 清理下载的软件包和旧的元数据缓存，释放磁盘空间。当仓库信息出现问题时，这个命令也常用于重置状态。
+
+### yum 的工作原理
+
+```mermaid
+flowchart TD
+    A[用户执行 yum 命令] --> B[读取 repo 配置<br>（/etc/yum.repos.d/）]
+    B --> C{本地元数据<br>是否有效？}
+    C -- 否/强制刷新 --> D[从仓库URL<br>下载元数据至缓存]
+    C -- 是 --> E[在本地元数据中<br>进行查询/计算]
+    D --> E
+    E --> F[解析依赖，<br>形成事务]
+    F --> G[用户确认]
+    G --> H[下载所需的所有RPM包]
+    H --> I[调用rpm命令<br>按顺序安装包]
+    I --> J[更新本地RPM数据库]
+    J --> K[完成]
+```
+
+### 仓库配置（Repository Configuration）
+
+- yum 的“知识库”来源于**仓库**。
+- 仓库的配置文件位于 `/etc/yum.repos.d/`目录下，文件后缀为 `.repo`。
+- 一个典型的 `.repo`文件内容如下：
+
+```ini
+[base]
+name=CentOS-$releasever - Base
+mirrorlist=http://mirrorlist.centos.org/?release=$releasever&arch=$basearch&repo=os&infra=$infra
+#baseurl=http://mirror.centos.org/centos/$releasever/os/$basearch/
+gpgcheck=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial
+enabled=1
+```
+
+- `[base]`：仓库的唯一ID。
+- `name`：仓库的可读名称。
+- `baseurl`/`mirrorlist`：仓库的实际地址或镜像列表地址。
+- `gpgcheck=1`：启用GPG签名检查，确保软件包未被篡改。
+- `gpgkey`：用于验证签名公钥的存放位置。
+- `enabled=1`：启用此仓库。
+
+元数据获取与缓存（Metadata Download and Cache）
+
+仓库并非只有一个包含大量RPM文件的目录。它还包含一组**元数据文件**，这些文件相当于仓库的“索引”或“地图”。
+
+**元数据包括**
+
+- 所有软件包的列表（`primary.xml.gz`）
+- 软件包之间的依赖关系（`primary.xml.gz`）
+- 软件包的分组信息（`comps.xml.gz`）
+
+当执行 `yum`命令时（如第一次使用或缓存过期），yum 会从配置的仓库URL**下载这些元数据文件**，并**缓存到本地**（通常是 `/var/cache/yum/`目录下）。
+
+后续操作会直接使用本地缓存，速度非常快。你可以使用 `yum makecache`手动刷新缓存。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+包管理器（`yum`/`dnf`）维护着一个巨大的 **软件仓库（Repository）** 数据库。
+
+当你执行 `sudo yum install httpd`时，它会：
 
 1. 自动在配置的仓库列表里查找名为 `httpd`的软件。
 2. 分析出 `httpd`的所有依赖包（如 `apr`, `apr-util`等）。
