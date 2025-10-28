@@ -6,7 +6,7 @@
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="默认变更列表">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/架构相关/凤凰架构/凤凰架构.md" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/常用组件.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/常用组件.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -170,6 +170,7 @@
       <workItem from="1761466507945" duration="2504000" />
       <workItem from="1761567989484" duration="6476000" />
       <workItem from="1761654313722" duration="755000" />
+      <workItem from="1761662830062" duration="2905000" />
     </task>
     <servers />
   </component>
