@@ -242,7 +242,7 @@ MVVM模型
 <h1>测试一下4：{{_c}}</h1>
 ```
 
-![image-20240313093833175](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403130938404.png)
+<img src="https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403130938404.png" alt="image-20240313093833175"  />
 
 ### 数据代理
 

@@ -5,8 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="默认变更列表">
+      <change afterPath="$PROJECT_DIR$/我的文档/速查手册/应用开发与性能优化经验分享.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/常用组件.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/常用组件.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/Server/java/java 常用框架/Spring/Spring Security（施工中）/Spring Security.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Server/java/java 常用框架/Spring/Spring Security（施工中）/Spring Security.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/Vue基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/Vue基础.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/项目实战手册.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/项目实战手册.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础课件/trmo.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础课件/trmo.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -56,7 +60,7 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
-    &quot;settings.editor.selected.configurable&quot;: &quot;com.tencent.code.intel.settings.ApplicationConfigurable&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
@@ -97,9 +101,9 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="HTTP 请求.generated-requests | DeepSeek 列出模型#2" />
         <item itemvalue="HTTP 请求.generated-requests | DeepSeek#2" />
         <item itemvalue="HTTP 请求.generated-requests | DeepSeek" />
+        <item itemvalue="HTTP 请求.generated-requests | DeepSeek 列出模型#2" />
         <item itemvalue="Gradle.D:/Data/GitHub Repository/note" />
       </list>
     </recent_temporary>
@@ -170,7 +174,26 @@
       <workItem from="1761466507945" duration="2504000" />
       <workItem from="1761567989484" duration="6476000" />
       <workItem from="1761654313722" duration="755000" />
-      <workItem from="1761662830062" duration="2905000" />
+      <workItem from="1761662830062" duration="3047000" />
+      <workItem from="1761743754474" duration="2084000" />
+      <workItem from="1761827748860" duration="2200000" />
+      <workItem from="1762174101801" duration="278000" />
+      <workItem from="1762174389319" duration="1134000" />
+      <workItem from="1762175704820" duration="1154000" />
+      <workItem from="1762176864447" duration="59000" />
+      <workItem from="1762259776532" duration="7346000" />
+      <workItem from="1762346590486" duration="2722000" />
+      <workItem from="1762433468578" duration="5676000" />
+      <workItem from="1765106590525" duration="735000" />
+      <workItem from="1765108462522" duration="4170000" />
+      <workItem from="1765199965442" duration="2143000" />
+      <workItem from="1765202117199" duration="4474000" />
+      <workItem from="1765284640568" duration="5155000" />
+      <workItem from="1765372851480" duration="5088000" />
+      <workItem from="1765625814774" duration="1213000" />
+      <workItem from="1765699161812" duration="11087000" />
+      <workItem from="1765801408787" duration="10000" />
+      <workItem from="1766309829411" duration="11502000" />
     </task>
     <servers />
   </component>

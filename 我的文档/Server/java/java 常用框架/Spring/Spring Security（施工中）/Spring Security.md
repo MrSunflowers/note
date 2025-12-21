@@ -314,23 +314,35 @@ public interface UserDetails extends Serializable {
 
 ## PasswordEncoder
 
+多年来，用于存储密码的标准机制一直在不断发展。最初，密码是以明文形式存储的。人们认为这种存储方式是安全的，因为存储密码的数据文件需要特定的访问权限才能被读取。然而，恶意用户通过诸如SQL注入之类的攻击手段，设法获取了大量包含用户名和密码的数据。随着越来越多的用户凭证被公开，安全专家们意识到，我们必须采取更多的措施来保护用户的密码安全。
+
+随后，开发人员被鼓励在将密码通过SHA-256等单向哈希函数进行处理后将其存储起来。当用户尝试进行身份验证时，系统会将他们输入的密码经过哈希处理后的结果与存储在数据库中的哈希值进行比较。这样一来，系统实际上只需要存储密码的单向哈希值即可。如果发生数据泄露，系统中泄露的也只会是这些哈希值而已。由于这些哈希值是单向生成的，而且根据哈希值来推断出原始密码在计算上非常困难，因此试图破解系统中所有密码的做法根本不值得付出任何努力。为了突破这种新的安全机制，恶意用户开始创建所谓的“彩虹表”。他们不再每次都尝试猜测密码，而是将密码计算一次后将其存储在彩虹表中，这样在需要验证密码时就可以直接通过彩虹表来查找对应的哈希值了。
+
+为了削弱“彩虹表”的攻击效果，开发者被建议使用加盐密码。在将密码直接作为输入传递给哈希函数之前，会为每个用户的密码生成一些随机字节（这些随机字节被称为“盐值”）。随后，这些盐值与用户的密码一起被输入到哈希函数中，从而生成一个唯一的哈希值。盐值会以明文形式与用户的密码一起被存储起来。当用户尝试进行身份验证时，系统会将用户输入的密码经过哈希处理后得到的哈希值，与存储在数据库中的盐值及相应密码的哈希值进行比较。由于每个用户的盐值都不同，因此“彩虹表”在这种机制下就不再具有攻击效果了，因为每种盐值与密码组合都会生成不同的哈希值。
+
+在现代，我们已经意识到，像SHA-256这样的加密哈希算法已经不再安全了。原因在于，借助现代硬件，我们每秒钟能够进行数十亿次哈希计算，因此我们可以轻松地破解每一个密码。
+
+目前，开发人员被鼓励使用自适应单向函数来存储密码。使用自适应单向函数进行密码验证时，会故意消耗较多的资源（例如大量的CPU运算能力、内存等）。这种设计允许用户配置一个“工作因子”，而随着硬件的性能提升，这个“工作因子”也可以相应地增加。我们建议将这个“工作因子”设置为使得在您的系统中验证密码所需的时间**约为1秒**。这样的设计目的是让攻击者更难以破解密码，但同时也不会给您的系统带来过重的负担，也不会让用户感到不便。Spring Security已经为设置“工作因子”提供了一个不错的起点，但我们仍然建议用户根据自己系统的实际情况对这一参数进行自定义调整，因为不同系统之间的性能表现可能存在显著差异。值得使用的自适应单向函数包括bcrypt、PBKDF2、scrypt和argon2等。
+
+由于自适应单向函数本身就被设计为需要消耗大量资源，因此对于每个请求都进行用户名和密码的验证会显著降低应用程序的性能。Spring Security（或任何其他库）都无法加快密码验证的速度，因为正是这种资源消耗大的验证机制才确保了安全性。因此，建议用户将长期使用的凭证（即用户名和密码）替换为短期凭证（如会话令牌、OAuth令牌等）。使用短期凭证进行验证可以快速完成，且不会影响安全性。
+
 PasswordEncoder 用于对密码进行加密和验证。接口定义如下：
 
 ```java
 public interface PasswordEncoder {
 
 	/**
-	 * 表示把参数按照特定的解析规则进行解析
+	 * 表示把原始密码按照规则进行加密 返回加密后的密码
 	 */
 	String encode(CharSequence rawPassword);
 
 	/**
-	 * 表示验证从存储中获取的编码密码与编码后提交的原始密码是否匹配。如果密码匹配，则返回true；如果不匹配，则返回false。第一个参数表示需要被解析的密码。第二个参数表示存储的密码。
+	 * 表示验证用户填写的密码和存储的密码是否一致 rawPassword 原始密码 encodedPassword 存储的密码
 	 */
 	boolean matches(CharSequence rawPassword, String encodedPassword);
 
 	/**
-	 * 表示如果解析的密码能够再次进行解析且达到更安全的结果则返回true，否则返回false。默认返回false。
+	 * 是否需要升级密码强度
 	 */
 	default boolean upgradeEncoding(String encodedPassword) {
 		return false;
@@ -354,6 +366,81 @@ public void test01() { // 创建密码解析器
     System.out.println("比较结果：\t" + result);
 }
 ```
+
+### 工作因子
+
+在现代密码学中，一般使用单项散列函数进行密码加密运算，它指的是一种数学函数，可以轻松地从输入计算出结果（加密密码），但几乎不可能从结果反向推导出原始输入（明文密码）。这确保了即使数据库泄露，攻击者也无法直接获得用户的密码。
+
+为了增加攻击者进行暴力破解（尝试数以亿计的密码组合）的成本和时间，生成密码使用的单项散列函故意被设置为很慢，需要消耗大量的 CPU 时间或内存资源。
+
+为了使这种慢可调节且可适应未来硬件的发展，人们设置了工作因子，意味着当未来服务器硬件性能提升后，你可以调高工作因子，使破解难度与硬件进步保持同步，从而保证密码的安全性不会随时间推移而下降。其具体的设置应与自己的硬件水平而决定，大概是验证一次密码的时间为 1 秒为标准。
+
+为了使后期可以调高工作因子不会影响系统中已经存储的密码哈希值。一个BCrypt哈希字符串（ 例如 $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy ）其实自包含了三部分信息：
+
+- $2a$： 标识BCrypt的算法版本。
+- 10$： 这就是工作因子。它明确记录在哈希值本身之中。
+- N9qo8uLOickgx2ZMRZoMye...： 剩余部分包含了盐（Salt）和最终的密文（Hash）。	 
+
+当用户尝试登录时，Spring Security 的 PasswordEncoder会执行以下步骤来验证密码：
+- 从数据库存储的哈希字符串中解析出当初加密时使用的工作因子（例如上面的 10）。
+- 使用这个原始的工作因子以及解析出的盐，对用户输入的明文密码进行哈希计算。
+- 将新计算出的哈希值与数据库中存储的哈希值进行比对。
+
+正因为验证时使用的是存储在哈希值里的原始工作因子，所以即使你后来将系统默认的工作因子提高到了12，对于旧密码的验证过程依然使用它们各自的原始因子（如10），验证逻辑完全不受影响。
+
+虽然旧密码不受影响，但我们肯定希望所有密码都享受到更高工作因子带来的安全性。Spring Security 推荐的做法是**在用户登录时进行“静默升级”**。
+
+你可以实现一个逻辑，在用户登录验证成功后，检查其密码哈希是否使用了过时的工作因子（或更弱的算法）。如果是，则用当前更高的新工作因子重新哈希密码并更新数据库。以下是核心思路。
+
+```java
+// 伪代码示例：登录验证后的密码升级逻辑
+public boolean login(String username, String rawPassword) {
+    User user = userRepository.findByUsername(username);
+    String storedHash = user.getPassword(); // 从数据库获取存储的旧哈希
+
+    // 1. 使用原始参数验证密码
+    if (passwordEncoder.matches(rawPassword, storedHash)) {
+        // 2. 验证成功后，检查哈希是否需要升级（例如，工作因子低于当前标准）
+        if (passwordEncoder.upgradeEncoding(storedHash)) {
+            // 3. 使用新的、更高的工作因子重新哈希密码
+            String newHash = passwordEncoder.encode(rawPassword);
+            user.setPassword(newHash); // 更新数据库中的哈希值
+            userRepository.save(user);
+        }
+        return true; // 登录成功
+    }
+    return false; // 登录失败
+}
+```
+
+## 密码迁移
+
+DelegatingPasswordEncoder
+
+在新版的Spring Security 中，提供了 DelegatingPasswordEncoder，它可以根据配置的密码加密算法，动态选择合适的密码加密器。
+
+其提供了在进行密码升级时，历史遗留密码验证和新密码安全升级之间的矛盾。
+
+- 对于系统中已存在的、用旧算法（如 MD5）哈希的密码，因为带有 {md5} 前缀，依然可以被正确识别和验证。
+- 当新用户注册或老用户修改密码时，系统会使用您配置的最新、最安全的编码器（如 BCrypt）来哈希密码，并加上对应的 {bcrypt}前缀。
+
+由于哈希是单向的，您不能将数据库里的 {md5}哈希值解密成明文，然后再用 bcrypt重新哈希。DelegatingPasswordEncoder提倡的是一种 “渐进式迁移”​ 策略：在用户下次登录验证成功时，系统用新的算法重新哈希其输入的明文密码并更新存储，从而逐步将旧密码升级为新格式。同时，文档也解释了为何默认支持 {noop}（明文），是为了让新手能够零成本地快速启动和体验框架，尽管在生产环境中绝对不推荐使用。
+
+https://docs.spring.io/spring-security/reference/6.5/features/authentication/password-storage.html#authentication-password-storage-dpe-matching
+
+### 修改密码
+
+https://docs.spring.io/spring-security/reference/6.5/features/authentication/password-storage.html#authentication-change-password-configuration
+
+利用该特性可以使浏览器通过一个标准化的URL（/.well-known/change-password）自动发现并引导用户到你的密码修改页面
+
+## 密码泄露检测
+
+https://docs.spring.io/spring-security/reference/6.5/features/authentication/password-storage.html#authentication-compromised-password-check
+
+Spring Security 通过集成 HIBP API 服务器，在用户登录时，检测该密码是否已泄露。其原理是取得该密码的 SHA1 值，并访问 HIBP API 服务器，查询该 SHA1 值是否已泄露。
+
+当用户尝试用一个已知已泄露的密码（如 "123456"）登录时，即使密码本身对于该账户是正确的，系统也会拦截此次登录，并清晰地引导用户前往密码重置页面 /reset-password。
 
 # 权限认证
 
@@ -1682,15 +1769,114 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 # CSRF 攻击防范
 
+## 攻击原理
+
 跨站请求伪造（英语：Cross-site request forgery），也被称为 one-click attack 或者 session riding，通常缩写为 CSRF 或者 XSRF， 是一种挟制用户在当前已登录的Web应用程序上执行非本意的操作的攻击方法。跟跨网站脚本（XSS）相比，XSS利用的是用户对指定网站的信任，CSRF 利用的是网站对用户网页浏览器的信任。 
 
 跨站请求攻击，简单地说，是攻击者通过一些技术手段欺骗用户的浏览器去访问一个自己曾经认证过的网站并运行一些操作（如发邮件，发消息，甚至财产操作如转账和购买商品）。由于浏览器曾经认证过，所以被访问的网站会认为是真正的用户操作而去运行。这利用了web中用户身份验证的一个漏洞：**简单的身份验证只能保证请求发自某个用户的浏览器，却不能保证请求本身是用户自愿发出的**。 
 
+举个简单的例子说明，假设你现在登录了某银行的网站，在登录之后，你的浏览器就存储了银行的 cookie，此时你打开了另一个页面，这个页面是其他网站的，其中包含了恶意代码，当你不经意点击其中某个连接后，恶意网站的网页操控你的浏览器向银行的转账接口中发送请求，导致攻击者成功完成转账操作。由于是操控你浏览器发出的请求，而浏览器的状态是登录状态，那么恶意代码就可以通过你的浏览器，向银行转账接口发送请求。
+
 从 Spring Security 4.0 开始，默认情况下会启用CSRF保护，以防止CSRF攻击应用程序，Spring Security CSRF 会针对 **PATCH，POST，PUT 和 DELETE 方法**进行防护。
+
+https://docs.spring.io/spring-security/reference/6.5/features/exploits/csrf.html
 
 [CSRF(跨站请求伪造)](https://blog.csdn.net/leiwuhen92/article/details/128724402)
 
-## 原理
+## 防范方式
+
+为了使针对CSRF的防护措施能够发挥作用，应用程序必须确保那些属于“安全”类别的HTTP方法仅具有读取权限。也就是说，使用HTTP GET、HEAD、OPTIONS或TRACE方法发出的请求不应会改变应用程序的状态。
+
+因为主要的CSRF防护策略，如同步器令牌模式（Synchronizer Token Pattern），通常只应用于非安全的HTTP方法（如POST, PUT, DELETE）。这是因为这些“不安全”方法会改变应用状态，需要额外验证（如CSRF Token）。如果“安全”方法也能修改状态，攻击者就可以通过构造一个简单的GET请求（例如，嵌入一个<img>标签）来绕过所有防护，轻松实现攻击
+
+一般存在两种防范手段
+
+### CSRF 令牌
+
+在网页的表单中添加一个隐藏的 input 元素，值为 CSRF token ，token 由服务器生成，并保存在 session 中，下次请求时，将此 token 发送到服务器，服务器对 token 进行验证，验证通过才允许请求
+
+这种机制能够发挥作用的关键在于：实际的CSRF令牌必须被放置在HTTP请求中那些不会被浏览器自动包含的部分中。例如，如果要求将CSRF令牌作为HTTP参数或HTTP头部的一部分进行传输，那么就能有效防范CSRF攻击；然而，如果要求将CSRF令牌存储在cookie中，这种做法是行不通的，因为浏览器会自动将cookie包含在HTTP请求中。
+
+### SameSite Attribute
+
+一种新兴的防范CSRF攻击的方法是在cookie中设置SameSite属性。服务器在设置cookie时可以指定这一属性，以此表明该cookie不得从外部网站发送过来。
+
+Spring Security并不直接控制会话cookie的创建过程，因此它不支持SameSite属性。在基于servlet的应用程序中，Spring Session提供了对SameSite属性的支持；而在基于WebFlux的应用程序中，Spring Framework的CookieWebSessionIdResolver能够直接支持SameSite属性。
+
+一个包含 SameSite 属性的 HTTP 响应头部的示例可能如下所示：
+
+```
+Set-Cookie: JSESSIONID=randomid; Domain=bank.example.com; Secure; HttpOnly; SameSite=Lax
+```
+
+SameSite属性的有效取值包括：
+
+- Strict：当明确指定这种模式时，来自同一站点的所有请求都会包含该cookie；否则，HTTP请求中就不会包含该cookie。
+- Lax：当明确进行了相关设置时，无论是来自同一网站的内部请求，还是来自顶级导航栏的请求，且请求方法为只读模式时，都会发送cookie。否则，cookie就不会被包含在HTTP请求中。
+
+让我们思考一下，如何利用SameSite属性来保护我们的示例代码。银行应用程序可以通过在会话cookie中设置SameSite属性来有效防范CSRF攻击。
+
+由于我们在会话cookie中设置了SameSite属性，因此当浏览器从银行网站发送请求时，会继续携带JSESSIONID cookie；然而，当浏览器从恶意网站发送请求时，就不会再携带JSESSIONID cookie了。由于恶意网站发送的请求中并不包含会话信息，因此应用程序就能够免受CSRF攻击的威胁。
+
+在使用 SameSite 属性来防范 CSRF 攻击时，有一些重要的注意事项需要了解。
+
+将 SameSite 属性设置为 “Strict” 可以提供更强的安全防护，但同时也可能会让用户感到困惑。举个例子：假设某用户一直保持对位于 social.example.com 的那个社交媒体网站的登录状态，然后他们收到了来自 email.example.org 的一封电子邮件，邮件中包含该社交媒体网站的链接。如果用户点击了这个链接，他们理所当然地会认为自己的身份会自动被验证，从而能够继续使用该社交媒体网站。然而，如果 SameSite 属性被设置为 “Strict”，那么 Cookie 就不会被发送，因此用户的身份也无法被验证。
+
+另一个显而易见的因素是：为了使 SameSite 属性能够真正保护用户的安全，浏览器必须支持这一属性。目前大多数现代浏览器都支持 SameSite 属性，但那些仍在被使用的旧版浏览器可能并不支持这一功能。
+
+因此，我们通常建议将 SameSite 属性作为一种深度防御措施来使用，而不是将其作为防范 CSRF 攻击的唯一手段。
+
+### JWT
+
+在现代基于 jwt 体系的架构中，对 CSRF 攻击有着天然的防御效果。JWT 通常不依赖浏览器自动携带的 Cookie。它由前端代码主动放入请求头（如 Authorization: Bearer <token>），攻击者无法在第三方网站伪造的请求中让浏览器自动发送 JWT。
+
+但是**即使应用是无状态的，如果其认证方式能被浏览器自动携带，它依然可能受到CSRF攻击。**
+
+### JSON
+
+除了传统的网页表单会遭受 CSRF 攻击，由 JavaScript 发起的 JSON API 请求也是不安全的。
+
+攻击者无法直接通过表单提交标准的 JSON（application/json），但他们可以耍个小聪明：使用一个编码类型为纯文本（enctype="text/plain"）的表单，并精心设置输入框的姓名（name）和值（value），来“拼接”出一段看起来像 JSON 的文本数据
+
+```javascript
+<form action="https://bank.example.com/transfer" method="post" enctype="text/plain">
+	<input name='{"amount":100,"routingNumber":"evilsRoutingNumber","account":"evilsAccountNumber", "ignore_me":"' value='test"}' type='hidden'>
+	<input type="submit"
+		value="Win Money!"/>
+</form>
+```
+
+这会产生以下的 JSON 结构：
+
+```JSON
+{ 
+    "amount": 100,
+    "routingNumber": "evilsRoutingNumber",
+    "account": "evilsAccountNumber",
+    "ignore_me": "=test"
+}
+```
+
+如果应用程序不验证 Content-Type请求头，它就会暴露于这种攻击之下。根据具体的配置，即使是一个会验证 Content-Type的 Spring MVC 应用程序，仍然可能通过将 URL 后缀修改为以 .json结尾的方式来被利用，如下所示：
+
+```javascript
+<form action="https://bank.example.com/transfer.json" method="post" enctype="text/plain">
+    <input name='{"amount":100,"routingNumber":"evilsRoutingNumber","account":"evilsAccountNumber", "ignore_me":"' value='test"}' type='hidden'>
+    <input type="submit" value="Win Money!"/>
+</form>
+```
+
+总而言之，不能完全依赖JSON格式来防御CSRF。最稳妥的方式是在服务器端实施强制性的安全策略，特别是严格校验Content-Type头，并结合使用CSRF令牌或其他确保请求来源可信的机制。
+
+### 登录与登出防护
+
+https://docs.spring.io/spring-security/reference/6.5/features/exploits/csrf.html#csrf-considerations
+
+### 文件上传防护
+
+https://docs.spring.io/spring-security/reference/6.5/features/exploits/csrf.html#csrf-considerations-multipart
+
+## Spring Security 配置
 
 在客户端第一次请求时，生成一个 CSRF token 存储在 session 中，下次客户端请求时携带此 token 进行请求，后端对请求携带的 token 与 session 中的进行比对，验证通过才允许请求
 
