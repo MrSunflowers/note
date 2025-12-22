@@ -4105,5 +4105,415 @@ OAuth2 客户端应用需要添加依赖
 - 使用 API 网关统一鉴权，适用于中小型访问量不高的系统，网关压力较小
 - 在应用端通过自定义注解鉴权，适用于大型高并发项目
 
+# 安全相关的 HTTP 响应头信息
+
+Spring Security提供了一组默认的安全相关 HTTP 响应头，这些默认设置能够确保安全性。
+
+Spring Security的默认设置会包含以下这些响应头：
+
+```http
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+X-Content-Type-Options: nosniff
+Strict-Transport-Security: max-age=31536000 ; includeSubDomains
+X-Frame-Options: DENY
+X-XSS-Protection: 0
+```
+
+其中 “Strict-Transport-Security” 安全机制仅会在HTTPS请求中被启用。
+
+## Cache Control
+
+```http
+Cache-Control: no-cache, no-store, max-age=0, must-revalidate
+Pragma: no-cache
+Expires: 0
+```
+
+为了确保安全性，Spring Security 会默认添加这些头部信息。不过，如果你的应用程序自己提供了缓存控制相关的头部信息，Spring Security 就会不再干预这些设置。这样一来，应用程序就可以确保静态资源（如CSS和JavaScript文件）能够被正确缓存。
+
+## Content Type Options
+
+从历史角度来看，包括 IE 在内的各种浏览器都会尝试通过 “内容检测” 机制来推断请求所涉及资源的内容类型。这种机制使得浏览器能够在那些未明确指定内容类型的资源面前，自动判断其内容类型，从而从而提升用户体验。例如，当浏览器遇到一个未明确指定内容类型的 JavaScript 文件时，它就能够自动判断该文件的内容类型，然后将其正常运行。
+
+内容检测机制存在的问题在于，这种机制使得恶意用户能够利用那些具有多种内容格式特性的文件来发动 XSS 攻击。例如，某些网站允许用户提交 PostScript 格式的文档并进行查看；而恶意用户完全可以创建一个既符合 PostScript 格式要求，同时又属于有效 JavaScript 文件的文档，从而利用它来实施 XSS 攻击。
+
+默认情况下，Spring Security 会通过在 HTTP 响应中添加以下头部信息来禁用内容检测功能。
+
+```http
+X-Content-Type-Options: nosniff
+```
+
+值得注意的是，在允许用户上传内容时，还有许多其他需要做的事情（例如仅在特定的域名范围内显示该文档、确保设置正确的“Content-Type” 头部信息、对上传的内容进行安全检查等等）。然而，这些措施超出了 Spring Security 所提供的功能范围。另外还需要指出的是，当禁用内容检测功能时，必须明确指定内容的类型，即 Content-Type 属性，才能确保相关功能能够正常运行。否则浏览器将无法正确处理该内容。
+
+## HTTP Strict Transport Security (HSTS)
+
+当您访问银行的官方网站时，是输入 “mybank.example.com” 还是输入“https://mybank.example.com”呢？如果您省略了“https”协议，就可能会面临中间人攻击的风险。即使该网站会自动将用户重定向到“https://mybank.example.com”，恶意用户仍然有可能截获最初的HTTP请求，并篡改响应内容（例如，将用户重定向到“https://mibank.example.com”从而窃取他们的登录凭证）。
+
+许多用户会忽略使用 HTTPS 协议，正因为如此，才产生了 HTTP 严格传输安全机制。一旦 mybank.example.com 被添加为支持 HSTS 的网站，浏览器就能提前知道，任何发送到 mybank.example.com 的请求都应该被解读为 https://mybank.example.com 这一格式。这样一来，中间人攻击的发生概率就会大大降低。
+
+一种使某个网站被标记为 HSTS 主机的方法是将该主机的相关信息预先加载到浏览器中；另一种方法则是在响应中添加“Strict-Transport-Security” 头部信息。例如，Spring Security 的默认设置会添加如下头部信息，这种信息会指示浏览器将该域名视为HSTS主机，并使其在一年内都保持这一状态（在非闰年中，一年共有31,536,000秒）。
+
+```http response header
+Strict-Transport-Security: max-age=31536000 ; includeSubDomains ; preload
+```
+
+可选的 includeSubDomains 指令会告知浏览器：子域名（例如 secure.mybank.example.com）也应被视为 HSTS 域名。
+
+可选的预加载指令会告知浏览器，该域名应作为HSTS域名被预先加载到浏览器中。
+
+根据RFC6797的规定，HSTS头部信息仅会被添加到HTTPS响应中。要想让浏览器能够识别这一头部信息，浏览器首先必须信任为用于建立连接的SSL证书进行签名的证书颁发机构。也就是说，浏览器不仅需要信任该SSL证书本身，还需要信任为其签名的证书颁发机构。
+
+## HTTP Public Key Pinning (HPKP)
+
+HTTP 公钥固定机制（HPKP）用于告知网页客户端应使用哪一把公钥来与特定的 Web 服务器进行通信，从而有效防止利用伪造证书进行的中间人攻击。如果正确使用，HPKP 确实可以为防止证书被篡改提供额外的保护措施。然而，由于该机制的复杂性，许多专家已不再推荐使用它，而 Chrome 浏览器也已经取消了对其的支持。
+
+为了保持原有的被动防护机制，Spring Security 仍然在Servlet 环境中提供了对 HPKP 的支持。然而，由于前面提到的那些原因，Spring Security 团队不再推荐使用 HPKP 了。
+
+## X-Frame-Options
+
+允许他人将你的网站嵌入到其他框架中可能会带来安全风险。例如，通过巧妙的 CSS 样式设计，用户可能会被诱使点击一些他们本不打算点击的链接。比如，一个已经登录自己银行账户的用户，可能会不小心点击某个允许其他用户访问其账户的按钮。这种攻击方式被称为“点击劫持”。
+
+有多种方法可以用来防范点击劫持攻击。例如，为了保护旧版浏览器免受点击劫持攻击的侵害，你可以使用破坏框架功能的代码。虽然这种方法并不完美，但对于旧版浏览器来说，这已经是目前最有效的防护措施了。
+
+一种更为现代的应对“点击劫持”问题的方法就是使用X-Frame-Options头部字段。默认情况下，Spring Security会通过使用该头部字段来禁止在iframe中渲染页面。
+
+```http
+X-Frame-Options: DENY
+```
+
+## X-XSS-Protection
+
+某些浏览器内置了用于过滤反射型 XSS 攻击的功能。不过这些过滤机制在主流浏览器中已被弃用，因此目前 OWASP 的建议是：应明确将相关头部字段的值设置为 0。
+
+默认情况下，Spring Security 会通过使用以下头部信息来阻止这些内容的传输。
+
+```http response header
+X-XSS-Protection: 0
+```
+
+## Content Security Policy (CSP)
+
+内容安全策略是一种 Web 应用程序可以使用的机制，用于缓解内容注入漏洞，例如跨站脚本攻击。内容安全策略是一种声明性策略，它允许 Web 应用程序的开发者明确指定 Web 应用程序预期从哪些来源加载资源，并将这些信息告知客户端（即用户代理）。
+
+**内容安全策略并不能解决所有与内容注入相关的安全漏洞**。不过，您可以使用内容安全策略来帮助减少内容注入攻击所造成的危害。作为第一道防线，网页应用程序的开发者应当对用户输入的数据进行验证，并对输出结果进行编码处理。
+
+CSP 的核心是“白名单”机制。开发者通过制定策略，明确告诉浏览器哪些资源（如 JavaScript、CSS、图片、字体等）是可信的，可以加载和执行。浏览器会拒绝加载任何不在白名单上的资源，从而有效抵御 XSS 等攻击
+
+Web应用程序可以通过在响应中包含以下HTTP头部之一来使用CSP技术：
+
+- Content-Security-Policy : 强制执行策略。浏览器会拦截所有违反策略的资源请求,如果配置了 report-uri或 report-to指令，在资源被拦截时会发送违规报告
+- Content-Security-Policy-Report-Only: 	
+  仅报告模式。浏览器会监控策略，但不阻止任何违规行为，而是将违规报告发送到指定端点,必须配置报告指令，其存在的目的就是收集违规信息
 
 
+这两个头部可以同时存在于一个响应中。此时，Content-Security-Policy的策略会被强制执行，而 Content-Security-Policy-Report-Only中的策略仅用于报告，这可以用来监控策略调整可能产生的影响
+
+XSS 攻击利用的是浏览器对服务器返回内容的信任。CSP 通过限制脚本等资源的来源，即使恶意脚本被注入到页面中，浏览器也不会执行它，因为其来源不在允许列表内
+
+
+这些头部信息中的每一项都被用作向客户端传递安全策略的机制。安全策略包含一组安全策略指令，其中每一条指令都负责规定针对特定资源表示形式所应实施的限制措施。
+
+例如，一个Web应用程序可以通过在响应中包含以下头部信息，来声明它期望从特定的、可信任的来源加载脚本。
+
+```http response header
+Content-Security-Policy: script-src https://trustedscripts.example.com
+```
+
+如果尝试从除 `script-src` 指令中指定的来源之外的其他地方加载脚本，那么用户代理会阻止这种操作。此外，如果在安全策略中配置了 `report-uri` 指令，那么用户代理会将这种违规行为报告到该指令中指定的 URL。
+
+例如，如果某个Web应用程序违反了所声明的安全政策，那么以下响应头会指示用户代理将违规报告发送到该政策中“report-uri”指令所指定的URL地址。
+
+```http response header
+Content-Security-Policy: script-src https://trustedscripts.example.com; report-uri /csp-report-endpoint/
+```
+
+违规报告采用的是标准的 JSON 格式，这些报告既可以通过该Web应用程序自身的API来收集，也可以通过诸如report-uri.io/这样的公开托管的CSP违规报告服务来获取。
+
+“Content-Security-Policy-Report-Only”这一头部字段使得网页应用程序的开发者及管理员能够仅用于监控安全策略的执行情况，而无需实际强制这些策略得到遵守。在为某个网站测试或制定安全策略时，通常会使用这个头部字段；而当某项安全策略被确认为有效之后，就可以改用“Content-Security-Policy”头部字段来强制实施该策略了。
+
+根据以下响应头信息，该策略规定：脚本可以从两种可能的来源之一中被加载进来。
+
+```http response header
+Content-Security-Policy-Report-Only: script-src 'self' https://trustedscripts.example.com; report-uri /csp-report-endpoint/
+```
+
+如果某个网站试图从evil.example.com加载脚本，从而违反了这一政策，那么用户代理会向report-uri指令所指定的URL发送违规报告，但仍然会允许该违规资源被加载。
+
+https://docs.spring.io/spring-security/reference/6.5/features/exploits/headers.html#headers-csp
+
+## Referrer Policy
+
+引用来源策略是一种 Web 应用程序可以使用的机制，通过这种机制，应用程序能够管理“引用来源”字段——该字段记录了用户之前访问过的最后一页网站地址。它是一个重要的 Web 安全机制，用于控制浏览器在发送请求时，如何填写 Referer 字段。Spring Security 提供了简洁的方式来配置它。
+
+Spring Security采用的方法是使用“引用来源策略”头部信息，该头部信息提供了多种不同的策略选项。
+
+```http response header
+Referrer-Policy: same-origin
+```
+
+“Referrer-Policy”响应头用于指示浏览器让目标网站知道用户之前访问过哪个网站。
+
+## Feature Policy
+
+功能策略是一种机制，它允许网页开发者有选择地启用、禁用或修改浏览器中某些API及网页功能的行为。它允许开发者通过声明一组“策略”，让浏览器对网站中使用的特定功能进行强制性的启用、禁用或行为修改，与内容安全策略类似，但特性策略控制的焦点是浏览器的功能特性，而非安全行为本身。它为您提供了一种声明式的方法，来明确告知浏览器您的网站允许或禁止使用哪些功能。
+
+```http response header
+Feature-Policy: geolocation 'self'
+```
+
+通过“功能策略”机制，开发者可以选择为自己的网站启用一系列“策略”，让浏览器针对这些网站中使用的特定功能来执行相应的限制措施。这些策略可以限制网站能够访问哪些API，或者修改浏览器在某些功能上的默认行为。
+
+## Permissions Policy
+
+权限策略是一种机制，它允许网页开发者有选择地启用、禁用或修改浏览器中某些API及网页功能的行为。
+
+```http response header
+Permissions-Policy: geolocation=(self)
+```
+
+通过权限策略，开发者可以选择启用一系列“策略”，让浏览器在用户访问网站时针对特定功能实施这些策略。这些策略可以限制网站能够访问哪些API，或者修改浏览器在某些功能上的默认行为。
+
+## Clear Site Data
+
+“清除站点数据”是一种机制：当HTTP响应中包含该头部信息时，任何浏览器端存储的数据（如cookie、本地存储内容等）都会被清除。
+
+```http response header
+Clear-Site-Data: "cache", "cookies", "storage", "executionContexts"
+```
+
+在退出系统时执行这样的清理操作确实非常方便。
+
+## Custom Headers
+
+Spring Security提供了相应的机制，使得在应用程序中添加那些较为常见的安全头部信息变得非常方便。同时，它也提供了相应的接口，允许用户添加自定义的安全头部信息。
+
+# 安全相关的 HTTP 请求头信息
+
+所有基于HTTP的通信，包括对静态资源的访问，都应通过使用TLS来进行保护。
+
+作为框架，Spring Security并不负责处理HTTP连接，因此也不直接提供对HTTPS的支持。不过，它确实提供了一些有助于使用HTTPS的功能。
+
+当客户端使用HTTP协议进行通信时，你可以在Servlet环境以及WebFlux环境中配置Spring Security，使其自动将请求重定向为HTTPS协议。
+
+Spring Security支持严格的传输安全机制（HSTS），并且默认会启用这一功能。
+
+HSTS 是一种重要的安全增强策略。当浏览器首次通过HTTPS访问你的网站并收到HSTS响应头后，它会在后续一段时间内（由响应头中的max-age指定），即使用户输入的是http://地址，浏览器也会自动将其升级为https://请求，从而防止潜在的“降级攻击”。Spring Security默认启用HSTS，提供了额外的安全层。
+
+在使用代理服务器时，确保正确配置应用程序是非常重要的。例如，许多应用程序都会使用负载均衡器来处理对 https://example.com/ 的请求，这些负载均衡器会将这些请求转发到地址为 https://192.168.0.107 的应用服务器上。如果配置不当，应用服务器将无法识别负载均衡器的存在，从而会认为客户端实际上是向 https://192.168.0.107:8080 发出了请求。
+
+代理服务器处理SSL/TLS终结，然后以HTTP协议将请求转发给内部的应用服务器。这导致应用服务器看到的请求是HTTP的，它生成的URL和重定向指令也会是基于HTTP的，这破坏了HTTPS的强制使用。
+
+为了解决这个问题，你可以使用RFC 7239来指定正在使用负载均衡器。为了让应用程序能够识别这一情况，你需要配置应用程序服务器，使其能够识别X-Forwarded头部信息。
+
+代理服务器会通过一系列以X-Forwarded-开头的头部（如X-Forwarded-Proto: https），将客户端的原始请求信息（协议、主机、端口、IP）告诉应用服务器
+
+例如，Tomcat使用RemoteIpValve组件，而Jetty则使用ForwardedRequestCustomizer组件；对于Spring框架的用户来说，可以在Servlet开发栈中使用ForwardedHeaderFilter组件，或者在Reactive开发栈中使用ForwardedHeaderTransformer组件。
+
+在Spring Boot中，你无需手动创建过滤器。只需在application.properties或application.yml中设置 server.forward-headers-strategy属性。
+
+```yaml
+server:
+   forward-headers-strategy: framework
+```
+- NATIVE: 依赖底层Servlet容器（如Tomcat、Jetty）的内置支持来处理这些头部
+- FRAMEWORK: 由Spring框架的ForwardedHeaderFilter来接管处理。这种方式更可靠，特别是在需要正确支持X-Forwarded-Prefix等头部时。通常推荐使用FRAMEWORK。
+
+# 在非 web 环境中使用 Spring Security
+
+Spring Security 能够与众多框架及API进行集成。在本节中，我们讨论那些不特定于Servlet环境或Reactive环境的一般性集成方式。如需了解特定的集成方案，请参阅“Servlet集成”与“Reactive集成”相关章节。
+
+## Spring Security 加密模块
+
+Spring Security的Crypto模块提供了对称加密、密钥生成以及密码编码功能。该模块作为核心模块的一部分被分发出来，且不依赖于任何其他Spring Security或Spring框架的组件。
+
+### 加密工具 Encryptors
+
+Encryptors 类提供了用于构建对称加密器的工厂方法。通过这个类，你可以创建 BytesEncryptor 实例来加密以**原始字节数组**形式存在的数据；同时，你也可以创建 TextEncryptor 实例来加密文本字符串。这些加密器都是线程安全的。
+
+> BytesEncryptor和TextEncryptor都属于接口类型，而BytesEncryptor具有多种实现方式。
+
+#### BytesEncryptor
+
+你可以使用 Encryptors.strenger 的工厂方法来创建一个 BytesEncryptor 对象。
+
+```java
+Encryptors.stronger("password", "salt");
+```
+
+这种更强大的加密方法采用256位AES加密算法，并结合伽罗瓦计数器模式进行加密。它通过使用PKCS #5中的PBKDF2函数来生成密钥。这种加密方式需要Java 6运行环境。用于生成密钥的密码必须妥善保管，不得与他人共享。此外，还会使用“盐值”来防止在加密数据被泄露时发生字典攻击。系统还会生成一个16字节的随机初始化向量，以确保每条加密消息都是唯一的。
+
+所提供的盐值必须以十六进制编码的字符串形式存在，必须是随机生成的，并且其长度必须至少为8个字节。你可以使用`KeyGenerator`来生成这样的盐值。
+
+```java
+String salt = KeyGenerators.string().generateKey(); // generates a random 8-byte salt that is then hex-encoded
+```
+
+你也可以使用标准的加密方法，即采用256位AES加密算法，并在密码块链模式（CBC模式）下进行加密。这种加密方式不提供身份验证功能，也无法保证数据的真实性。如果需要更安全的加密方案，建议使用功能更强大的加密工具。
+
+#### TextEncryptor
+
+你可以使用 Encryptors.text 的工厂方法来创建一个标准的 TextEncryptor 对象。
+
+```java
+Encryptors.text("password", "salt");
+```
+
+TextEncrypter 会使用标准的BytesEncrypter来加密文本数据。加密后的结果会以十六进制字符串的形式返回，这样便便于将其存储在文件系统中或数据库中。
+
+### Key Generators
+
+KeyGenerators类提供了一系列便捷的工厂方法，用于创建不同类型的密钥生成器。通过使用这个类，你可以创建一个BytesKeyGenerator来生成字节数组形式的密钥，也可以构建一个StringKeyGenerator来生成字符串形式的密钥。KeyGenerators是一个线程安全的类。
+
+#### BytesKeyGenerator
+
+你可以使用 KeyGenerators.secureRandom 的工厂方法来生成一个由 SecureRandom 实例支持的 BytesKeyGenerator 对象。
+
+```java
+BytesKeyGenerator generator = KeyGenerators.secureRandom();
+byte[] key = generator.generateKey();
+```
+
+默认的密钥长度为8字节。KeyGenerators.secureRandom这个版本提供了对密钥长度的调控功能。
+
+```java
+KeyGenerators.secureRandom(16);
+```
+
+使用 KeyGenerators.shared 工厂方法来创建一个 BytesKeyGenerator，该生成器在每次被调用时都会返回相同的密钥。
+
+```java
+KeyGenerators.shared(16);
+```
+
+#### StringKeyGenerator
+
+你可以使用 KeyGenerators.string 的工厂方法来创建一个长度为 8 字节的 SecureRandom KeyGenerator，该生成器会将生成的密钥以十六进制格式转换为字符串形式进行存储。
+
+```java
+KeyGenerators.string();
+```
+
+### Password Encoding
+
+spring-security-crypto模块提供的密码处理功能支持对密码进行加密处理。PasswordEncoder是这一功能的核心服务接口，其接口定义如下：PasswordEncoder
+
+## 与 Spring Data 集成
+
+与 Spring Data 集成,核心目的是允许在Spring Data的查询语句（如JPA的@Query注解）中，直接引用当前认证用户的安全上下文信息。
+
+spring-security-data
+
+此依赖包是Spring Security为集成Spring Data提供的核心模块。它提供了必要的类和接口（特别是 SecurityEvaluationContextExtension），使得Spring Data在执行查询时能够解析SpEL（Spring Expression Language）表达式中的安全上下文对象，例如 principal
+
+示例：查询当前用户的信息
+
+假设有一个 SysUser实体，在 SysUserRepository中可以这样定义查询
+
+```java
+public interface SysUserRepository extends JpaRepository<SysUser, Long> {
+   @Query("select u from SysUser u where u.id = ?#{ principal?.id }")
+   SysUser findCurrentUser();
+}
+```
+
+- principal：代表当前认证的主体（用户）。在标准基于用户名密码的认证中，它通常是 UserDetails的一个实例。
+- principal?.id：使用安全导航操作符 ?.来避免空指针异常，意思是“如果principal不为null，则获取其id属性”。这里的 id需要对应您用户对象中的实际属性名。
+
+## Spring Security 并发支持
+
+在大多数环境中，安全相关的数据都是按线程来存储的。这意味着，当一个新的线程开始执行任务时，之前存储的安全相关数据就会丢失。Spring Security提供了一些基础设施，帮助用户更轻松地处理这类问题。
+
+**问题根源：默认的线程隔离策略**
+
+Spring Security 的核心组件 SecurityContextHolder用于存储当前用户的安全上下文（Authentication 信息）。它默认使用 MODE_THREADLOCAL策略
+
+该策略将 SecurityContext 绑定到当前执行的线程（通过 ThreadLocal实现）。在典型的 Servlet Web 应用中，一个请求的完整处理过程都在同一个线程中，因此可以很方便地获取用户身份
+
+当您使用 @Async注解或自行创建新线程（如通过 ThreadPoolTaskExecutor）执行异步任务时，实际的工作是在另一个独立的线程中完成的。由于 ThreadLocal变量是线程隔离的，新线程无法访问到创建它的父线程中的 SecurityContext，从而导致 SecurityContextHolder.getContext().getAuthentication()返回 null
+
+最直接的全局解决方案是修改 SecurityContextHolder的存储策略。将默认的 MODE_THREADLOCAL切换为 MODE_INHERITABLETHREADLOCAL，InheritableThreadLocal允许子线程自动继承父线程的 ThreadLocal变量。这样，在异步方法内部就能获取到主线程中的 SecurityContext 了
+
+在您的配置类中，通过 @Bean方式在应用启动时设置策略。
+
+```java
+@Configuration
+@EnableAsync
+public class AsyncConfig {
+
+   @Bean
+   public InitializingBean initializingBean() {
+      return () -> SecurityContextHolder.setStrategyName(
+              SecurityContextHolder.MODE_INHERITABLETHREADLOCAL
+      );
+   }
+
+   // 可选：配置自定义线程池
+   @Bean("taskExecutor")
+   public TaskExecutor taskExecutor() {
+      ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+      // ... 配置线程池参数
+      return executor;
+   }
+}
+```
+
+此外，对于需要更细粒度控制的场景，Spring Security 提供了强大的委托包装类，这是官方推荐的方式
+
+### DelegatingSecurityContextRunnable
+
+在Spring Security的并发支持机制中，DelegatingSecurityContextRunnable是其中最为基础的核心组件之一。它用于封装被委托的Runnable对象，从而为SecurityContextHolder设置指定的SecurityContext环境；在调用被委托的Runnable对象执行相应操作后，它还会确保清除SecurityContextHolder中的相关数据。DelegatingSecurityContextRunnable的具体结构如下所示：
+
+```java
+public void run() {
+   try {
+      SecurityContextHolder.setContext(securityContext);
+      delegate.run();
+   } finally {
+      SecurityContextHolder.clearContext();
+   }
+}
+```
+
+虽然这种方法非常简单，但它能够确保 SecurityContext 在不同的线程之间顺畅地传递。这一点非常重要，因为在大多数情况下，SecurityContextHolder 的功能是针对每个线程来运行的。例如，你可能已经使用了 Spring Security 的 <global-method-security> 功能来为某个服务提供安全保护。现在，你可以轻松地将当前线程中的 SecurityContext 传递给调用该受保护服务的线程。下面提供了一个具体的实现示例：
+
+```java
+Runnable originalRunnable = new Runnable() {
+public void run() {
+	// invoke secured service
+}
+};
+
+SecurityContext context = SecurityContextHolder.getContext();
+DelegatingSecurityContextRunnable wrappedRunnable =
+	new DelegatingSecurityContextRunnable(originalRunnable, context);
+
+new Thread(wrappedRunnable).start();
+```
+
+上述代码会执行以下操作：
+
+- 创建了一个 Runnable对象，该对象会调用我们的安全服务。需要注意的是，这个 Runnable对象并不知道Spring Security的存在。
+- 从 SecurityContextHolder 中获取我们想要使用的 SecurityContext 对象，并初始化 DelegatingSecurityContextRunnable 类。
+- 使用 DelegatingSecurityContextRunnable 来创建一个线程。
+- 启动线程并执行 Runnable对象。
+
+由于使用 SecurityContextHolder 中提供的 SecurityContext 来创建 DelegatingSecurityContextRunnable 是一种非常常见的做法，因此为此提供了一种简化的构造函数。以下代码与上面的代码是完全相同的。
+
+```java
+Runnable originalRunnable = new Runnable() {
+   public void run() {
+      // invoke secured service
+   }
+};
+
+DelegatingSecurityContextRunnable wrappedRunnable =
+        new DelegatingSecurityContextRunnable(originalRunnable);
+
+new Thread(wrappedRunnable).start();
+```
+
+我们现有的代码使用起来非常简单，但仍然需要使用者具备关于Spring Security的相关知识。在下一节中，我们将探讨如何利用DelegatingSecurityContextExecutor来隐藏我们实际上正在使用Spring Security这一事实。
+
+https://docs.spring.io/spring-security/reference/6.5/features/integrations/concurrency.html#_delegatingsecuritycontextexecutor

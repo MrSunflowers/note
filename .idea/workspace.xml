@@ -5,12 +5,8 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="3434465f-d3d4-4b7d-a925-8ff5134242ee" name="默认变更列表" comment="默认变更列表">
-      <change afterPath="$PROJECT_DIR$/我的文档/速查手册/应用开发与性能优化经验分享.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/我的文档/Server/java/java 常用框架/Spring/Spring Security（施工中）/Spring Security.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Server/java/java 常用框架/Spring/Spring Security（施工中）/Spring Security.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/Vue基础.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/Vue基础.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/Web 前端/vue/项目实战手册.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/Web 前端/vue/项目实战手册.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础课件/trmo.md" beforeDir="false" afterPath="$PROJECT_DIR$/我的文档/操作系统/linux/Linux 操作系统基础课件/trmo.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -193,7 +189,8 @@
       <workItem from="1765625814774" duration="1213000" />
       <workItem from="1765699161812" duration="11087000" />
       <workItem from="1765801408787" duration="10000" />
-      <workItem from="1766309829411" duration="11502000" />
+      <workItem from="1766309829411" duration="11599000" />
+      <workItem from="1766406650659" duration="7981000" />
     </task>
     <servers />
   </component>
