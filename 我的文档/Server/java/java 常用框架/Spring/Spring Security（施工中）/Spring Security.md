@@ -2,6 +2,8 @@
 
 # 简介
 
+Spring Security通过使用标准的Servlet过滤器与Servlet容器集成在一起。这意味着，任何在Servlet容器中运行的应用程序都可以使用Spring Security。更具体地说，如果你正在开发基于Servlet的应用程序，其实并不一定需要使用Spring框架才能利用Spring Security的功能。
+
 Spring 是非常流行和成功的 Java 应用开发框架，Spring Security正是Spring家族中的成员。Spring Security 基于 Spring 框架，提供了一套 Web 应用安全性的完整解决方案。
 
 正如你可能知道的关于安全方面的两个主要区域是“认证”和“授权”（或者访问控制），一般来说，Web 应用的安全性包括用户认证（Authentication）和用户授权（Authorization）两个部分，这两点也是Spring Security重要核心功能。
@@ -238,7 +240,27 @@ Using generated security password: 9377fbb3-f9be-4fde-98d9-0d956be21cc7
 
 登录后才可访问原始页面
 
+# 默认行为
+
+Spring Boot与Spring Security的默认配置在运行时会导致以下行为：
+
+- 任何终端点（包括Boot的/error终端点）均需要经过身份验证的用户才能使用。
+- 在系统启动时，会自动注册一个默认用户 user，并为其生成一个密码；该密码会被记录在控制台日志中。在前面的例子中，这个密码是“8e557245-73e2-4286-969a-ff57fe326336”。
+- 使用BCrypt及其他加密技术来保护密码的存储安全。
+- 提供了基于表单的登录与登出流程。
+- 支持基于表单的登录方式，同时也支持HTTP Basic认证方式。
+- 负责处理内容协商；对于网页请求，会将其重定向到登录页面；对于服务请求，则会返回401“未经授权”的错误代码。
+- 能够有效缓解CSRF攻击带来的威胁
+- 能够有效防范会话固定攻击
+- 写入“Strict-Transport-Security”指令以确保使用HTTPS协议
+- 写入 X-Content-Type-Options 这一头部信息，以有效防范嗅探攻击。
+- 添加 Cache Control headers
+- 添加 X-Frame-Options
+
+
 # 基本原理
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html
 
 SpringSecurity 采用的是责任链的设计模式，它有一条很长的过滤器链。
 
@@ -249,6 +271,10 @@ SpringSecurity 采用的是责任链的设计模式，它有一条很长的过�
 FilterSecurityInterceptor：是一个方法级的权限过滤器, 基本位于过滤链的最底部，负责权限校验。
 ExceptionTranslationFilter：是个异常过滤器，用来处理在认证授权过程中抛出的鉴权异常。
 UsernamePasswordAuthenticationFilter ：对/login的POST请求做拦截，校验表单中用户名，密码是否合法。
+
+## @EnableWebSecurity
+
+ @EnableWebSecurity 注解。会自动将 Spring 容器中**所有(当然也包括我们自定义的)**类型为 Filter 的 Bean 注册到内嵌 Servlet 容器（如 Tomcat）的过滤器链中，这样一来，Spring Security 的默认过滤器链就会被作为 @Bean 组件被注入到应用程序中。
 
 # 用户名和密码
 
@@ -4105,6 +4131,10 @@ OAuth2 客户端应用需要添加依赖
 - 使用 API 网关统一鉴权，适用于中小型访问量不高的系统，网关压力较小
 - 在应用端通过自定义注解鉴权，适用于大型高并发项目
 
+# 安全相关的 HTTP 响应码
+
+- 401 Unauthorized: 访问被拒绝，用户没有权限访问该资源。
+
 # 安全相关的 HTTP 响应头信息
 
 Spring Security提供了一组默认的安全相关 HTTP 响应头，这些默认设置能够确保安全性。
@@ -4516,4 +4546,128 @@ new Thread(wrappedRunnable).start();
 
 我们现有的代码使用起来非常简单，但仍然需要使用者具备关于Spring Security的相关知识。在下一节中，我们将探讨如何利用DelegatingSecurityContextExecutor来隐藏我们实际上正在使用Spring Security这一事实。
 
-https://docs.spring.io/spring-security/reference/6.5/features/integrations/concurrency.html#_delegatingsecuritycontextexecutor
+### DelegatingSecurityContextExecutor
+
+在上一节中，我们发现使用 DelegatingSecurityContextRunnable 是非常方便的，但这种做法并不理想，因为在使用它的时候我们必须了解 Spring Security 的相关原理。接下来，让我们看看 DelegatingSecurityContextExecutor 是如何帮助我们的代码隐藏对 Spring Security 的依赖的。
+
+DelegatingSecurityContextExecutor的设计与DelegatingSecurityContextRunnable非常相似，只不过它接受的是一个Executor类型的委托对象，而不是Runnable类型的委托对象。下面你可以看到一个关于如何使用它的示例：
+
+```java
+SecurityContext context = SecurityContextHolder.createEmptyContext();
+Authentication authentication =
+        UsernamePasswordAuthenticationToken.authenticated("user","doesnotmatter", AuthorityUtils.createAuthorityList("ROLE_USER"));
+context.setAuthentication(authentication);
+
+SimpleAsyncTaskExecutor delegateExecutor =
+        new SimpleAsyncTaskExecutor();
+DelegatingSecurityContextExecutor executor =
+        new DelegatingSecurityContextExecutor(delegateExecutor, context);
+
+Runnable originalRunnable = new Runnable() {
+   public void run() {
+      // invoke secured service
+   }
+};
+
+executor.execute(originalRunnable);
+```
+该代码会执行以下步骤：
+
+- 创建用于我们的 DelegatingSecurityContextExecutor 的 SecurityContext 对象。需要注意的是，在这个例子中，我们只是手动创建了这个 SecurityContext 对象。不过，我们从哪里获取这个 SecurityContext 对象，以及获取的方式，并不会产生任何影响（也就是说，如果我们愿意的话，也可以从 SecurityContextHolder 中获取它）。
+- 创建一个负责执行提交的可运行任务的代理执行器。
+- 最后，我们创建了一个名为DelegatingSecurityContextExecutor的类，该类的职责是将任何被传递给execute方法的Runnable对象包装成DelegatingSecurityContextRunnable类型，然后再将这些被包装后的Runnable对象传递给delegateExecutor进行处理。在这种情况下，无论提交给DelegatingSecurityContextExecutor的Runnable对象有多少，它们都会使用同一个SecurityContext。如果我们需要运行那些需要由具有更高权限的用户来执行的后台任务，这种设计就非常实用了。
+
+此时，你可能会问自己：“这种机制究竟是如何保护我的代码免受Spring Security相关知识的影响的呢？”其实，我们不必在自己的代码中手动创建SecurityContext和DelegatingSecurityContextExecutor对象，而是可以直接注入已经初始化好的DelegatingSecurityContextExecutor实例。
+
+```java
+@Autowired
+private Executor executor; // becomes an instance of our DelegatingSecurityContextExecutor
+
+public void submitRunnable() {
+   Runnable originalRunnable = new Runnable() {
+      public void run() {
+         // invoke secured service
+      }
+   };
+   executor.execute(originalRunnable);
+}
+```
+
+现在，我们的代码并不知道`SecurityContext`会被传递给相应的线程，随后原始的`Runnable`对象会被执行，而`SecurityContextHolder`也会被清空。在这个例子中，每个线程都是使用同一个用户身份来运行的。那么，如果我们希望在调用`executor.execute(Runnable)`时使用`SecurityContextHolder`中存储的用户信息（也就是当前登录的用户）来执行原始的`Runnable`对象，该怎么办呢？其实可以通过从`DelegatingSecurityContextExecutor`的构造函数中删除`SecurityContext`参数来实现这一目标。例如：
+
+```java
+SimpleAsyncTaskExecutor delegateExecutor = new SimpleAsyncTaskExecutor();
+DelegatingSecurityContextExecutor executor =
+        new DelegatingSecurityContextExecutor(delegateExecutor);
+```
+
+现在，每当执行 `executor.execute(Runnable)` 时，`SecurityContextHolder` 会首先获取相应的 `SecurityContext`，然后使用该 `SecurityContext` 来创建 `DelegatingSecurityContextRunnable` 对象。这意味着，我们的 `Runnable` 是由调用 `executor.execute(Runnable)` 时所使用的同一用户来执行的。
+
+## 对 Jackson 的支持
+
+Spring Security提供了对Jackson的支持，使得与Spring Security相关的类能够被正确地序列化。在处理分布式会话机制时（例如会话复制、Spring Session等），这种支持能够显著提升与Spring Security相关类的序列化性能。
+
+要使用它，需要将 SecurityJackson2Modules.getModules(ClassLoader) 注册到 ObjectMapper（jackson-databind）中。
+
+```java
+ObjectMapper mapper = new ObjectMapper();
+ClassLoader loader = getClass().getClassLoader();
+List<Module> modules = SecurityJackson2Modules.getModules(loader);
+mapper.registerModules(modules);
+
+// ... use ObjectMapper as normally ...
+SecurityContext context = new SecurityContextImpl();
+// ...
+String json = mapper.writeValueAsString(context);
+```
+
+主要应用场景与优势
+
+- **分布式会话管理**：当使用 Spring Session（例如将会话存储于 Redis、数据库）或应用服务器间的会话复制时，使用这些 Jackson 模块可以高效、正确地将用户的安全上下文 SecurityContext序列化为 JSON 进行存储和共享，替代默认的 JDK 序列化，可读性更好，且通常更高效
+- **解决反序列化难题**：Spring Security 中的许多核心类（如 UsernamePasswordAuthenticationToken）没有默认的无参构造函数，标准的 Jackson 配置无法直接反序列化它们。这些专门的模块通过自定义的序列化/反序列化器（内部利用了 MixIn 注解等技术）解决了这个问题，使你能够无缝地进行对象与 JSON 的转换
+- **缓存安全信息**：在集群环境中，如果需要跨节点缓存认证信息，也可以利用此方式进行序列化
+
+从 Spring Security 7.0 开始，框架默认使用 Jackson 3。上述代码中的 SecurityJackson2Modules应替换为 SecurityJackson3Modules，相关的包名和 ObjectMapper构建方式也有所不同（例如，使用 JsonMapper.builder()）。请根据你使用的 Spring Security 版本选择正确的模块。
+
+## 异常消息
+
+Spring Security 提供了内置的异常消息（如认证失败、访问被拒）提示。
+
+Spring Security 的默认消息文件位于 spring-security-core-xx.jar的 org/springframework/security目录下，基础文件为 messages.properties（英文）。其他语言版本遵循 messages_语言代码_国家代码.properties的命名规范，例如中文为 messages_zh_CN.properties。
+
+您需要在应用上下文（如 applicationContext.xml或通过 Java 配置类）中定义一个 MessageSource类型的 Bean，其 ID 必须为 messageSource。常用的实现类是 ReloadableResourceBundleMessageSource（支持不重启应用重载资源文件）或 ResourceBundleMessageSource。
+
+```java
+<bean id="messageSource"
+class="org.springframework.context.support.ReloadableResourceBundleMessageSource">
+<property name="basename" value="classpath:org/springframework/security/messages"/>
+</bean>
+```
+
+basename属性指定消息文件的基本路径（不包含语言后缀和 .properties扩展名）。
+
+如果您想覆盖默认的某些消息，可以创建自己的消息文件（如放在 classpath:com/yourproject/messages），并在配置中将自定义文件的 basename放在 Security 默认文件之前，以确保优先使用您的版本。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
