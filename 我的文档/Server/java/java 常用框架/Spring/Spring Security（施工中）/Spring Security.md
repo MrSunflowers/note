@@ -262,9 +262,167 @@ Spring Boot与Spring Security的默认配置在运行时会导致以下行为：
 
 https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html
 
+Spring Security 的本质就是一个由过各种过滤器组成的滤器链，每个过滤器对应负责其独有的功能，而过滤器的执行顺序很重要，比如登录过滤器必须在权限过滤器之前执行。由于此特性，Spring Security 将过滤器以及过滤器的调用顺序全权交由用户控制(当然，其默认会内置一套配置)。
+
+## DelegatingFilterProxy
+
+传统的 Servlet 过滤器（Filter）由 Servlet 容器（如 Tomcat）直接管理其生命周期（初始化、执行、销毁）。然而，如果你希望这个过滤器能够使用 Spring 容器的强大功能（如依赖注入、AOP、便捷的配置管理），就会遇到问题。因为 Servlet 容器并不知道 Spring Bean 的存在，它无法直接调用 Spring 容器中定义的、实现了 Filter接口的 Bean。
+
+Spring 提供了一个名为 DelegatingFilterProxy 的 Filter 实现，其本身是一个 Filter 实例，DelegatingFilterProxy作为一个代理（Proxy）被部署在 Servlet 容器中。它本身是一个标准的 Servlet 过滤器。当请求到达时，DelegatingFilterProxy会拦截请求，但它并不处理具体的过滤逻辑，而是将工作委托（Delegate）给 Spring 应用上下文中的一个目标 Filter Bean。这样就打通了 Servlet 容器和 Spring 容器。
+
+在 web.xml中，通常会配置一个 DelegatingFilterProxy 作为 Spring Security 的入口，其 <filter-name>通常为 springSecurityFilterChain。
+
+```xml
+<filter>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
+</filter>
+<filter-mapping>
+    <filter-name>springSecurityFilterChain</filter-name>
+    <url-pattern>/*</url-pattern>
+</filter-mapping>
+```
+
+在配置 DelegatingFilterProxy时，有两个重要的初始化参数（init-param）
+
+- targetBeanName：用于指定目标过滤器在 Spring 容器中的 Bean 名称（ID）。如果未设置此参数，DelegatingFilterProxy默认会使用其在 web.xml中配置的 <filter-name>作为 Bean 名称去 Spring 容器中查找
+- targetFilterLifecycle：这是一个布尔值参数，默认为 false。如果设置为 false，目标 Filter Bean 的生命周期（如 init和 destroy方法）完全由 Spring 容器管理（遵循 Spring Bean 的生命周期）。如果设置为 true，DelegatingFilterProxy将会负责调用目标 Filter 的 init和 destroy方法，使其遵循 Servlet 过滤器的标准生命周期。
+
+这里并没有显式设置 targetBeanName，因此 DelegatingFilterProxy 会去 Spring 容器中查找名为 springSecurityFilterChain 的 Bean。
+
+DelegatingFilterProxy的另一个显著优势是它支持延迟查找（Lazy Lookup）Filter Bean 实例。这个机制巧妙地解决了 Servlet 容器与 Spring 容器在启动生命周期上的差异所引发的问题。
+
+Servlet 规范规定，Filter 实例必须在容器完全启动之前完成注册。容器启动初期，就会创建并初始化这些 Filter对象。
+
+在传统的 Spring Web 应用中，Spring 容器（ApplicationContext）通常是由 ContextLoaderListener这个 Servlet 监听器负责初始化的。而监听器的初始化要晚于 Filter 的注册阶段。
+
+如果需要一个普通的 Filter 在初始化时直接依赖 Spring 容器中的其他 Bean（例如通过 @Autowired注入），就会失败。因为当 Servlet 容器创建这个 Filter 时，Spring 容器尚未启动，它所依赖的 Bean 根本不存在，从而导致空指针异常。
+
+DelegatingFilterProxy通过延迟查找完美地规避了这一生命周期问题：
+
+在 Servlet 容器启动时，DelegatingFilterProxy本身作为一个标准的 Filter 被顺利注册到容器中。此时，它并不立即去 Spring 容器中查找目标 Filter Bean。
+
+当第一个请求到达时，DelegatingFilterProxy的 doFilter方法被调用。此时，它才延迟地（Lazily）从已初始化完成的 Spring 容器中查找其委托的目标 Bean（例如 Spring Security 的 FilterChainProxy）。
+
+## FilterChainProxy
+
+FilterChainProxy 是 Spring Security 框架的核心枢纽。与传统的 Servlet 过滤器链不同，FilterChainProxy 可以管理多个 SecurityFilterChain 对象。每个 SecurityFilterChain 针对不同的请求模式（如 /api/**, /admin/**）包含一组有序的安全过滤器（如认证、授权、CSRF 防护等）。这使得应用程序可以为不同的 API 或页面路径配置完全独立的安全策略。
+
+在现代基于 Java 配置的 Spring Security 应用中（如使用 Spring Boot），通常会通过配置类定义多个 SecurityFilterChain，而 FilterChainProxy和 DelegatingFilterProxy的创建和组装是由框架自动完成的
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    // 为 API 路径配置一个安全链
+    @Bean
+    @Order(1)
+    public SecurityFilterChain apiFilterChain(HttpSecurity http) throws Exception {
+        http
+            .securityMatcher("/api/**") // 匹配 /api 开头的路径
+            .authorizeHttpRequests(authz -> authz.anyRequest().authenticated())
+            .oauth2ResourceServer(oauth2 -> oauth2.jwt()); // 使用 JWT
+        return http.build();
+    }
+
+    // 为普通 Web 请求配置一个默认安全链
+    @Bean
+    @Order(2)
+    public SecurityFilterChain defaultFilterChain(HttpSecurity http) throws Exception {
+        http
+            .authorizeHttpRequests(authz -> authz
+                .requestMatchers("/", "/home").permitAll()
+                .anyRequest().authenticated()
+            )
+            .formLogin(form -> form.loginPage("/login").permitAll()); // 使用表单登录
+        return http.build();
+    }
+}
+```
+
+## SecurityFilterChain
+
+SecurityFilterChain由 FilterChainProxy使用，用于确定当前请求应调用哪些 Spring Security 过滤器（Filter）实例。
+
+在 SecurityFilterChain中的安全过滤器通常是 Spring Bean，但它们是与 FilterChainProxy注册，而非与 DelegatingFilterProxy注册。与直接注册到 Servlet 容器或通过 DelegatingFilterProxy注册相比，FilterChainProxy提供了诸多优势。首先，它为 Spring Security 的所有 Servlet 支持提供了一个统一的起点。因此，如果您需要排查 Spring Security 的 Servlet 支持相关问题，在 FilterChainProxy中设置调试断点是一个绝佳的起点。
+
+其次，由于 FilterChainProxy是 Spring Security 的核心，它可以执行一些被视为不可或缺的任务。例如，它会清除 SecurityContext以避免内存泄漏。同时，它应用 Spring Security 的 HttpFirewall来保护应用程序免受特定类型的攻击。
+
+此外，它在确定何时调用 SecurityFilterChain方面提供了更大的灵活性。在 Servlet 容器中，过滤器的调用仅基于 URL。然而，FilterChainProxy可以利用 RequestMatcher接口，基于 HttpServletRequest中的任何信息来决定是否调用。
+
+在多个 SecurityFilterChain的示意图中，FilterChainProxy会决定使用哪个 SecurityFilterChain。只有第一个匹配的 SecurityFilterChain会被调用。例如，如果请求的 URL 是 /api/messages/，它首先会匹配到 SecurityFilterChain0的模式 /api/**，因此即使它也符合 SecurityFilterChainn的模式，也仅会调用 SecurityFilterChain0。如果请求的 URL 是 /messages/，它不匹配 SecurityFilterChain0的模式 /api/**，因此 FilterChainProxy会继续尝试后续的每个 SecurityFilterChain。假设没有其他 SecurityFilterChain实例匹配，那么 SecurityFilterChainn将被调用。
+
+值得注意的是，SecurityFilterChain0仅配置了三个安全过滤器实例，而 SecurityFilterChainn配置了四个。每个 SecurityFilterChain都可以是独一无二的，并且可以被独立配置。实际上，如果应用程序希望 Spring Security 忽略某些请求，某个 SecurityFilterChain甚至可以配置零个安全过滤器实例。
+
+## Security Filters
+
+
+
+
+
+## 过滤器
+
+在Spring中配置的bean的name要和web.xml中的`<filter-name>`一样，或者在DelegatingFilterProxy的filter配置中配置初始参数：targetBeanName，对应到Spring配置中的beanname，如果要保留Filter原有的init，destroy方法的调用，还需要配置初始化参数targetFilterLifecycle为true，该参数默认为false
+
+配置好 DelegatingFilterProxy 后，在容器启动时就会加载 Spring Security 包含的内置过滤器，这些过滤器按照一定的顺序来处理请求，并实现不同的安全功能。以下是 Spring Security 中常见的过滤器及其作用和加载顺序：
+
+1. `ChannelProcessingFilter`：用于检查请求的协议是否与配置的要求匹配，例如要求使用 HTTPS。
+2. `SecurityContextPersistenceFilter`：用于在请求之间存储和恢复 `SecurityContext`，以确保在整个请求处理过程中安全上下文的一致性。在每次请求处理之前将该请求相关的安全上下文信息加载到 SecurityContextHolder 中，然后在该次请求处理完成之后，将 SecurityContextHolder 中关于这次请求的信息存储到一个“仓储”中，然后将 SecurityContextHolder 中的信息清除，例如在Session中维护一个用户的安全信息就是这个过滤器处理的。
+3. `ConcurrentSessionFilter`：用于处理并发会话控制，限制用户同时登录的会话数量。
+4. `LogoutFilter`：用于处理用户注销操作，清除相关的认证信息。
+5. `UsernamePasswordAuthenticationFilter`：用于处理基于用户名和密码的身份验证请求。从表单中获取用户名和密码。默认情况下处理来自 /login 的请求。从表单中获取用户名和密码时，默认使用的表单 name 值为 username 和 password，这两个值可以通过设置这个过滤器的usernameParameter 和 passwordParameter 两个参数的值进行修改。
+6. `DefaultLoginPageGeneratingFilter`：用于生成默认的登录页面。如果没有配置登录页面，那系统初始化时就会配置这个过滤器，并且用于在需要进行登录时生成一个登录表单页面。
+7. `DefaultLogoutPageGeneratingFilter`：用于生成默认的注销页面。
+8. `BasicAuthenticationFilter`：用于处理基本身份验证请求。
+9. `RequestCacheAwareFilter`：用于处理请求缓存，实现请求重定向后的恢复。
+10. `SecurityContextHolderAwareRequestFilter`：用于包装 HttpServletRequest，以确保在处理请求时能够正确地使用 SecurityContext。
+11. `AnonymousAuthenticationFilter`：用于处理匿名用户的身份验证。检测 SecurityContextHolder 中是否存在 Authentication 对象，如果不存在为其提供一个匿名 Authentication。
+12. `SessionManagementFilter`：用于处理会话管理，例如限制会话数量、处理会话过期等。
+13. `ExceptionTranslationFilter`：用于处理异常情况，例如访问被拒绝时的处理。
+14. `FilterSecurityInterceptor`：用于对请求进行访问控制，根据配置的权限规则决定是否允许访问。可以看做过滤器链的出口。
+15. `SwitchUserFilter`：用于实现用户切换功能，允许一个用户切换到另一个用户的身份。
+16. `RememberMeAuthenticationFilter`：用于处理记住我功能，自动登录用户。当用户没有登录而直接访问资源时, 从 cookie 里找出用户的信息, 如果 Spring Security 能够识别出用户提供的remember me cookie, 用户将不必填写用户名和密码, 而是直接登录进入系统，该过滤器默认不开启。
+18. `SessionFixationProtectionFilter`：用于保护会话免受会话固定攻击。
+19. `CsrfFilter`：用于处理 CSRF（跨站请求伪造）攻击。
+20. `LogoutFilter`：用于处理用户注销操作。
+21. `WebAsyncManagerIntegrationFilter`：将 Security 上下文与 Spring Web 中用于处理异步请求映射的 WebAsyncManager 进行集成。
+22. `HeaderWriterFilter`：用于将头信息加入响应中。
+
+## 基本流程
+
+Spring Security 采取过滤链实现认证与授权，只有当前过滤器通过，才能进入下一个过滤器：
+
+![image-20240308172416238](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403081724313.png)
+
+绿色部分是认证过滤器，需要我们自己配置，可以配置多个认证过滤器。认证过滤器可以使用Spring Security提供的认证过滤器，也可以自定义过滤器（例如：短信验证）。认证过滤器要在configure(HttpSecurity http)方法中配置，没有配置不生效。下面会重点介绍以下三个过滤器：
+
+- UsernamePasswordAuthenticationFilter过滤器：该过滤器会拦截前端提交的 POST 方式的登录表单请求，并进行身份认证。
+- ExceptionTranslationFilter过滤器：该过滤器不需要我们配置，对于前端提交的请求会直接放行，捕获后续抛出的异常并进行处理（例如：权限访问限制）。
+- FilterSecurityInterceptor过滤器：该过滤器是过滤器链的最后一个过滤器，根据资源权限配置来判断当前请求是否有权限访问对应的资源。如果访问受限会抛出相关异常，并由ExceptionTranslationFilter过滤器进行捕获和处理。
+
+## 认证流程
+
+认证流程是在`UsernamePasswordAuthenticationFilter`过滤器中处理的，具体流程如下所示：
+
+![image-20240308172536629](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403081725706.png)
+
+## 权限访问流程
+
+主要是对 ExceptionTranslationFilter 过滤器和 FilterSecurityInterceptor 过滤器进行介绍
+
+## 请求间共享认证信息
+
+一般认证成功后的用户信息是通过 Session 在多个请求之间共享，那么Spring Security中是如何实现将已认证的用户信息对象 Authentication 与 Session 绑定的进行具体分析。
+
+![image-20240311150239539](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403111502313.png)
+
+
 SpringSecurity 采用的是责任链的设计模式，它有一条很长的过滤器链。
 
 ![image-20240730233833415](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202407302338629.png)
+
+实际上，Spring Security 本身提供了一系列过滤器，而如何使用，或者说应该让哪些过滤器生效，以及这些过滤器的执行顺序，都是通过用户的配置实现的。
 
 重点看三个过滤器
 
@@ -2059,88 +2217,6 @@ public class CSRFController {
 ```
 
 访问 toupdate 
-
-# SpringSecurity 原理总结
-
-Spring Security 本质是一个过滤器链，正常情况下由过滤器代理 DelegatingFilterProxy 作为入口，配置在 web.xml 中
-
-DelegatingFilterProxy 就是一个对于servlet filter的代理，用这个类的好处主要是通过Spring容器来管理servlet filter的生命周期，还有就是如果filter中需要一些Spring容器的实例，可以通过spring直接注入，另外读取一些配置文件这些便利的操作都可以通过Spring来配置实现。
-
-首先在web.xml中配置
-
-```xml
-<filter>
- <filter-name>myFilter</filter-name>
- <filter-class>org.springframework.web.filter.DelegatingFilterProxy</filter-class>
-</filter>
-
-<filter-mapping>
- <filter-name>myFilter</filter-name>
- <url-pattern>/*</url-pattern>
-</filter-mapping>
-```
-
-然后在Spring的配置文件中，配置具体的Filter类的实例。
-
-```xml
-<bean name="myFilter"class="com.*.MyFilter"></bean>
-```
-
-## 过滤器
-
-在Spring中配置的bean的name要和web.xml中的`<filter-name>`一样，或者在DelegatingFilterProxy的filter配置中配置初始参数：targetBeanName，对应到Spring配置中的beanname，如果要保留Filter原有的init，destroy方法的调用，还需要配置初始化参数targetFilterLifecycle为true，该参数默认为false
-
-配置好 DelegatingFilterProxy 后，在容器启动时就会加载 Spring Security 包含的内置过滤器，这些过滤器按照一定的顺序来处理请求，并实现不同的安全功能。以下是 Spring Security 中常见的过滤器及其作用和加载顺序：
-
-1. `ChannelProcessingFilter`：用于检查请求的协议是否与配置的要求匹配，例如要求使用 HTTPS。
-2. `SecurityContextPersistenceFilter`：用于在请求之间存储和恢复 `SecurityContext`，以确保在整个请求处理过程中安全上下文的一致性。在每次请求处理之前将该请求相关的安全上下文信息加载到 SecurityContextHolder 中，然后在该次请求处理完成之后，将 SecurityContextHolder 中关于这次请求的信息存储到一个“仓储”中，然后将 SecurityContextHolder 中的信息清除，例如在Session中维护一个用户的安全信息就是这个过滤器处理的。
-3. `ConcurrentSessionFilter`：用于处理并发会话控制，限制用户同时登录的会话数量。
-4. `LogoutFilter`：用于处理用户注销操作，清除相关的认证信息。
-5. `UsernamePasswordAuthenticationFilter`：用于处理基于用户名和密码的身份验证请求。从表单中获取用户名和密码。默认情况下处理来自 /login 的请求。从表单中获取用户名和密码时，默认使用的表单 name 值为 username 和 password，这两个值可以通过设置这个过滤器的usernameParameter 和 passwordParameter 两个参数的值进行修改。
-6. `DefaultLoginPageGeneratingFilter`：用于生成默认的登录页面。如果没有配置登录页面，那系统初始化时就会配置这个过滤器，并且用于在需要进行登录时生成一个登录表单页面。
-7. `DefaultLogoutPageGeneratingFilter`：用于生成默认的注销页面。
-8. `BasicAuthenticationFilter`：用于处理基本身份验证请求。
-9. `RequestCacheAwareFilter`：用于处理请求缓存，实现请求重定向后的恢复。
-10. `SecurityContextHolderAwareRequestFilter`：用于包装 HttpServletRequest，以确保在处理请求时能够正确地使用 SecurityContext。
-11. `AnonymousAuthenticationFilter`：用于处理匿名用户的身份验证。检测 SecurityContextHolder 中是否存在 Authentication 对象，如果不存在为其提供一个匿名 Authentication。
-12. `SessionManagementFilter`：用于处理会话管理，例如限制会话数量、处理会话过期等。
-13. `ExceptionTranslationFilter`：用于处理异常情况，例如访问被拒绝时的处理。
-14. `FilterSecurityInterceptor`：用于对请求进行访问控制，根据配置的权限规则决定是否允许访问。可以看做过滤器链的出口。
-15. `SwitchUserFilter`：用于实现用户切换功能，允许一个用户切换到另一个用户的身份。
-16. `RememberMeAuthenticationFilter`：用于处理记住我功能，自动登录用户。当用户没有登录而直接访问资源时, 从 cookie 里找出用户的信息, 如果 Spring Security 能够识别出用户提供的remember me cookie, 用户将不必填写用户名和密码, 而是直接登录进入系统，该过滤器默认不开启。
-18. `SessionFixationProtectionFilter`：用于保护会话免受会话固定攻击。
-19. `CsrfFilter`：用于处理 CSRF（跨站请求伪造）攻击。
-20. `LogoutFilter`：用于处理用户注销操作。
-21. `WebAsyncManagerIntegrationFilter`：将 Security 上下文与 Spring Web 中用于处理异步请求映射的 WebAsyncManager 进行集成。
-22. `HeaderWriterFilter`：用于将头信息加入响应中。
-
-## 基本流程
-
-Spring Security 采取过滤链实现认证与授权，只有当前过滤器通过，才能进入下一个过滤器：
-
-![image-20240308172416238](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403081724313.png)
-
-绿色部分是认证过滤器，需要我们自己配置，可以配置多个认证过滤器。认证过滤器可以使用Spring Security提供的认证过滤器，也可以自定义过滤器（例如：短信验证）。认证过滤器要在configure(HttpSecurity http)方法中配置，没有配置不生效。下面会重点介绍以下三个过滤器：
-
-- UsernamePasswordAuthenticationFilter过滤器：该过滤器会拦截前端提交的 POST 方式的登录表单请求，并进行身份认证。
-- ExceptionTranslationFilter过滤器：该过滤器不需要我们配置，对于前端提交的请求会直接放行，捕获后续抛出的异常并进行处理（例如：权限访问限制）。
-- FilterSecurityInterceptor过滤器：该过滤器是过滤器链的最后一个过滤器，根据资源权限配置来判断当前请求是否有权限访问对应的资源。如果访问受限会抛出相关异常，并由ExceptionTranslationFilter过滤器进行捕获和处理。
-
-## 认证流程
-
-认证流程是在`UsernamePasswordAuthenticationFilter`过滤器中处理的，具体流程如下所示：
-
-![image-20240308172536629](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403081725706.png)
-
-## 权限访问流程
-
-主要是对 ExceptionTranslationFilter 过滤器和 FilterSecurityInterceptor 过滤器进行介绍
-
-## 请求间共享认证信息
-
-一般认证成功后的用户信息是通过 Session 在多个请求之间共享，那么Spring Security中是如何实现将已认证的用户信息对象 Authentication 与 Session 绑定的进行具体分析。
-
-![image-20240311150239539](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202403111502313.png)
 
 # 项目的主流认证方式
 
