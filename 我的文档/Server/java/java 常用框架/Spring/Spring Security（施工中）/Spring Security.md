@@ -260,8 +260,6 @@ Spring Boot与Spring Security的默认配置在运行时会导致以下行为：
 
 # 基本原理
 
-https://docs.spring.io/spring-security/reference/6.5/servlet/architecture.html
-
 Spring Security 的本质就是一个由过各种过滤器组成的滤器链，每个过滤器对应负责其独有的功能，而过滤器的执行顺序很重要，比如登录过滤器必须在权限过滤器之前执行。由于此特性，Spring Security 将过滤器以及过滤器的调用顺序全权交由用户控制(当然，其默认会内置一套配置)。
 
 ## DelegatingFilterProxy
@@ -343,23 +341,491 @@ public class SecurityConfig {
 
 ## SecurityFilterChain
 
-SecurityFilterChain由 FilterChainProxy使用，用于确定当前请求应调用哪些 Spring Security 过滤器（Filter）实例。
+SecurityFilterChain 由 FilterChainProxy 使用，用于确定当前请求应调用哪些 Spring Security 过滤器（Filter）实例。
 
-在 SecurityFilterChain中的安全过滤器通常是 Spring Bean，但它们是与 FilterChainProxy注册，而非与 DelegatingFilterProxy注册。与直接注册到 Servlet 容器或通过 DelegatingFilterProxy注册相比，FilterChainProxy提供了诸多优势。首先，它为 Spring Security 的所有 Servlet 支持提供了一个统一的起点。因此，如果您需要排查 Spring Security 的 Servlet 支持相关问题，在 FilterChainProxy中设置调试断点是一个绝佳的起点。
+在 SecurityFilterChain 中的 Security Filters 通常是 Spring Bean，但它们是由 FilterChainProxy 注册，而非由 DelegatingFilterProxy 注册。与直接注册到 Servlet 容器或通过 DelegatingFilterProxy 注册相比，FilterChainProxy 提供了诸多优势。首先，它为 Spring Security 的所有 Servlet 支持提供了一个统一的起点。因此，如果您需要排查 Spring Security 的 Servlet 支持相关问题，在 FilterChainProxy中设置调试断点是一个绝佳的起点。
 
-其次，由于 FilterChainProxy是 Spring Security 的核心，它可以执行一些被视为不可或缺的任务。例如，它会清除 SecurityContext以避免内存泄漏。同时，它应用 Spring Security 的 HttpFirewall来保护应用程序免受特定类型的攻击。
+其次，由于 FilterChainProxy 是 Spring Security 的核心，它可以执行一些被视为不可或缺的任务。例如，它会清除 SecurityContext 以避免内存泄漏。同时，它应用 Spring Security 的 HttpFirewall 来保护应用程序免受特定类型的攻击。
 
-此外，它在确定何时调用 SecurityFilterChain方面提供了更大的灵活性。在 Servlet 容器中，过滤器的调用仅基于 URL。然而，FilterChainProxy可以利用 RequestMatcher接口，基于 HttpServletRequest中的任何信息来决定是否调用。
-
-在多个 SecurityFilterChain的示意图中，FilterChainProxy会决定使用哪个 SecurityFilterChain。只有第一个匹配的 SecurityFilterChain会被调用。例如，如果请求的 URL 是 /api/messages/，它首先会匹配到 SecurityFilterChain0的模式 /api/**，因此即使它也符合 SecurityFilterChainn的模式，也仅会调用 SecurityFilterChain0。如果请求的 URL 是 /messages/，它不匹配 SecurityFilterChain0的模式 /api/**，因此 FilterChainProxy会继续尝试后续的每个 SecurityFilterChain。假设没有其他 SecurityFilterChain实例匹配，那么 SecurityFilterChainn将被调用。
-
-值得注意的是，SecurityFilterChain0仅配置了三个安全过滤器实例，而 SecurityFilterChainn配置了四个。每个 SecurityFilterChain都可以是独一无二的，并且可以被独立配置。实际上，如果应用程序希望 Spring Security 忽略某些请求，某个 SecurityFilterChain甚至可以配置零个安全过滤器实例。
+此外，它在确定何时调用 SecurityFilterChain 方面提供了更大的灵活性。在 Servlet 容器中，过滤器的调用仅基于 URL。然而，FilterChainProxy 可以利用 RequestMatcher 接口，基于 HttpServletRequest 中的任何信息来决定是否调用。
 
 ## Security Filters
 
+Security Filters 通过配置插入到 FilterChainProxy 中，这些过滤器可以用于多种不同的目的，例如漏洞防护、认证、授权等。这些过滤器按照特定顺序执行，以确保它们在正确的时间被调用，例如执行认证的过滤器应在执行授权的过滤器之前调用。通常不需要了解 Spring Security 的过滤器顺序。但是，如果你需要了解这些顺序，可以查看 FilterOrderRegistration 代码。
 
+这些 Security Filters 通常使用 HttpSecurity 实例进行声明。为了说明上述段落，让我们考虑以下安全配置：
 
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            .csrf(Customizer.withDefaults())
+            .httpBasic(Customizer.withDefaults())
+            .formLogin(Customizer.withDefaults())
+            .authorizeHttpRequests(authorize -> authorize
+                .anyRequest().authenticated()
+            );
 
+        return http.build();
+    }
+}
+```
+
+上述配置将导致以下 Filter 排序：
+
+| 过滤器 (Filter)                                              | 添加者 (Added by)                    |
+| :----------------------------------------------------------- | :----------------------------------- |
+| CsrfFilter | `HttpSecurity#csrf`                  |
+| BasicAuthenticationFilter | `HttpSecurity#httpBasic`             |
+| UsernamePasswordAuthenticationFilter | `HttpSecurity#formLogin`             |
+| AuthorizationFilter | `HttpSecurity#authorizeHttpRequests` |
+
+- 首先，调用 CsrfFilter 以防止 CSRF 攻击。
+- 第二，认证过滤器被调用以验证请求。
+- 第三， AuthorizationFilter 被调用以授权请求。
+
+可能还有其他未在上面列出的 Filter 实例。如果你想查看某个特定请求所调用的过滤器列表，可以打印出来。
+
+### 打印 Security Filters
+
+通常，查看特定请求所调用的 security Filter 列表是有用的。例如，你想要确认你添加的 filter 是否包含在 security filters 列表中。
+
+应用启动时，过滤器列表会在 DEBUG 级别打印出来，因此你可以在控制台输出中看到类似以下的内容：
+
+```text
+2023-06-14T08:55:22.321-03:00  DEBUG 76975 --- [           main] o.s.s.web.DefaultSecurityFilterChain     : Will secure any request with [ DisableEncodeUrlFilter, WebAsyncManagerIntegrationFilter, SecurityContextHolderFilter, HeaderWriterFilter, CsrfFilter, LogoutFilter, UsernamePasswordAuthenticationFilter, DefaultLoginPageGeneratingFilter, DefaultLogoutPageGeneratingFilter, BasicAuthenticationFilter, RequestCacheAwareFilter, SecurityContextHolderAwareRequestFilter, AnonymousAuthenticationFilter, ExceptionTranslationFilter, AuthorizationFilter]
+```
+
+这将很好地说明每个过滤器链配置的 security filters。
+
+但不仅如此，你还可以配置你的应用程序，以记录每个请求中每个单独过滤器的调用情况。这对于查看你添加的过滤器是否在特定请求中被调用，或者检查异常来源非常有帮助。要做到这一点，你可以配置应用程序以记录安全事件。
+
+### 向过滤器链添加过滤器
+
+大多数情况下，默认的 Security 过滤器已经足够为您的应用程序提供安全性。然而，有时您可能希望向 SecurityFilterChain 添加自定义的 Filter 。
+
+HttpSecurity 提供了三种添加过滤器的方法：
+
+- #addFilterBefore(Filter, Class<?>) 在另一个过滤器之前添加你的过滤器 
+- #addFilterAfter(Filter, Class<?>) 在另一个过滤器之后添加你的过滤器
+- #addFilterAt(Filter, Class<?>) 用你的过滤器替换另一个过滤器
+
+### 添加自定义过滤器
+
+如果你正在创建自己的过滤器，你需要确定它在过滤器链中的位置。请查看过滤器链中发生的以下关键事件：
+
+1. 从会话中加载 SecurityContext
+2. 请求受到常见攻击的保护；安全头信息、CORS、CSRF
+3. 请求已通过身份验证
+4. 请求已授权
+
+考虑你需要哪些事件已经发生，以便定位你的过滤器。以下是一个经验法则：
+
+| our filter is a(n) 如果您的过滤器是      | Then place it after 然后放在                 | As these events have already occurred 之后，因为这些事件已经发生 |
+| :--------------------------------------- | :------------------------------------------- | :----------------------------------------------------------- |
+| exploit protection filter 漏洞防护过滤器 | SecurityContextHolderFilter                  | 1                                                            |
+| authentication filter 认证过滤器         | LogoutFilter 退出过滤器                      | 1, 2                                                         |
+| authorization filter 授权过滤器          | AnonymousAuthenticationFilter 匿名认证过滤器 | 1, 2, 3                                                      |
+
+通常情况下，应用程序会添加自定义身份验证。这意味着它们应该放在 LogoutFilter 之后。
+
+例如，假设你想添加一个 Filter ，它会获取租户 id 头部并检查当前用户是否有权限访问该租户。
+
+首先，我们来创建 Filter ：
+
+```java
+import java.io.IOException;
+
+import jakarta.servlet.Filter;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.ServletRequest;
+import jakarta.servlet.ServletResponse;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import org.springframework.security.access.AccessDeniedException;
+
+public class TenantFilter implements Filter {
+
+    @Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        HttpServletResponse response = (HttpServletResponse) servletResponse;
+
+        String tenantId = request.getHeader("X-Tenant-Id"); (1)
+        boolean hasAccess = isUserAllowed(tenantId); (2)
+        if (hasAccess) {
+            filterChain.doFilter(request, response); (3)
+            return;
+        }
+        throw new AccessDeniedException("Access denied"); (4)
+    }
+
+}
+```
+
+上面的示例代码执行以下操作：
+
+1. 获取请求头中的租户 ID。
+2. 检查当前用户是否具有对租户 ID 的访问权限。
+3. 如果用户有访问权限，则调用过滤链中的其余过滤器。
+4. 如果用户没有访问权限，则抛出 AccessDeniedException 。
+
+通常你不必直接实现 Filter 类，而是可以直接继承 OncePerRequestFilter 类。与直接实现 javax.servlet.Filter 接口相比，OncePerRequestFilter 是 Spring 框架提供的一个便捷基类，其最大优点是确保在一次请求生命周期内，该过滤器的逻辑只会被执行一次。这对于涉及安全上下文修改、数据库事务等操作至关重要，可以避免在请求转发（Forward）等情况下被意外重复执行。它提供的 doFilterInternal方法封装了标准 doFilter方法，并使用了 HttpServletRequest 和 HttpServletResponse 类型参数，省去了强制类型转换的步骤。
+
+现在，你需要将过滤器添加到 SecurityFilterChain 中。前面的描述已经提示了我们添加过滤器的位置，因为我们需要知道当前用户，所以应该在认证过滤器之后添加该过滤器。AnonymousAuthenticationFilter是认证流程中的"最后一站"，它的职责是：如果之前的认证机制（如表单登录、JWT、Basic Auth）都没有为用户建立身份，那么它将为用户赋予一个"匿名用户"的身份。将您的 TenantFilter放在它之后，可以确保任何身份认证（无论是具体的用户还是匿名用户）都已经完成，此时 SecurityContextHolder中已经存在一个可用的 Authentication对象，您的过滤器可以安全地获取当前用户信息进行租户校验 。
+
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http
+        // ...
+        .addFilterAfter(new TenantFilter(), AnonymousAuthenticationFilter.class);
+    return http.build();
+}
+```
+
+### 过滤器与Bean
+
+当你将一个 Filter 声明为 Spring bean，无论是通过 @Component 注解还是在配置中显式声明，Spring Boot 会自动将其注册到内嵌容器中。这可能会导致过滤器被调用两次，一次由容器调用，一次由 Spring Security 调用，并且顺序可能不同。
+
+**因此，过滤器通常不是 Spring bean。**
+
+然而，如果你的过滤器需要作为 Spring bean（例如为了利用依赖注入） ，你可以通过声明一个 FilterRegistrationBean bean 并将其 enabled 属性设置为 false 来告诉 Spring Boot 不将其注册到容器中：
+
+```java
+@Bean
+public FilterRegistrationBean<TenantFilter> tenantFilterRegistration(TenantFilter filter) {
+    FilterRegistrationBean<TenantFilter> registration = new FilterRegistrationBean<>(filter);
+    registration.setEnabled(false);
+    return registration;
+}
+```
+
+这可以使得只有 HttpSecurity 在添加它。
+
+### 自定义 Spring Security 过滤器
+
+通常，您可以使用过滤器的 DSL 方法来配置 Spring Security 的过滤器。例如，最简单的方式是通过要求 DSL 来实现添加 BasicAuthenticationFilter ：
+
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+	http
+		.httpBasic(Customizer.withDefaults())
+        // ...
+
+	return http.build();
+}
+```
+不过，如果你想自己构建一个 Spring Security 过滤器，也可以通过 addFilterAt 在 DSL 中进行指定，如下所示：
+
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+   BasicAuthenticationFilter basic = new BasicAuthenticationFilter();
+   // ... configure
+
+   http
+           // ...
+           .addFilterAt(basic, BasicAuthenticationFilter.class);
+
+   return http.build();
+}
+```
+
+请注意，如果该过滤器已经添加过，Spring Security 将会抛出异常。例如，调用 HttpSecurity#httpBasic 会为你添加 BasicAuthenticationFilter 。因此，以下安排会失败，因为有两个调用都在尝试添加 BasicAuthenticationFilter ：
+
+```java
+@Bean
+SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+   BasicAuthenticationFilter basic = new BasicAuthenticationFilter();
+   // ... configure
+
+   http
+           .httpBasic(Customizer.withDefaults())
+           // ... on no! BasicAuthenticationFilter is added twice!
+           .addFilterAt(basic, BasicAuthenticationFilter.class);
+
+   return http.build();
+}
+```
+
+在这种情况下，请移除对 httpBasic 的调用，因为您自己正在构建 BasicAuthenticationFilter 。
+
+如果无法重新配置 HttpSecurity 以不添加某个过滤器，通常可以通过调用其 DSL 的 disable 方法来禁用 Spring Security 过滤器，如下所示：
+
+```java
+.httpBasic((basic) -> basic.disable())
+```
+
+### 处理相关异常
+
+ExceptionTranslationFilter 允许将 AccessDeniedException 和 AuthenticationException 异常翻译成 HTTP 响应。
+
+如果应用程序没有抛出 AccessDeniedException 或 AuthenticationException ，那么 ExceptionTranslationFilter 不会执行任何操作。
+
+其核心逻辑的伪代码如下所示
+
+```java
+try {
+        filterChain.doFilter(request, response); // 继续执行过滤器链
+} catch (AuthenticationException | AccessDeniedException ex) {
+        if (用户未认证 || ex instanceof AuthenticationException) {
+startAuthentication(); // 开始认证
+    } else {
+accessDenied(); // 处理访问拒绝
+    }
+            }
+```
+
+- AuthenticationEntryPoint 负责，当捕获到 AuthenticationException 或匿名用户访问受限资源时，AuthenticationEntryPoint 被调用，负责"开始认证"，其常见的实现是 LoginUrlAuthenticationEntryPoint，会将用户重定向到登录页面。
+- AccessDeniedHandler 负责当已认证的用户访问其权限不足的资源时，AccessDeniedHandler被调用，处理"访问拒绝"，默认实现 AccessDeniedHandlerImpl会发送 HTTP 403（Forbidden）错误码
+
+### 自定义异常处理
+
+Spring Security 允许你自定义异常处理行为，以满足特定需求（如返回JSON格式错误信息而非重定向）。
+
+自定义 AuthenticationEntryPoint，你可以实现自己的 AuthenticationEntryPoint，例如直接返回JSON响应
+
+```java
+@Component
+public class MyAuthenticationEntryPoint implements AuthenticationEntryPoint {
+    @Override
+    public void commence(HttpServletRequest request, HttpServletResponse response, AuthenticationException authException) throws IOException {
+        response.setStatus(HttpStatus.UNAUTHORIZED.value());
+        response.getWriter().write("{\"error\": \"需要认证\"}");
+    }
+}
+```
+
+同样，可以自定义 AccessDeniedHandler
+
+```java
+@Component
+public class MyAccessDeniedHandler implements AccessDeniedHandler {
+   @Override
+   public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException {
+      response.setStatus(HttpStatus.FORBIDDEN.value());
+      response.getWriter().write("{\"error\": \"权限不足\"}");
+   }
+}
+```
+
+在配置中启用自定义处理器
+
+在安全配置类中，通过 HttpSecurity配置自定义的处理器
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig extends WebSecurityConfigurerAdapter {
+   @Autowired
+   private MyAuthenticationEntryPoint myAuthenticationEntryPoint;
+   @Autowired
+   private MyAccessDeniedHandler myAccessDeniedHandler;
+
+   @Override
+   protected void configure(HttpSecurity http) throws Exception {
+      http
+              // ... 其他配置 ...
+              .exceptionHandling()
+              .authenticationEntryPoint(myAuthenticationEntryPoint) // 配置认证入口点
+              .accessDeniedHandler(myAccessDeniedHandler); // 配置访问拒绝处理器
+   }
+}
+```
+
+## 在认证之间保存请求
+
+用户访问受保护资源时，请求会被转向认证页面，认证成功后，Spring Security 会将用户重定向回原始请求的 URL。本节将介绍如何保存原始请求，以便在认证成功后重定向回原始请求。
+
+在 Spring Security 中，这是通过使用一个 RequestCache 实现来保存 HttpServletRequest 完成的。默认实现是 HttpSessionRequestCache，它将请求信息（封装为 DefaultSavedRequest对象）以 SPRING_SECURITY_SAVED_REQUEST为键存储在用户的 HttpSession 中。
+
+DefaultSavedRequest 保存了原始请求的 URL、参数、方法等信息，默认情况下，主要只缓存 GET 请求。这是为了防止对非幂等的 POST、PUT 等请求进行重放可能引发的数据不一致问题。
+
+RequestCacheAwareFilter 的职责是恢复之前缓存的请求，它通过 requestCache.getMatchingRequest() 方法从 Session 中查找匹配的缓存请求，如果找到，则使用缓存的请求信息包装当前请求，并继续执行过滤器链，最终将用户重定向到最初访问的 URL
+
+在大多数情况下，Spring Security 已经自动配置了 HttpSessionRequestCache。你通常不需要额外配置即可使用请求缓存功能。
+
+### 自定义 RequestCache
+
+你可以通过配置自定义 RequestCache来改变其行为。例如，下面的代码配置了一个 HttpSessionRequestCache，并指定只有当请求中包含名为 "continue" 的参数时，才检查是否有缓存的请求：
+
+```java
+@Bean
+DefaultSecurityFilterChain springSecurity(HttpSecurity http) throws Exception {
+    HttpSessionRequestCache requestCache = new HttpSessionRequestCache();
+    requestCache.setMatchingRequestParameterName("continue"); // 设置匹配参数名
+    http
+        // ... 其他配置 ...
+        .requestCache((cache) -> cache
+            .requestCache(requestCache)
+        );
+    return http.build();
+}
+```
+
+### 禁用请求缓存
+
+如果你希望用户登录后总是跳转到固定页面（如首页），而不是之前的页面，可以使用 NullRequestCache来禁用请求缓存
+
+```java
+@Bean
+SecurityFilterChain springSecurity(HttpSecurity http) throws Exception {
+    http
+        // ... 其他配置 ...
+        .requestCache((cache) -> cache
+            .requestCache(new NullRequestCache())
+        );
+    return http.build();
+}
+```
+
+### 忽略特定请求（如 AJAX）
+
+在实际应用中，我们通常不希望缓存 AJAX 请求。这时，可以通过自定义 RequestCache 来实现
+
+```java
+@Component("customRequestCache")
+public class CustomRequestCache extends HttpSessionRequestCache {
+    @Override
+    public void saveRequest(HttpServletRequest request, HttpServletResponse response) {
+        // 如果不是 AJAX 请求，才进行缓存
+        if (!"XMLHttpRequest".equals(request.getHeader("X-Requested-With"))) {
+            super.saveRequest(request, response);
+        }
+        // 如果是 AJAX 请求，则忽略缓存
+    }
+}
+```
+
+然后，在安全配置中注入这个自定义的 Bean：
+
+```java
+@Bean
+SecurityFilterChain springSecurity(HttpSecurity http,
+                                  @Autowired CustomRequestCache customRequestCache) throws Exception {
+    http
+        // ... 其他配置 ...
+        .requestCache((cache) -> cache
+            .requestCache(customRequestCache)
+        );
+    return http.build();
+}
+```
+
+## 日志记录
+
+Spring Security 在 DEBUG 和 TRACE 级别提供了所有与安全相关的事件的全面日志记录。这在调试应用程序时非常有用，因为 Spring Security 不会在响应体中添加任何关于请求被拒绝原因的详细信息。如果你遇到 401 或 403 错误，很可能会发现一条有助于你理解当前状况的日志信息。
+
+当您启用调试模式时，应用启动时控制台会显示一个非常醒目的警告横幅，提示：“Security debugging is enabled. This may include sensitive information. Do not use in a production system!” 。这是因为详细的日志可能会记录令牌、会话 ID 等敏感信息，请务必不要在生产环境中使用。
+
+让我们考虑一个例子，当用户尝试在启用了 CSRF 保护的资源上发起一个 POST 请求，但没有包含 CSRF 令牌时。如果没有日志，用户将看到一个 403 错误，但不会有任何关于请求被拒绝原因的解释。然而，如果你启用了 Spring Security 的日志功能，你将看到类似这样的日志信息：
+
+```text
+2023-06-14T09:44:25.797-03:00 DEBUG 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Securing POST /hello
+2023-06-14T09:44:25.797-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Invoking DisableEncodeUrlFilter (1/15)
+2023-06-14T09:44:25.798-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Invoking WebAsyncManagerIntegrationFilter (2/15)
+2023-06-14T09:44:25.800-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Invoking SecurityContextHolderFilter (3/15)
+2023-06-14T09:44:25.801-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Invoking HeaderWriterFilter (4/15)
+2023-06-14T09:44:25.802-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.security.web.FilterChainProxy        : Invoking CsrfFilter (5/15)
+2023-06-14T09:44:25.814-03:00 DEBUG 76975 --- [nio-8080-exec-1] o.s.security.web.csrf.CsrfFilter         : Invalid CSRF token found for http://localhost:8080/hello
+2023-06-14T09:44:25.814-03:00 DEBUG 76975 --- [nio-8080-exec-1] o.s.s.w.access.AccessDeniedHandlerImpl   : Responding with 403 status code
+2023-06-14T09:44:25.814-03:00 TRACE 76975 --- [nio-8080-exec-1] o.s.s.w.header.writers.HstsHeaderWriter  : Not injecting HSTS header since it did not match request to [Is Secure]
+```
+
+其中 FilterChainProxy 是 Spring Security 过滤器链的入口。这一行表明它已接收到对 /hello的 POST 请求，并开始对其进行安全处理。
+
+在 TRACE级别下，日志清晰地显示了过滤器链中每个过滤器的调用顺序（共15个）。请求依次经过这些过滤器，直到第 5 个关键的 CsrfFilter，它专门负责校验 CSRF 令牌。
+
+可以明显看出缺少了 CSRF 令牌，因此请求被拒绝。
+
+除了基本的日志级别设置，您还可以通过自定义代码实现更精细化的日志记录。
+
+您可以创建一个简单的过滤器，将其放置在 CsrfFilter之后，专门用于记录每个请求的 CSRF 令牌信息，这对于调试非常有帮助。
+
+```java
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+
+@Slf4j
+public class CsrfTokenLoggingFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        CsrfToken csrfToken = (CsrfToken) request.getAttribute("_csrf");
+        if (csrfToken != null) {
+            log.debug("CSRF Token Header: {}, Token Value: {}", csrfToken.getHeaderName(), csrfToken.getToken());
+        }
+        filterChain.doFilter(request, response);
+    }
+}
+```
+
+在安全配置中注册此过滤器：
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            // ... 其他配置 ...
+            .addFilterAfter(new CsrfTokenLoggingFilter(), CsrfFilter.class);
+        return http.build();
+    }
+}
+```
+
+记录认证成功和失败事件
+
+通过实现 AuthenticationSuccessHandler和 AuthenticationFailureHandler，您可以记录详细的认证信息，例如哪个用户何时尝试登录以及是否成功。
+
+```java
+@Component
+public class CustomAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+   private static final Logger logger = LoggerFactory.getLogger(CustomAuthenticationSuccessHandler.class);
+
+   @Override
+   public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException {
+      logger.info("Successful authentication for user: {}, IP: {}", authentication.getName(), request.getRemoteAddr());
+      // ... 其他逻辑，如重定向
+   }
+}
+```
+
+要配置您的应用程序以记录所有安全事件，可以在您的应用程序中添加以下内容：
+
+```text
+Spring Boot 中的 application.properties
+logging.level.org.springframework.security=TRACE
+logback.xml
+<configuration>
+    <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- ... -->
+    </appender>
+    <!-- ... -->
+    <logger name="org.springframework.security" level="trace" additivity="false">
+        <appender-ref ref="Console" />
+    </logger>
+</configuration>
+```
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/architecture.html
+
+# Spring Security 简介
 
 ## 过滤器
 
@@ -4723,7 +5189,6 @@ class="org.springframework.context.support.ReloadableResourceBundleMessageSource
 basename属性指定消息文件的基本路径（不包含语言后缀和 .properties扩展名）。
 
 如果您想覆盖默认的某些消息，可以创建自己的消息文件（如放在 classpath:com/yourproject/messages），并在配置中将自定义文件的 basename放在 Security 默认文件之前，以确保优先使用您的版本。
-
 
 
 
