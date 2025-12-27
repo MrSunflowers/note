@@ -2,7 +2,7 @@
 
 # 简介
 
-Spring Security通过使用标准的Servlet过滤器与Servlet容器集成在一起。这意味着，任何在Servlet容器中运行的应用程序都可以使用Spring Security。更具体地说，如果你正在开发基于Servlet的应用程序，其实并不一定需要使用Spring框架才能利用Spring Security的功能。
+Spring Security 通过使用标准的 Servlet 过滤器与 Servlet 容器集成在一起。这意味着，任何在 Servlet 容器中运行的应用程序都可以使用 Spring Security。更具体地说，如果你正在开发基于Servlet的应用程序，其实并不一定需要使用Spring框架才能利用Spring Security的功能。
 
 Spring 是非常流行和成功的 Java 应用开发框架，Spring Security正是Spring家族中的成员。Spring Security 基于 Spring 框架，提供了一套 Web 应用安全性的完整解决方案。
 
@@ -81,7 +81,7 @@ Apache Shiro
 
 ![image-20240218155132134](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202402181554156.png)
 
-# Spring Security
+# Spring Security 快速开始
 
 新建一个 spring boot 项目
 
@@ -240,13 +240,11 @@ Using generated security password: 9377fbb3-f9be-4fde-98d9-0d956be21cc7
 
 登录后才可访问原始页面
 
-# 默认行为
-
-Spring Boot与Spring Security的默认配置在运行时会导致以下行为：
+Spring Boot 与 Spring Security 的默认配置在运行时会导致以下行为：
 
 - 任何终端点（包括Boot的/error终端点）均需要经过身份验证的用户才能使用。
 - 在系统启动时，会自动注册一个默认用户 user，并为其生成一个密码；该密码会被记录在控制台日志中。在前面的例子中，这个密码是“8e557245-73e2-4286-969a-ff57fe326336”。
-- 使用BCrypt及其他加密技术来保护密码的存储安全。
+- 使用 BCrypt 及其他加密技术来保护密码的存储安全。
 - 提供了基于表单的登录与登出流程。
 - 支持基于表单的登录方式，同时也支持HTTP Basic认证方式。
 - 负责处理内容协商；对于网页请求，会将其重定向到登录页面；对于服务请求，则会返回401“未经授权”的错误代码。
@@ -264,11 +262,13 @@ Spring Security 的本质就是一个由过各种过滤器组成的滤器链，�
 
 ## DelegatingFilterProxy
 
-传统的 Servlet 过滤器（Filter）由 Servlet 容器（如 Tomcat）直接管理其生命周期（初始化、执行、销毁）。然而，如果你希望这个过滤器能够使用 Spring 容器的强大功能（如依赖注入、AOP、便捷的配置管理），就会遇到问题。因为 Servlet 容器并不知道 Spring Bean 的存在，它无法直接调用 Spring 容器中定义的、实现了 Filter接口的 Bean。
+传统的 Servlet 过滤器（Filter）由 Servlet 容器（如 Tomcat）直接管理其生命周期（初始化、执行、销毁）。然而，如果你希望这个过滤器能够使用 Spring 容器的强大功能（如依赖注入、AOP、便捷的配置管理），就会遇到问题。因为 Servlet 容器并不知道 Spring Bean 的存在，它无法直接调用 Spring 容器中定义的、实现了 Filter 接口的 Bean。
 
 Spring 提供了一个名为 DelegatingFilterProxy 的 Filter 实现，其本身是一个 Filter 实例，DelegatingFilterProxy作为一个代理（Proxy）被部署在 Servlet 容器中。它本身是一个标准的 Servlet 过滤器。当请求到达时，DelegatingFilterProxy会拦截请求，但它并不处理具体的过滤逻辑，而是将工作委托（Delegate）给 Spring 应用上下文中的一个目标 Filter Bean。这样就打通了 Servlet 容器和 Spring 容器。
 
-在 web.xml中，通常会配置一个 DelegatingFilterProxy 作为 Spring Security 的入口，其 <filter-name>通常为 springSecurityFilterChain。
+### 基于 web.xml 的入口配置
+
+在 web.xml中，通常会配置一个 DelegatingFilterProxy 作为 Spring Security 的入口，其 <filter-name> 通常为 springSecurityFilterChain。
 
 ```xml
 <filter>
@@ -281,22 +281,22 @@ Spring 提供了一个名为 DelegatingFilterProxy 的 Filter 实现，其本身
 </filter-mapping>
 ```
 
-在配置 DelegatingFilterProxy时，有两个重要的初始化参数（init-param）
+在配置 DelegatingFilterProxy 时，有两个重要的初始化参数（init-param）
 
-- targetBeanName：用于指定目标过滤器在 Spring 容器中的 Bean 名称（ID）。如果未设置此参数，DelegatingFilterProxy默认会使用其在 web.xml中配置的 <filter-name>作为 Bean 名称去 Spring 容器中查找
-- targetFilterLifecycle：这是一个布尔值参数，默认为 false。如果设置为 false，目标 Filter Bean 的生命周期（如 init和 destroy方法）完全由 Spring 容器管理（遵循 Spring Bean 的生命周期）。如果设置为 true，DelegatingFilterProxy将会负责调用目标 Filter 的 init和 destroy方法，使其遵循 Servlet 过滤器的标准生命周期。
+- targetBeanName：用于指定目标过滤器在 Spring 容器中的 Bean 名称（ID）。如果未设置此参数，DelegatingFilterProxy 默认会使用其在 web.xml中配置的 <filter-name> 作为 Bean 名称去 Spring 容器中查找
+- targetFilterLifecycle：这是一个布尔值参数，默认为 false。如果设置为 false，目标 Filter Bean 的生命周期（如 init和 destroy方法）完全由 Spring 容器管理（遵循 Spring Bean 的生命周期）。如果设置为 true，DelegatingFilterProxy 将会负责调用目标 Filter 的 init和 destroy方法，使其遵循 Servlet 过滤器的标准生命周期。
 
 这里并没有显式设置 targetBeanName，因此 DelegatingFilterProxy 会去 Spring 容器中查找名为 springSecurityFilterChain 的 Bean。
 
-DelegatingFilterProxy的另一个显著优势是它支持延迟查找（Lazy Lookup）Filter Bean 实例。这个机制巧妙地解决了 Servlet 容器与 Spring 容器在启动生命周期上的差异所引发的问题。
+DelegatingFilterProxy 的另一个显著优势是它支持延迟查找（Lazy Lookup）Filter Bean 实例。这个机制巧妙地解决了 Servlet 容器与 Spring 容器在启动生命周期上的差异所引发的问题。
 
 Servlet 规范规定，Filter 实例必须在容器完全启动之前完成注册。容器启动初期，就会创建并初始化这些 Filter对象。
 
-在传统的 Spring Web 应用中，Spring 容器（ApplicationContext）通常是由 ContextLoaderListener这个 Servlet 监听器负责初始化的。而监听器的初始化要晚于 Filter 的注册阶段。
+在传统的 Spring Web 应用中，Spring 容器（ApplicationContext）通常是由 ContextLoaderListener 这个 Servlet 监听器负责初始化的。而监听器的初始化要晚于 Filter 的注册阶段。
 
 如果需要一个普通的 Filter 在初始化时直接依赖 Spring 容器中的其他 Bean（例如通过 @Autowired注入），就会失败。因为当 Servlet 容器创建这个 Filter 时，Spring 容器尚未启动，它所依赖的 Bean 根本不存在，从而导致空指针异常。
 
-DelegatingFilterProxy通过延迟查找完美地规避了这一生命周期问题：
+DelegatingFilterProxy 通过延迟查找完美地规避了这一生命周期问题：
 
 在 Servlet 容器启动时，DelegatingFilterProxy本身作为一个标准的 Filter 被顺利注册到容器中。此时，它并不立即去 Spring 容器中查找目标 Filter Bean。
 
@@ -306,7 +306,9 @@ DelegatingFilterProxy通过延迟查找完美地规避了这一生命周期问�
 
 FilterChainProxy 是 Spring Security 框架的核心枢纽。与传统的 Servlet 过滤器链不同，FilterChainProxy 可以管理多个 SecurityFilterChain 对象。每个 SecurityFilterChain 针对不同的请求模式（如 /api/**, /admin/**）包含一组有序的安全过滤器（如认证、授权、CSRF 防护等）。这使得应用程序可以为不同的 API 或页面路径配置完全独立的安全策略。
 
-在现代基于 Java 配置的 Spring Security 应用中（如使用 Spring Boot），通常会通过配置类定义多个 SecurityFilterChain，而 FilterChainProxy和 DelegatingFilterProxy的创建和组装是由框架自动完成的
+在现代基于 Java 配置的 Spring Security 应用中（如使用 Spring Boot），通常会通过配置类定义多个 SecurityFilterChain，而 FilterChainProxy 和 DelegatingFilterProxy 的创建和组装是由框架自动完成的
+
+### 为不同的路由单独配置安全策略
 
 ```java
 @Configuration
@@ -351,7 +353,7 @@ SecurityFilterChain 由 FilterChainProxy 使用，用于确定当前请求应调
 
 ## Security Filters
 
-Security Filters 通过配置插入到 FilterChainProxy 中，这些过滤器可以用于多种不同的目的，例如漏洞防护、认证、授权等。这些过滤器按照特定顺序执行，以确保它们在正确的时间被调用，例如执行认证的过滤器应在执行授权的过滤器之前调用。通常不需要了解 Spring Security 的过滤器顺序。但是，如果你需要了解这些顺序，可以查看 FilterOrderRegistration 代码。
+Security Filters 通过配置被插入到 FilterChainProxy 中，这些过滤器可以用于多种不同的目的，例如漏洞防护、认证、授权等。这些过滤器按照特定顺序执行，以确保它们在正确的时间被调用，例如执行认证的过滤器应在执行授权的过滤器之前调用。通常不需要了解 Spring Security 的过滤器顺序。但是，如果你需要了解这些顺序，可以查看 FilterOrderRegistration 代码。
 
 这些 Security Filters 通常使用 HttpSecurity 实例进行声明。为了说明上述段落，让我们考虑以下安全配置：
 
@@ -475,6 +477,8 @@ public class TenantFilter implements Filter {
 3. 如果用户有访问权限，则调用过滤链中的其余过滤器。
 4. 如果用户没有访问权限，则抛出 AccessDeniedException 。
 
+### OncePerRequestFilter
+
 通常你不必直接实现 Filter 类，而是可以直接继承 OncePerRequestFilter 类。与直接实现 javax.servlet.Filter 接口相比，OncePerRequestFilter 是 Spring 框架提供的一个便捷基类，其最大优点是确保在一次请求生命周期内，该过滤器的逻辑只会被执行一次。这对于涉及安全上下文修改、数据库事务等操作至关重要，可以避免在请求转发（Forward）等情况下被意外重复执行。它提供的 doFilterInternal方法封装了标准 doFilter方法，并使用了 HttpServletRequest 和 HttpServletResponse 类型参数，省去了强制类型转换的步骤。
 
 现在，你需要将过滤器添加到 SecurityFilterChain 中。前面的描述已经提示了我们添加过滤器的位置，因为我们需要知道当前用户，所以应该在认证过滤器之后添加该过滤器。AnonymousAuthenticationFilter是认证流程中的"最后一站"，它的职责是：如果之前的认证机制（如表单登录、JWT、Basic Auth）都没有为用户建立身份，那么它将为用户赋予一个"匿名用户"的身份。将您的 TenantFilter放在它之后，可以确保任何身份认证（无论是具体的用户还是匿名用户）都已经完成，此时 SecurityContextHolder中已经存在一个可用的 Authentication对象，您的过滤器可以安全地获取当前用户信息进行租户校验 。
@@ -489,13 +493,13 @@ SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
 }
 ```
 
-### 过滤器与Bean
+### Filter 与 Spring bean
 
-当你将一个 Filter 声明为 Spring bean，无论是通过 @Component 注解还是在配置中显式声明，Spring Boot 会自动将其注册到内嵌容器中。这可能会导致过滤器被调用两次，一次由容器调用，一次由 Spring Security 调用，并且顺序可能不同。
+当你将一个 Filter 声明为 Spring bean 时，无论是通过 @Component 注解还是在配置中显式声明，Spring Boot 会自动将其注册到内嵌容器中。这可能会导致过滤器被调用两次，一次由容器调用，一次由 Spring Security 调用，并且顺序可能不同。
 
 **因此，过滤器通常不是 Spring bean。**
 
-然而，如果你的过滤器需要作为 Spring bean（例如为了利用依赖注入） ，你可以通过声明一个 FilterRegistrationBean bean 并将其 enabled 属性设置为 false 来告诉 Spring Boot 不将其注册到容器中：
+然而，如果你的过滤器需要作为 Spring bean（例如为了利用依赖注入） ，你可以通过声明一个 FilterRegistrationBean 的 bean 并将其 enabled 属性设置为 false 来告诉 Spring Boot 不将其注册到容器中：
 
 ```java
 @Bean
@@ -506,7 +510,7 @@ public FilterRegistrationBean<TenantFilter> tenantFilterRegistration(TenantFilte
 }
 ```
 
-这可以使得只有 HttpSecurity 在添加它。
+这可以使得只有 HttpSecurity 添加它。
 
 ### 自定义 Spring Security 过滤器
 
@@ -575,20 +579,20 @@ ExceptionTranslationFilter 允许将 AccessDeniedException 和 AuthenticationExc
 try {
         filterChain.doFilter(request, response); // 继续执行过滤器链
 } catch (AuthenticationException | AccessDeniedException ex) {
-        if (用户未认证 || ex instanceof AuthenticationException) {
-startAuthentication(); // 开始认证
+    if (用户未认证 || ex instanceof AuthenticationException) {
+        startAuthentication(); // 开始认证
     } else {
-accessDenied(); // 处理访问拒绝
+        accessDenied(); // 处理访问拒绝
     }
-            }
+}
 ```
 
-- AuthenticationEntryPoint 负责，当捕获到 AuthenticationException 或匿名用户访问受限资源时，AuthenticationEntryPoint 被调用，负责"开始认证"，其常见的实现是 LoginUrlAuthenticationEntryPoint，会将用户重定向到登录页面。
-- AccessDeniedHandler 负责当已认证的用户访问其权限不足的资源时，AccessDeniedHandler被调用，处理"访问拒绝"，默认实现 AccessDeniedHandlerImpl会发送 HTTP 403（Forbidden）错误码
+- AuthenticationEntryPoint 负责当捕获到 AuthenticationException 或匿名用户访问受限资源时，AuthenticationEntryPoint 被调用，负责"开始认证"，其常见的实现是 LoginUrlAuthenticationEntryPoint，会将用户重定向到登录页面。
+- AccessDeniedHandler 负责当已认证的用户访问其权限不足的资源时，AccessDeniedHandler被调用，处理"访问拒绝"，默认实现为 AccessDeniedHandlerImpl 会发送 HTTP 403（Forbidden）错误码
 
 ### 自定义异常处理
 
-Spring Security 允许你自定义异常处理行为，以满足特定需求（如返回JSON格式错误信息而非重定向）。
+Spring Security 允许你自定义异常处理行为，以满足特定需求（如返回 JSON 格式错误信息而非重定向）。
 
 自定义 AuthenticationEntryPoint，你可以实现自己的 AuthenticationEntryPoint，例如直接返回JSON响应
 
@@ -618,7 +622,7 @@ public class MyAccessDeniedHandler implements AccessDeniedHandler {
 
 在配置中启用自定义处理器
 
-在安全配置类中，通过 HttpSecurity配置自定义的处理器
+在安全配置类中，通过 HttpSecurity 配置自定义的处理器
 
 ```java
 @Configuration
@@ -644,7 +648,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
 用户访问受保护资源时，请求会被转向认证页面，认证成功后，Spring Security 会将用户重定向回原始请求的 URL。本节将介绍如何保存原始请求，以便在认证成功后重定向回原始请求。
 
-在 Spring Security 中，这是通过使用一个 RequestCache 实现来保存 HttpServletRequest 完成的。默认实现是 HttpSessionRequestCache，它将请求信息（封装为 DefaultSavedRequest对象）以 SPRING_SECURITY_SAVED_REQUEST为键存储在用户的 HttpSession 中。
+在 Spring Security 中，这是通过使用一个 RequestCache 实现来保存 HttpServletRequest 完成的。默认实现是 HttpSessionRequestCache，它将请求信息（封装为 DefaultSavedRequest对象）以 SPRING_SECURITY_SAVED_REQUEST 为键存储在用户的 HttpSession 中。
 
 DefaultSavedRequest 保存了原始请求的 URL、参数、方法等信息，默认情况下，主要只缓存 GET 请求。这是为了防止对非幂等的 POST、PUT 等请求进行重放可能引发的数据不一致问题。
 
@@ -654,7 +658,7 @@ RequestCacheAwareFilter 的职责是恢复之前缓存的请求，它通过 requ
 
 ### 自定义 RequestCache
 
-你可以通过配置自定义 RequestCache来改变其行为。例如，下面的代码配置了一个 HttpSessionRequestCache，并指定只有当请求中包含名为 "continue" 的参数时，才检查是否有缓存的请求：
+你可以通过配置自定义 RequestCache 来改变其行为。例如，下面的代码配置了一个 HttpSessionRequestCache，并指定只有当请求中包含名为 "continue" 的参数时，才检查是否有缓存的请求：
 
 ```java
 @Bean
@@ -672,7 +676,7 @@ DefaultSecurityFilterChain springSecurity(HttpSecurity http) throws Exception {
 
 ### 禁用请求缓存
 
-如果你希望用户登录后总是跳转到固定页面（如首页），而不是之前的页面，可以使用 NullRequestCache来禁用请求缓存
+如果你希望用户登录后总是跳转到固定页面（如首页），而不是之前的页面，可以使用 NullRequestCache 来禁用请求缓存
 
 ```java
 @Bean
@@ -721,7 +725,7 @@ SecurityFilterChain springSecurity(HttpSecurity http,
 
 ## 日志记录
 
-Spring Security 在 DEBUG 和 TRACE 级别提供了所有与安全相关的事件的全面日志记录。这在调试应用程序时非常有用，因为 Spring Security 不会在响应体中添加任何关于请求被拒绝原因的详细信息。如果你遇到 401 或 403 错误，很可能会发现一条有助于你理解当前状况的日志信息。
+Spring Security 在 DEBUG 和 TRACE 级别提供了与安全相关的事件的全面日志记录。这在调试应用程序时非常有用，因为 Spring Security 不会在响应体中添加任何关于请求被拒绝原因的详细信息。如果你遇到 401 或 403 错误，很可能会发现一条有助于你理解当前状况的日志信息。
 
 当您启用调试模式时，应用启动时控制台会显示一个非常醒目的警告横幅，提示：“Security debugging is enabled. This may include sensitive information. Do not use in a production system!” 。这是因为详细的日志可能会记录令牌、会话 ID 等敏感信息，请务必不要在生产环境中使用。
 
@@ -741,13 +745,13 @@ Spring Security 在 DEBUG 和 TRACE 级别提供了所有与安全相关的事�
 
 其中 FilterChainProxy 是 Spring Security 过滤器链的入口。这一行表明它已接收到对 /hello的 POST 请求，并开始对其进行安全处理。
 
-在 TRACE级别下，日志清晰地显示了过滤器链中每个过滤器的调用顺序（共15个）。请求依次经过这些过滤器，直到第 5 个关键的 CsrfFilter，它专门负责校验 CSRF 令牌。
+在 TRACE 级别下，日志清晰地显示了过滤器链中每个过滤器的调用顺序（共15个）。请求依次经过这些过滤器，直到第 5 个关键的 CsrfFilter，它专门负责校验 CSRF 令牌。
 
 可以明显看出缺少了 CSRF 令牌，因此请求被拒绝。
 
 除了基本的日志级别设置，您还可以通过自定义代码实现更精细化的日志记录。
 
-您可以创建一个简单的过滤器，将其放置在 CsrfFilter之后，专门用于记录每个请求的 CSRF 令牌信息，这对于调试非常有帮助。
+您可以创建一个简单的过滤器，将其放置在 CsrfFilter 之后，专门用于记录每个请求的 CSRF 令牌信息，这对于调试非常有帮助。
 
 ```java
 import lombok.extern.slf4j.Slf4j;
@@ -823,9 +827,260 @@ logback.xml
 </configuration>
 ```
 
-https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/architecture.html
+# 基于 Servlet 的认证架构
 
-# Spring Security 简介
+## SecurityContextHolder
+
+SecurityContextHolder是 Spring Security 认证模型的核心，它是一个用于存储安全上下文（SecurityContext）的容器。安全上下文中包含了当前已认证用户的详细信息。Spring Security 本身并不关心 SecurityContextHolder 是如何被填充数据的，只要其中包含一个值，该值就会被视为当前已认证的用户。
+
+为其设置认证用户的最简单方式就是手动为其填充用户信息
+
+```java
+SecurityContext context = SecurityContextHolder.createEmptyContext();
+Authentication authentication =
+    new TestingAuthenticationToken("username", "password", "ROLE_USER");
+context.setAuthentication(authentication);
+
+SecurityContextHolder.setContext(context);
+```
+
+其中，创建一个新的 SecurityContext 实例，而不是使用 SecurityContextHolder.getContext().setAuthentication(authentication)。这是为了避免在多线程环境下可能出现的竞态条件（race conditions），确保每个线程操作的是自己独立的上下文。
+
+Spring Security 并不关心设置在 SecurityContext上的 Authentication 接口的具体实现类型。TestingAuthenticationToken 因其简单性常被用于测试。在更常见的生产场景中，会使用 UsernamePasswordAuthenticationToken，它接收 UserDetails、密码和权限集合作参数。
+
+一旦用户信息被设置到 SecurityContextHolder中，Spring Security 就会使用这个 SecurityContext 中的信息进行后续的授权（authorization）判断，就可以在应用程序的任何地方（如控制器、服务层）方便地获取当前用户的信息，无需显式传递参数。
+
+```java
+SecurityContext context = SecurityContextHolder.getContext();
+Authentication authentication = context.getAuthentication();
+String username = authentication.getName();
+Object principal = authentication.getPrincipal();
+Collection<? extends GrantedAuthority> authorities = authentication.getAuthorities();
+```
+
+SecurityContextHolder 默认使用 ThreadLocal 来存储安全上下文，这意味着只要处理同一用户请求的逻辑在同一个线程中执行，即使不将 SecurityContext作为参数显式传递，各个方法也能通过 SecurityContextHolder 获取到该上下文。这非常适合于基于 Servlet 的 Web 应用，因为根据 Servlet 规范，一个请求的处理无论经过多少个 Filter，默认都由同一个线程完成。
+
+Spring Security 的 FilterChainProxy 会确保在处理完请求后自动清除 ThreadLocal 中的上下文，避免了线程复用可能带来的内存泄漏或数据混乱问题。
+
+有些应用场景不适合默认的 ThreadLocal 模式，SecurityContextHolder 提供了其他策略
+
+- MODE_GLOBAL：此策略下，JVM 中的所有线程都使用同一个安全上下文。适用于 Swing 客户端等独立应用程序
+- MODE_INHERITABLETHREADLOCAL：此策略允许由安全线程创建的新线程（子线程）自动继承父线程的安全上下文。这在需要执行异步任务（如使用 @Async注解）时非常有用，但通常需要额外配置（如使用 TaskDecorator ）来确保上下文正确传递。
+
+修改默认模式有两种方法
+
+- 设置系统属性：设置 spring.security.strategy系统属性值为相应的模式名（如 MODE_GLOBAL）。
+- 编程式设置：在应用启动时调用 SecurityContextHolder.setStrategyName(String strategyName) 静态方法。
+
+## SecurityContext
+
+SecurityContext 是 Spring Security 认证模型中的核心概念，它封装了当前已认证用户的信息，并保存在 SecurityContextHolder 中。
+
+### Authentication
+
+Spring Security 中的 Authentication 接口是其认证体系的核心，它既代表了待认证的请求，也代表了认证成功后的用户身份。
+
+```text
+public interface Authentication extends Principal, Serializable {
+
+	/**
+	 * 用户被授予的权限（如角色、范围）。
+	 */
+	Collection<? extends GrantedAuthority> getAuthorities();
+
+	/**
+	 * 证明身份的凭证（如密码）认证前为明文密码，认证后出于安全考虑，通常被清除（设为 null）
+	 */
+	Object getCredentials();
+
+	/**
+	 * 认证请求的附加信息（如 IP 地址、会话 ID）。
+	 */
+	Object getDetails();
+
+	/**
+	 * 用户身份标识，认证前通常是用户名 (String)认证后通常是 UserDetails对象
+	 */
+	Object getPrincipal();
+
+	/**
+	 * 认证状态标识。
+	 */
+	boolean isAuthenticated();
+
+	/**
+	 * 认证状态标识。
+	 */
+	void setAuthenticated(boolean isAuthenticated) throws IllegalArgumentException;
+
+}
+```
+
+需要注意的是，一旦通过 setAuthenticated(true) 将状态设置为已认证，该 Authentication 对象通常就被视为不可变的。
+
+Authentication 的常见实现类
+
+- UsernamePasswordAuthenticationToken：最常用的表单用户名/密码认证。
+- RememberMeAuthenticationToken:用于“记住我”功能，基于 Cookie 的自动登录。
+- AnonymousAuthenticationToken:代表未登录的匿名用户。
+- PreAuthenticatedAuthenticationToken:用于已由外部系统（如网关）完成认证的场景。
+
+## GrantedAuthority
+
+GrantedAuthority 是 Spring Security 认证模型中的核心概念，它代表用户被授予的权限（如角色、范围）。
+
+每个 GrantedAuthority对象代表一个具体的权限标识，例如 "ROLE_ADMIN"、"READ_USER"或 "WRITE_REPORT"。
+
+Spring Security 的授权机制会检查用户所拥有的 GrantedAuthority集合，判断其是否有权访问特定资源（URL、方法等）。
+
+SimpleGrantedAuthority：这是最常用的实现类，用于简单地包装一个字符串权限
+
+**角色**
+
+在 Spring Security 中，角色本质上是一种特殊的权限，通过名称前缀 ROLE_ 来区分，例如，角色 "ADMIN" 在存储为 GrantedAuthority 时，实际字符串为 "ROLE_ADMIN"。这种设计意味着 Spring Security 在底层对角色和普通权限一视同仁，都视为 GrantedAuthority进行比对。为了方便使用，Spring Security 提供了与角色相关的便捷配置方法（如 hasRole("ADMIN")），这些方法内部会自动处理 ROLE_ 前缀。在配置用户时，如果使用 UserBuilder 的 roles() 方法，则不需要包含 ROLE_ 前缀（如 .roles("ADMIN")），框架会自动添加；而使用 authorities()方法时则需要明确包含（如 .authorities("ROLE_ADMIN")）
+
+## AuthenticationManager
+
+AuthenticationManager 是一个核心接口，它定义了 Spring Security 过滤器执行认证的规范。
+
+该接口只有一个核心方法 authenticate(Authentication authentication)。它接收一个代表未认证请求的 Authentication对象（如 UsernamePasswordAuthenticationToken）作为参数。如果认证成功，则返回一个包含完整用户信息和权限的、已认证的 Authentication对象；如果失败，则会抛出 AuthenticationException异常。
+
+通常，像 UsernamePasswordAuthenticationFilter 这样的过滤器会拦截登录请求，封装凭证，然后调用 AuthenticationManager的 authenticate方法进行认证。认证成功后，过滤器负责将返回的已认证对象设置到 SecurityContextHolder中。如果您未使用 Spring Security 的过滤器链，也可以直接操作 SecurityContextHolder。
+
+虽然 AuthenticationManager的实现可以是任意的，但 Spring Security 默认提供的、也是最主要的实现是 ProviderManager。ProviderManager本身并不直接处理认证逻辑，而是采用委托模式，将认证任务交给一个 AuthenticationProvider列表去执行。
+
+其工作流程如下：
+
+- **遍历列表**：`ProviderManager`会遍历其配置的所有 `AuthenticationProvider`。
+- **匹配支持类型**：对于每个 `AuthenticationProvider`，它会调用其 `supports(Class<?> authentication)`方法，判断该 Provider 是否支持处理当前传入的 `Authentication`类型。
+- **委托认证**：一旦找到支持的 `AuthenticationProvider`，便委托其执行具体的认证工作（调用 `authenticate`方法）。如果某个 Provider 认证成功，则返回结果，遍历终止。
+- **父级回退**：如果所有的 `AuthenticationProvider`都无法认证，并且 `ProviderManager`配置了父级 `AuthenticationManager`，则会尝试让父级进行处理。
+
+## ProviderManager
+
+出于安全考虑，ProviderManager 在认证成功后，默认会清除返回的 Authentication对象中的凭证（如密码）。如果你为了提升无状态应用性能而缓存了用户对象（例如 UserDetails），并且认证对象持有该缓存对象的引用，那么凭证擦除也会清除缓存对象中的凭证。
+
+**解决方案**：
+1. **制作副本**：在将用户对象放入缓存之前，或者在 `AuthenticationProvider`创建返回的 `Authentication`对象时，先创建用户对象的副本，对副本进行操作。
+2. **禁用擦除**：通过设置 `ProviderManager`的 `eraseCredentialsAfterAuthentication`属性为 `false`来完全禁用凭证擦除行为（需谨慎评估安全风险）
+
+CredentialsContainer 接口是实现凭证擦除功能的关键。一旦认证完成，实现了此接口的对象可以安全地清除其持有的敏感凭证信息，确保这些信息不会在内存或会话中不必要的长时间留存。
+
+## AuthenticationProvider
+
+在 Spring Security 中，AuthenticationProvider是 实现灵活、可扩展认证能力的核心接口。当您需要支持多种认证方式（例如，同时支持用户名密码登录和 JWT 令牌认证）时，向 ProviderManager 注入多个 AuthenticationProvider 实例是标准的做法。
+
+ProviderManager 会智能地路由请求，开发者无需关心请求应该发给哪个 AuthenticationProvider
+
+配置多个 AuthenticationProvider通常需要自定义安全配置。以下是一个基于 Java 配置的通用示例框架，展示了如何设置一个包含多个提供者的 ProviderManager：
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public DaoAuthenticationProvider daoAuthenticationProvider() {
+        // 配置基于用户名密码的认证提供者
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService()); // 设置您的 UserDetailsService
+        provider.setPasswordEncoder(passwordEncoder()); // 设置密码编码器
+        return provider;
+    }
+
+    @Bean
+    public JwtAuthenticationProvider jwtAuthenticationProvider() {
+        // 配置基于 JWT 的认证提供者（需要自定义）
+        return new JwtAuthenticationProvider(jwtUtil()); // 假设有自定义的 JWT 工具类
+    }
+
+    @Bean
+    public AuthenticationManager authenticationManager() {
+        // 将多个 Provider 注入到 ProviderManager
+        List<AuthenticationProvider> providers = Arrays.asList(
+            daoAuthenticationProvider(),
+            jwtAuthenticationProvider()
+        );
+        return new ProviderManager(providers);
+    }
+
+    // 其他必要的 Bean 定义，如 PasswordEncoder, UserDetailsService 等
+    @Bean
+    public PasswordEncoder passwordEncoder() {
+        return new BCryptPasswordEncoder();
+    }
+}
+```
+
+常见的 AuthenticationProvider实现：
+
+- `DaoAuthenticationProvider`：基于用户名密码的认证提供者，使用 `UserDetailsService` 查询用户信息并验证密码。
+- `JwtAuthenticationProvider`：基于 JWT 的认证提供者，使用 JWT 令牌验证用户身份。
+- `RememberMeAuthenticationProvider`：用于处理记住我功能，验证用户是否记住了登录。
+
+一个常见的需求是用户信息存储在多个数据源（如不同的数据库表）中。虽然可以为每个数据源配置一个 DaoAuthenticationProvider 并注入到 ProviderManager，但需要注意一个关键问题：
+
+**认证短路问题**：ProviderManager会按顺序遍历提供者。当第一个 DaoAuthenticationProvider根据用户名找不到用户时，它可能直接抛出 UsernameNotFoundException 导致认证立即失败，而不会继续尝试后续的提供者 。这是因为在 Spring Security 的默认配置中，AbstractUserDetailsAuthenticationProvider的 hideUserNotFoundExceptions属性可能为 true，会将"用户未找到"异常转换为"凭证错误"异常并终止流程 。
+
+一种更稳妥的做法是自定义一个统一的 UserDetailsService，在该服务内部实现轮流查询多个数据源的逻辑 。这样可以避免依赖于提供者的遍历顺序和异常处理机制。
+
+## AuthenticationEntryPoint
+
+AuthenticationEntryPoint 是 Spring Security 中一个至关重要的接口，它定义了当未经身份验证的用户尝试访问受保护资源时，系统如何要求客户端提供凭证。您可以将其理解为整个认证流程的“发起者”或“守门人”。
+
+为了更直观地理解 AuthenticationEntryPoint在安全过滤器链中的工作位置，特别是它如何被 ExceptionTranslationFilter调用，我们可以参考下面的序列图：
+
+![image-20251227195137680](https://raw.githubusercontent.com/MrSunflowers/images/main/note/images/202512271951964.png)
+
+如图所示，AuthenticationEntryPoint并非直接拦截请求，而是由 ExceptionTranslationFilter在捕获到特定异常后触发 。其核心工作流程如下：
+
+1. 异常捕获：当后续的过滤器（如 AuthorizationFilter）发现用户未经认证或权限不足时，会抛出 AccessDeniedException。
+2. 决策处理：ExceptionTranslationFilter捕获该异常，并检查当前用户的安全上下文。如果用户是匿名用户或仅通过 Remember-Me 方式认证（被视为“弱认证”），过滤器会认为问题根源在于“未进行完整认证”，而非单纯的“权限不足” 。
+3. 触发入口：此时，ExceptionTranslationFilter会调用其内部维护的 AuthenticationEntryPoint的 commence方法，启动认证流程 。
+
+常见实现与适用场景
+
+- LoginUrlAuthenticationEntryPoint：将未认证的用户重定向到登录页面。适用于传统的、前后端不分离的 Web 应用
+- BasicAuthenticationEntryPoint：返回 HTTP 401 响应，并包含 WWW-Authenticate 头，提示客户端进行身份验证。适用于 RESTful 服务，因为 RESTful 服务通常不提供登录页面。
+- HttpStatusEntryPoint：直接返回一个特定的 HTTP 状态码（如 401），不包含额外信息。适用于简单的无状态 API。
+- 自定义实现（返回JSON）：直接返回一个带有 401 状态码和自定义错误信息的 JSON 数据。适用于前后端分离的架构（如 RESTful API、单页面应用）。
+- OAuth2 相关入口点：返回符合 OAuth 2.0 规范的错误信息，例如 WWW-Authenticate: Bearer。适用于OAuth 2.0 资源服务器
+
+在 Spring Security 配置中，您可以通过 HttpSecurity的 exceptionHandling方法来配置自定义的 AuthenticationEntryPoint
+
+```java
+@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+            // ... 其他配置（如URL授权规则）
+            .exceptionHandling(exceptions -> exceptions
+                .authenticationEntryPoint(myCustomAuthenticationEntryPoint) // 配置认证入口点
+                // 可以同时配置 .accessDeniedHandler(...) 来处理已认证但无权限的情况
+            );
+        return http.build();
+    }
+}
+```
+
+## AbstractAuthenticationProcessingFilter
+
+AbstractAuthenticationProcessingFilter 是 Spring Security 中一个抽象类，它实现了 Filter 接口，并定义了处理认证请求的抽象方法。
+
+过滤器首先会检查当前请求是否是需要处理的认证请求（例如默认的 /loginPOST 请求）。这通过其内部的 RequestMatcher来判断。如果请求不匹配，则直接放行，由过滤器链中的下一个过滤器处理.
+
+UsernamePasswordAuthenticationFilter是 AbstractAuthenticationProcessingFilter最常用的子类，专门处理表单用户名密码登录
+
+如果你不希望使用默认的 /login路径，可以通过以下两种方式修改
+
+- 在配置类中使用 http.formLogin().loginProcessingUrl("/your-custom-login-url")。
+- 自定义一个继承自 AbstractAuthenticationProcessingFilter的过滤器，并在配置中将其添加到过滤器链中。
+
+
+# Spring Security 旧
 
 ## 过滤器
 
