@@ -1079,6 +1079,76 @@ UsernamePasswordAuthenticationFilter是 AbstractAuthenticationProcessingFilter�
 - 在配置类中使用 http.formLogin().loginProcessingUrl("/your-custom-login-url")。
 - 自定义一个继承自 AbstractAuthenticationProcessingFilter的过滤器，并在配置中将其添加到过滤器链中。
 
+# 认证方案
+
+关于认证规范与标准，参考《凤凰架构》的架构安全性一节，对于认证方案，Spring Security 内置了几种基本的认证方案：Form，Basic以及Digest。
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/passwords/input.html
+
+## 密码如何存储，认证后如何及时擦除
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/passwords/storage.html
+
+## 对于 WebAuthn 认证的支持（指纹，虹膜）
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/passkeys.html
+
+## 验证码登录
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/onetimetoken.html
+
+## 会话管理
+
+- 限制用户同时登录的次数
+- 自定义认证
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/session-management.html
+
+## 记住我
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/rememberme.html
+
+## 允许部分请求不需登录
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/anonymous.html
+
+## 预认证
+
+Spring Security 的预认证（Pre-Authentication）机制允许你在用户访问应用时，直接使用外部系统已经完成的认证结果。这对于集成企业单点登录（如 SiteMinder）或基于证书的认证（X.509）等场景非常实用。下面我将详细解析其核心概念、框架组件及具体实现。
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/preauth.html
+
+## JAAS
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/jaas.html
+
+https://www.chinaaet.com/article/12270
+
+## 中央认证服务 CAS
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/cas.html
+
+## X.509证书认证
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/x509.html
+
+## 权限提升
+
+假设一个普通用户（ROLE_USER）触发了一个操作，这个操作内部需要调用一个只允许管理员（ROLE_ADMIN）执行的方法。Run-As机制可以在调用该管理员方法前，临时将安全身份切换为一个具有 ROLE_ADMIN权限的Authentication，调用结束后再恢复为原用户身份。这对于实现复杂业务逻辑中的内部授权非常有用
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/runas.html
+
+## logout
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/logout.html
+
+## 认证期间事件
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authentication/events.html
+
+# 授权
+
+https://docs.spring.io/spring-security/reference/6.5/servlet/authorization/index.html
 
 # Spring Security 旧
 
