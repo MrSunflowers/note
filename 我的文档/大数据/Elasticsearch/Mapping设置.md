@@ -773,16 +773,122 @@ PUT user-index
 }
 ```
 
+## 自定义路由与 _routing
 
+路由（Routing）是 Elasticsearch 用来确定文档应该存储在哪个分片（Shard）上的机制。
 
+文档通过以下公式被路由到索引中的特定分片：
 
+```java
+routing_factor = num_routing_shards / num_primary_shards
+shard_num = (hash(_routing) % num_routing_shards) / routing_factor
+```
 
+其中
 
+- num_routing_shards是索引设置 index.number_of_routing_shards的值。
+- num_primary_shards是索引设置 index.number_of_shards的值。
 
-
+默认的 _routing 值是文档的 _id。可以通过为每个文档指定自定义的路由值来实现自定义路由模式。
 
 ```json
+// 索引文档时使用自定义路由
+PUT my-index-000001/_doc/1?routing=user1&refresh=true
+{
+  "title": "这是一个文档"
+}
 
+// 获取、删除或更新文档时需要提供相同的路由值
+GET my-index-000001/_doc/1?routing=user1
+```
+
+此文档使用 user1作为其路由值，而不是其ID。
+
+可以在查询中访问 _routing字段的值：
+
+```json
+GET my-index-000001/_search
+{
+  "query": {
+    "terms": {
+      "_routing": [ "user1" ]
+    }
+  }
+}
+```
+
+**使用自定义路由进行搜索**
+
+自定义路由可以减少搜索的影响。搜索请求可以只发送到与特定路由值匹配的分片，而不必扇出到索引中的所有分片：
+
+```json
+GET my-index-000001/_search?routing=user1,user2
+{
+  "query": {
+    "match": {
+      "title": "document"
+    }
+  }
+}
+```
+
+此搜索请求将仅在与 user1和 user2路由值关联的分片上执行。
+
+使路由值成为必需项
+
+使用自定义路由时，在索引、获取、删除或更新文档时提供路由值非常重要。
+
+忘记提供路由值可能导致文档在多个分片上被索引。作为保护措施，可以配置 _routing字段，使所有CRUD操作都需要自定义路由值：
+
+```json
+PUT my-index-000002
+{
+  "mappings": {
+    "_routing": {
+      "required": true
+    }
+  }
+}
+```
+
+```json
+// 这个索引请求会抛出 routing_missing_exception 异常
+PUT my-index-000002/_doc/1
+{
+  "text": "未提供路由值"
+}
+```
+
+由于自定义路由下ID只在同一个路由值内保证唯一，需要建立自己的ID生成策略：
+
+**路由分区**
+
+路由分区是自定义路由的扩展，用于解决数据倾斜问题。
+
+问题场景
+
+假设有1000万用户，但其中10个超级用户占了90%的数据。如果使用自定义路由（routing=user_id）：
+
+- 超级用户A的所有数据都进入同一个分片
+- 该分片可能变得非常大，导致集群不平衡
+- 这个"热分片"可能成为性能瓶颈
+
+路由分区解决方案
+
+```json
+// 创建索引时启用路由分区
+PUT my_partitioned_index
+{
+  "settings": {
+    "number_of_shards": 6,
+    "routing_partition_size": 3
+  },
+  "mappings": {
+    "_routing": {
+      "required": true
+    }
+  }
+}
 ```
 
 
@@ -802,7 +908,9 @@ PUT user-index
 
 
 
+```json
 
+```
 
 
 
