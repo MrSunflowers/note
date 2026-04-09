@@ -116,7 +116,7 @@ GET /daily_sales/_search
 - 索引行为：默认情况下 _doc_count不会被索引，因为它只用于聚合
 - 更新限制：如果文档已存在，更新 _doc_count需要完整的文档替换
 
-## _field_names 与 exists 查询
+## exists 查询与 _field_names
 
 _field_names 字段过去用于索引文档中每个包含非 null 值的字段的名称。exists查询曾经使用这个字段来查找那些“在特定字段上存在（或不存在）任何非 null 值”的文档。
 
