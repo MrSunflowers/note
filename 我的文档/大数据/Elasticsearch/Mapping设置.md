@@ -223,10 +223,159 @@ GET /user_profile/_search
 
 因为现在的 _field_names 开销极低（只索引极少数字段），默认开启的收益（为禁用doc_values/norms的字段提供exists查询支持）远大于其成本。保留一个“禁用”选项只会让配置复杂化，没有实际益处。
 
+## _ignored
 
+Elasticsearch 在尝试索引一个文档时，如果某个字段不符合预设的规则，它可以选择不将这个字段的内容加入到倒排索引中，这样这个字段就变得不可搜索。但为了帮助您诊断问题，Elasticsearch 会将这个字段的名字记录在 _ignored这个特殊的字段里。
 
+这是一个数据诊断和治理工具。想象一下，您正在从外部系统接收海量数据，有些数据可能不规范。与其让整个文档因为一个坏字段而索引失败，不如忽略它并继续处理，同时通过 _ignored字段让您知道哪些字段出了问题，便于后续排查和修复。
 
+我们通过几个具体的场景来理解 _ignored字段的用途。
 
+场景一：字段格式错误 (Malformed Field)
+
+背景：你有一个 products索引，其中 price字段被定义为 float类型。但某个上游系统偶尔会发送错误的数据，比如把价格写成了字符串 "twenty"。
+
+映射与设置：
+```json
+PUT /products
+{
+  "mappings": {
+    "properties": {
+      "name": {"type": "text"},
+      "price": {
+        "type": "float",
+        "ignore_malformed": true  // 关键设置：遇到类型错误时忽略此字段
+      }
+    }
+  }
+}
+```
+索引一个有问题的文档：
+```json
+POST /products/_doc/1
+{
+  "name": "T-Shirt",
+  "price": "twenty"  // 这是一个字符串，无法转为浮点数
+}
+```
+这个文档会被成功索引，但 price字段的值 "twenty"不会被加入到索引中，即你无法通过 price搜索到这个文档。
+
+此时，Elasticsearch 会将字段名 price记录在这个文档的 _ignored字段中。
+
+查询验证：
+```json
+GET /products/_search
+{
+  "query": {
+    "term": {
+      "_ignored": "price"  // 查找哪些文档的 `price` 字段被忽略了
+    }
+  }
+}
+```
+这个查询会返回文档 _id: 1，因为它包含被忽略的 price字段。通过这个查询，你就能快速定位到有问题的数据记录。
+
+场景二：Keyword 字段超长
+
+背景：你有一个 logs索引，其中 error_code被定义为 keyword类型。keyword类型适合精确匹配，但为了性能，通常会给一个长度限制。
+
+映射与设置：
+```json
+PUT /logs
+{
+  "mappings": {
+    "properties": {
+      "message": {"type": "text"},
+      "error_code": {
+        "type": "keyword",
+        "ignore_above": 256  // 关键设置：超过256字符的keyword值将被忽略
+      }
+    }
+  }
+}
+```
+索引一个超长的关键字：
+```json
+POST /logs/_doc/1
+{
+  "message": "An error occurred",
+  "error_code": "VERY_LONG_ERROR_CODE_THAT_EXCEEDS_THE_256_CHARACTER_LIMIT_SET_IN_IGNORE_ABOVE_FOR_THE_KEYWORD_FIELD_SO_THIS_PART_WILL_BE_IGNORED_AND_NOT_INDEXED_FOR_SEARCHING_ALTHOUGH_IT_IS_STILL_STORED_IN_SOURCE_IF_YOU_HAVE_ENABLED_SOURCE"
+}
+```
+这个文档会被索引，但 error_code字段的超长值不会被加入到倒排索引中。
+
+诊断：你可以通过聚合来分析哪些字段最常被忽略。
+```json
+GET /logs/_search
+{
+  "size": 0,  // 不关心具体文档，只要聚合结果
+  "aggs": {
+    "problematic_fields": {
+      "terms": {
+        "field": "_ignored",  // 对 _ignored 字段做聚合
+        "size": 10
+      }
+    }
+  }
+}
+```
+返回结果会类似：
+```json
+{
+  "aggregations" : {
+    "problematic_fields" : {
+      "buckets" : [
+        {
+          "key" : "error_code",  // 被忽略的字段名
+          "doc_count" : 1        // 有1个文档的此字段被忽略
+        }
+      ]
+    }
+  }
+}
+```
+这能帮助你发现 error_code字段的长度设置可能不合理，需要调整业务逻辑或 ignore_above的值。
+
+场景三：文档字段数超限
+
+背景：为了防止映射爆炸，Elasticsearch 默认限制一个文档不能超过 1000 个字段。但有时你会处理一些稀疏的、字段极多的数据（比如宽表）。
+
+映射与设置：
+```json
+PUT /wide_table
+{
+  "settings": {
+    "index.mapping.total_fields.limit": 5,  // 为了演示，将限制设为极小的5个
+    "index.mapping.total_fields.ignore_dynamic_beyond_limit": true  // 关键设置：超过的字段将被忽略
+  }
+}
+```
+索引一个“宽”文档（包含6个字段，超过了5个的限制）：
+```json
+POST /wide_table/_doc/1
+{
+  "field1": "A",
+  "field2": "B",
+  "field3": "C",
+  "field4": "D",
+  "field5": "E",
+  "field6": "F"  // 这个字段是第6个，将被忽略
+}
+```
+文档被成功索引，但 field6被忽略。
+
+诊断：使用 exists查询找到所有存在“被忽略字段”的文档。
+```json
+GET /wide_table/_search
+{
+  "query": {
+    "exists": {
+      "field": "_ignored"  // 查找所有有字段被忽略的文档
+    }
+  }
+}
+```
+这个查询能帮你快速筛选出哪些文档的字段结构“超标”了，以便进行数据清洗或调整索引的字段数量限制。
 
 
 
