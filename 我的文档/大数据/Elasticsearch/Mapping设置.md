@@ -734,11 +734,44 @@ GET _all/_search?size=0
 }
 ```
 
+## _meta
 
+_meta 是 Elasticsearch 中的一种文档元数据字段，用于存储应用程序特定的自定义元数据。这些数据不会被 Elasticsearch 内部使用，但可以为您的应用程序提供有用的上下文信息。
 
+核心特性
 
+- 非检索性：_meta字段不会被索引，也不能用于搜索或聚合
+- 纯存储用途：仅作为应用程序的元数据存储
+- 灵活结构：支持任意 JSON 对象结构
+- 可更新：可以通过映射更新 API 进行修改
 
+案例：存储数据模型版本信息
 
+```json
+PUT user-index
+{
+  "mappings": {
+    "_meta": {
+      "data_model": {
+        "name": "用户数据模型",
+        "version": "2.1.0",
+        "description": "用户基本信息模型，包含扩展属性",
+        "created_by": "开发团队A",
+        "created_at": "2026-01-15",
+        "schema_changes": [
+          "v2.1.0: 添加了preferences字段",
+          "v2.0.0: 重构了address结构"
+        ]
+      },
+      "validation_rules": {
+        "email_required": true,
+        "username_min_length": 3,
+        "phone_format": "regex:^1[3-9]\\d{9}$"
+      }
+    }
+  }
+}
+```
 
 
 
@@ -751,7 +784,6 @@ GET _all/_search?size=0
 ```json
 
 ```
-
 
 
 
