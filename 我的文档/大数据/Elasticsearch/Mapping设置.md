@@ -116,6 +116,136 @@ GET /daily_sales/_search
 - 索引行为：默认情况下 _doc_count不会被索引，因为它只用于聚合
 - 更新限制：如果文档已存在，更新 _doc_count需要完整的文档替换
 
+## _field_names 与 exists 查询
+
+_field_names 字段过去用于索引文档中每个包含非 null 值的字段的名称。exists查询曾经使用这个字段来查找那些“在特定字段上存在（或不存在）任何非 null 值”的文档。
+
+对于一个文档 {"title": "Elastic", "tags": null, "body": "Search"}，早期版本会在这个文档的 _field_names字段中存储值 ["title", "body"]（因为tags是null，不包含在内）。
+
+当执行 {"query": {"exists": {"field": "title"}}}时，查询引擎可以直接去 _field_names这个专用索引里查找包含 "title"的文档列表，速度非常快。这是为 exists查询专门建立的“反向索引”。
+
+随着 Elasticsearch 发展，一些其他机制变得更强大、更通用，_field_names 的作用也被弱化，以下两种存储结构将替代 _field_names 的作用：
+
+1. Doc Values： 一种列式存储结构，默认对所有支持聚合、排序的字段启用。它按字段存储所有文档的值，非常适合用来判断一个字段在某文档是否有值（只需查看该文档在该列是否有记录即可）。
+2. Norms： 存储用于计算相关性分数（_score）的长度因子。如果一个字段有 norms，它必然会被索引，系统也可以通过其他方式判断其存在性。
+
+这意味着，在现代 Elasticsearch 中，_field_names 只是一个后备机制，只为那些既不需要做聚合/排序（无doc_values），也不参与相关性评分（无norms）的、非常“轻量”的字段服务。
+
+假设我们有一个用户档案索引，映射如下：
+```json
+PUT /user_profile
+{
+  "mappings": {
+    "properties": {
+      "user_id": {
+        "type": "keyword"
+        // 默认启用 doc_values， 禁用 norms
+      },
+      "name": {
+        "type": "text"
+        // 文本字段默认禁用 doc_values， 启用 norms
+      },
+      "bio": {
+        "type": "text"
+        // 同上
+      },
+      "last_login_ip": {
+        "type": "ip",
+        "doc_values": false,
+        "norms": false
+        // 明确禁用两者
+      },
+      "internal_notes": {
+        "type": "keyword",
+        "doc_values": false,
+        "norms": false
+        // 明确禁用两者
+      }
+    }
+  }
+}
+```
+插入一条文档：
+```json
+POST /user_profile/_doc/1
+{
+  "user_id": "U123",
+  "name": "张三",
+  "last_login_ip": "10.0.0.1",
+  "internal_notes": "VIP客户"
+  // 注意，没有 `bio` 字段
+}
+```
+对于这个文档，_field_names字段会索引什么？
+- user_id: 有关键字类型的 doc_values-> 不进入 _field_names。
+- name: 有文本类型的 norms-> 不进入 _field_names。
+- bio: 字段不存在 -> 肯定不进入 _field_names。
+- last_login_ip: doc_values和 norms都禁用了 -> 进入​ _field_names。
+- internal_notes: doc_values和 norms都禁用了 -> 进入​ _field_names。
+所以，文档1的 _field_names值为：["last_login_ip", "internal_notes"]。
+
+执行 exists 查询时会发生什么？
+```json
+GET /user_profile/_search
+{
+  "query": {
+    "exists": {
+      "field": "user_id"
+    }
+  }
+}
+```
+对 user_id的查询： 因为 user_id有 doc_values，查询引擎会直接检查其 doc_values结构，发现文档1在该列有值“U123”，因此匹配。不走 _field_names。
+```json
+GET /user_profile/_search
+{
+  "query": {
+    "exists": {
+      "field": "bio"
+    }
+  }
+}
+```
+对 bio的查询： 因为 bio字段在文档1中不存在，其映射中虽然有 norms，但该文档的 bio列是空的。查询引擎检查其相关结构后，判断为不存在。不走 _field_names。
+```json
+GET /user_profile/_search
+{
+  "query": {
+    "exists": {
+      "field": "last_login_ip"
+    }
+  }
+}
+```
+对 last_login_ip的查询： 该字段两者都禁用。查询引擎在检查其自身结构无果后，会回退到查询 _field_names 索引，发现文档1的 _field_names包含 "last_login_ip"，因此匹配。
+
+在新版本的 Elasticsearch 中，不再可以禁用 _field_names 字段。**它现在默认启用**，因为它不再像过去那样带来索引开销。
+
+因为现在的 _field_names 开销极低（只索引极少数字段），默认开启的收益（为禁用doc_values/norms的字段提供exists查询支持）远大于其成本。保留一个“禁用”选项只会让配置复杂化，没有实际益处。
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
