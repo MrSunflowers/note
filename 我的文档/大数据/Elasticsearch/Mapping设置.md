@@ -389,6 +389,350 @@ _id 的大小被限制在 512 字节以内，更大的值将被拒绝。
 
 _id 是文档在 Elasticsearch 中的“身份证号”或“主键”。它的核心作用是唯一标识一个文档。想象一下，你有一个用户表，每个用户都需要一个唯一的用户ID，_id就是 Elasticsearch 文档世界里的这个 ID。
 
+## 跨索引查询与 _index
+
+_index 是 Elasticsearch 文档的元数据字段，用于标识文档所属的索引名称。当进行跨多索引查询时，可以通过此字段精准筛选特定索引的文档。
+
+跨索引综合查询示例
+
+```json
+GET index_1,index_2/_search
+{
+  "query": {
+    "terms": {
+      "_index": ["index_1", "index_2"]  // 只查询这两个索引
+    }
+  },
+  "aggs": {
+    "indices": {
+      "terms": {
+        "field": "_index",  // 按索引名称聚合
+        "size": 10
+      }
+    }
+  },
+  "sort": [
+    {
+      "_index": {
+        "order": "asc"  // 按索引名升序排序
+      }
+    }
+  ],
+  "script_fields": {
+    "index_name": {
+      "script": {
+        "lang": "painless",
+        "source": "doc['_index']"  // 在脚本中访问索引名
+      }
+    }
+  }
+}
+```
+
+四大应用场景详解
+
+1. 索引条件查询
+
+```json
+// 示例1：精确匹配单个索引
+GET */_search
+{
+  "query": {
+    "term": {
+      "_index": "logs-2023-10-01"  // 只查询特定日期日志索引
+    }
+  }
+}
+
+// 示例2：匹配多个索引
+GET */_search
+{
+  "query": {
+    "terms": {
+      "_index": ["index_a", "index_b", "index_c"]
+    }
+  }
+}
+
+// 示例3：通配符匹配
+GET */_search
+{
+  "query": {
+    "wildcard": {
+      "_index": "logs-2023-*"  // 匹配2023年所有日志索引
+    }
+  }
+}
+```
+应用场景：
+
+日志分析：_index: "nginx-logs-2023-10-*"查询10月份所有日志
+多租户系统：_index: "tenant_*_products"查询所有租户的商品索引
+
+2. 按索引聚合统计
+
+```json
+GET index_1,index_2,index_3/_search
+{
+  "size": 0,  // 不返回具体文档
+  "aggs": {
+    "per_index_stats": {
+      "terms": {
+        "field": "_index",
+        "size": 100
+      },
+      "aggs": {
+        "avg_price": {
+          "avg": {"field": "price"}
+        }
+      }
+    }
+  }
+}
+```
+返回结果示例：
+
+```json
+{
+  "aggregations": {
+    "per_index_stats": {
+      "buckets": [
+        {
+          "key": "index_1",        // 索引名
+          "doc_count": 1500,        // 文档数量
+          "avg_price": {"value": 299.99}
+        },
+        {
+          "key": "index_2",
+          "doc_count": 2300,
+          "avg_price": {"value": 450.50}
+        }
+      ]
+    }
+  }
+}
+```
+
+典型用例：
+
+统计各索引的文档数量分布
+对比不同业务模块的数据量
+监控各分片索引的数据均衡性
+
+3. 跨索引排序
+
+```json
+GET logs_prod,logs_test/_search
+{
+  "sort": [
+    {
+      "_index": {  // 先按索引名排序
+        "order": "desc"
+      }
+    },
+    {
+      "@timestamp": {  // 再按时间排序
+        "order": "asc"
+      }
+    }
+  ]
+}
+```
+排序规则：
+
+索引名按字典序排列
+常用于：prod环境日志优先显示
+
+4. 脚本中动态访问
+
+```json
+GET */_search
+{
+  "script_fields": {
+    "full_identifier": {
+      "script": """
+        // 组合索引名和文档ID
+        return doc['_index'].value + '#' + doc['_id'].value
+      """
+    },
+    "env_type": {
+      "script": """
+        // 根据索引名判断环境类型
+        String index = doc['_index'].value;
+        if (index.contains('_prod_')) {
+          return 'production';
+        } else if (index.contains('_test_')) {
+          return 'testing';
+        } else {
+          return 'development';
+        }
+      """
+    }
+  }
+}
+```
+
+重要技术特性
+
+1. 虚拟字段特性
+
+```json
+// 以下查询可行
+{
+  "query": {
+    "term": { "_index": "logs" }           // ✅ 支持
+  }
+}
+
+{
+  "query": {
+    "match": { "_index": "logs" }          // ✅ 支持（转为term查询）
+  }
+}
+
+{
+  "query": {
+    "wildcard": { "_index": "log*" }       // ✅ 支持
+  }
+}
+
+// 以下查询不可用
+{
+  "query": {
+    "regexp": { "_index": "log.*" }        // ❌ 不支持正则
+  }
+}
+
+{
+  "query": {
+    "fuzzy": { "_index": "logs" }          // ❌ 不支持模糊查询
+  }
+}
+```
+
+底层原理：
+- _index是虚拟字段，不会实际写入 Lucene 倒排索引
+- 查询时 Elasticsearch 在查询规划阶段处理索引过滤
+- 因此只支持精确匹配、通配符等简单查询
+
+2. 支持索引别名
+
+```json
+// 创建别名
+PUT /real_index/_alias/my_alias
+
+// 通过别名查询（实际查询 real_index）
+GET */_search
+{
+  "query": {
+    "term": {
+      "_index": "my_alias"  // ✅ 支持别名
+    }
+  }
+}
+```
+
+3. 跨集群查询支持
+
+```json
+// 查询远程集群数据
+GET */_search
+{
+  "query": {
+    "term": {
+      "_index": "cluster1:logs_2023"  // 远程集群索引
+    }
+  }
+}
+
+// 通配符查询远程集群
+GET */_search
+{
+  "query": {
+    "wildcard": {
+      "_index": "cluster_*:index_3"  // 匹配所有集群的 index_3
+    }
+  }
+}
+```
+
+特别注意：
+
+```json
+// ❌ 错误写法：缺失分隔符
+{
+  "query": {
+    "wildcard": {
+      "_index": "cluster*index_1"  // 只匹配本地索引！
+    }
+  }
+}
+
+// ✅ 正确写法：包含分隔符
+{
+  "query": {
+    "wildcard": {
+      "_index": "cluster_*:index_1"  // 正确匹配远程索引
+    }
+  }
+}
+```
+
+实战应用案例
+
+案例1：多环境日志检索系统
+
+```json
+// 同时查询开发、测试、生产环境日志
+GET logs_dev_*,logs_test_*,logs_prod_*/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        { "match": { "message": "error" } }
+      ],
+      "filter": [
+        {
+          "terms": {
+            "_index": [  // 限定只查生产和测试环境
+              "logs_prod_2023-10-01",
+              "logs_test_2023-10-01"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "sort": [
+    {
+      "_index": {  // 生产环境日志优先
+        "order": "desc"
+      }
+    }
+  ]
+}
+```
+
+案例2：索引生命周期监控
+
+```json
+// 监控各索引健康状态
+GET _all/_search?size=0
+{
+  "aggs": {
+    "index_distribution": {
+      "terms": {
+        "field": "_index",
+        "size": 1000
+      },
+      "aggs": {
+        "doc_count": { "value_count": { "field": "_id" } },
+        "avg_size": { "avg": { "script": "params._source.toString().length()" } }
+      }
+    }
+  }
+}
+```
 
 
 
@@ -404,9 +748,9 @@ _id 是文档在 Elasticsearch 中的“身份证号”或“主键”。它的�
 
 
 
+```json
 
-
-
+```
 
 
 
