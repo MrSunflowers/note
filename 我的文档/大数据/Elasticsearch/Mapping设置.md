@@ -955,9 +955,19 @@ PUT idx
 }
 ```
 
+## 数据分层与 _tier
 
+假设我们有一个电商系统，数据按访问频率分层存储：
 
+- orders_hot索引：存储最近30天的订单（tier_preference: data_hot）
+- orders_warm索引：存储31-90天的订单（tier_preference: data_warm）
+- orders_cold索引：存储91-365天的订单（tier_preference: data_cold）
 
+_tier 字段允许你查询文档所在索引的层级偏好设置（tier_preference）。这在以下场景特别有用：
+
+1. 性能优化：只查询热数据层，避免扫描冷数据
+2. 成本控制：在混合存储环境中，避免查询昂贵的存储层
+3. 数据治理：按数据生命周期策略进行查询隔离
 
 
 
