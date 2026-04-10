@@ -957,11 +957,21 @@ PUT idx
 
 ## 数据分层与 _tier
 
-假设我们有一个电商系统，数据按访问频率分层存储：
+Elasticsearch 元数据字段 _tier 详解
 
-- orders_hot索引：存储最近30天的订单（tier_preference: data_hot）
-- orders_warm索引：存储31-90天的订单（tier_preference: data_warm）
-- orders_cold索引：存储91-365天的订单（tier_preference: data_cold）
+一、字段概述
+
+_tier 是一个特殊的文档元数据字段，用于在跨索引查询时，根据索引所在的数据层（Data Tier）进行定向筛选。数据层是 Elasticsearch 中用于实现分层存储架构的核心概念，主要包括：
+
+• data_hot：热数据层，存储最新、访问最频繁的数据
+
+• data_warm：温数据层，存储近期访问较少的数据  
+
+• data_cold：冷数据层，存储很少访问的归档数据
+
+• data_frozen：冻结数据层，存储极少访问的历史数据
+
+二、核心功能
 
 _tier 字段允许你查询文档所在索引的层级偏好设置（tier_preference）。这在以下场景特别有用：
 
@@ -969,9 +979,384 @@ _tier 字段允许你查询文档所在索引的层级偏好设置（tier_prefer
 2. 成本控制：在混合存储环境中，避免查询昂贵的存储层
 3. 数据治理：按数据生命周期策略进行查询隔离
 
+三、技术细节详解
+
+3.1 如何工作
+
+当索引创建时，可以设置 index.routing.allocation.include._tier_preference 参数。例如：
+PUT my_index
+{
+  "settings": {
+    "index.routing.allocation.include._tier_preference": "data_hot,data_warm"
+  }
+}
 
 
+_tier 字段会自动捕获这个设置中的第一个首选项（上例中的 data_hot）。
 
+3.2 查询支持范围
+
+查询类型 是否支持 说明
+
+terms ✅ 支持 最常用方式
+
+term ✅ 支持 精确匹配单个层级
+
+match ✅ 支持 经过重写为 term 查询
+
+query_string ✅ 支持 支持查询字符串语法
+
+simple_query_string ✅ 支持 简化版查询字符串
+
+prefix ✅ 支持 前缀匹配（如 data_h*）
+
+wildcard ✅ 支持 通配符匹配
+
+regexp ❌ 不支持 正则表达式查询
+
+fuzzy ❌ 不支持 模糊查询
+
+3.3 重要限制
+
+tier_preference 是逗号分隔的列表，但查询时只匹配第一个值！
+
+示例解析：
+索引设置
+"tier_preference": "data_hot,data_warm,data_cold"
+
+实际存储的 _tier 值
+"_tier": "data_hot"  # 只存储第一个值！
+
+查询示例 - 能匹配
+GET /_search
+{
+  "query": {
+    "term": {
+      "_tier": "data_hot"  # ✅ 匹配成功
+    }
+  }
+}
+
+查询示例 - 不能匹配  
+GET /_search
+{
+  "query": {
+    "term": {
+      "_tier": "data_warm"  # ❌ 无法匹配，即使它在列表中
+    }
+  }
+}
+
+
+四、完整实战案例
+
+4.1 场景设定
+
+假设我们有一个电商系统，数据按访问频率分层存储：
+
+• orders_hot 索引：存储最近30天的订单（tier_preference: data_hot）
+
+• orders_warm 索引：存储31-90天的订单（tier_preference: data_warm）
+
+• orders_cold 索引：存储91-365天的订单（tier_preference: data_cold）
+
+4.2 环境搭建
+
+1. 创建热数据层索引（存储在高速SSD）
+PUT orders_hot
+{
+  "settings": {
+    "index.routing.allocation.include._tier_preference": "data_hot"
+  },
+  "mappings": {
+    "properties": {
+      "order_id": { "type": "keyword" },
+      "amount": { "type": "double" },
+      "create_time": { "type": "date" }
+    }
+  }
+}
+
+2. 创建温数据层索引（存储在普通SSD）
+PUT orders_warm
+{
+  "settings": {
+    "index.routing.allocation.include._tier_preference": "data_warm,data_hot"
+  },
+  "mappings": {
+    "properties": {
+      "order_id": { "type": "keyword" },
+      "amount": { "type": "double" },
+      "create_time": { "type": "date" }
+    }
+  }
+}
+
+3. 创建冷数据层索引（存储在HDD）
+PUT orders_cold
+{
+  "settings": {
+    "index.routing.allocation.include._tier_preference": "data_cold,data_warm"
+  },
+  "mappings": {
+    "properties": {
+      "order_id": { "type": "keyword" },
+      "amount": { "type": "double" },
+      "create_time": { "type": "date" }
+    }
+  }
+}
+
+
+4.3 插入测试数据
+
+插入热层数据（近期订单）
+POST orders_hot/_doc/1
+{
+  "order_id": "ORD-20230410-001",
+  "amount": 299.99,
+  "create_time": "2023-04-10T10:00:00Z",
+  "text": "最新订单，频繁访问"
+}
+
+插入温层数据
+POST orders_warm/_doc/2?refresh=true
+{
+  "order_id": "ORD-20230215-002",
+  "amount": 150.50,
+  "create_time": "2023-02-15T14:30:00Z",
+  "text": "两个月前订单，偶尔查询"
+}
+
+插入冷层数据
+POST orders_cold/_doc/3?refresh=true
+{
+  "order_id": "ORD-20221001-003",
+  "amount": 89.99,
+  "create_time": "2022-10-01T09:15:00Z",
+  "text": "半年前订单，很少访问"
+}
+
+
+4.4 查询示例
+
+示例1：只查询热数据（性能优先）
+
+GET orders_hot,orders_warm,orders_cold/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "range": {
+            "amount": { "gte": 100 }
+          }
+        },
+        {
+          "terms": {
+            "_tier": ["data_hot"]  # 只查热层，避免扫描温冷层
+          }
+        }
+      ]
+    }
+  },
+  "explain": true  # 查看查询执行详情
+}
+
+执行结果分析：只返回 orders_hot 索引中的文档，即使其他索引也有符合条件的文档。
+
+示例2：查询热层和温层（平衡性能与覆盖面）
+
+GET */_search
+{
+  "query": {
+    "terms": {
+      "_tier": ["data_hot", "data_warm"]
+    }
+  },
+  "aggs": {
+    "tier_stats": {
+      "terms": {
+        "field": "_tier",  # 按数据层聚合
+        "size": 10
+      }
+    }
+  }
+}
+
+
+示例3：使用 query_string 查询
+
+GET */_search
+{
+  "query": {
+    "query_string": {
+      "query": "_tier:data_hot OR _tier:data_warm",
+      "default_field": "text"
+    }
+  }
+}
+
+
+示例4：前缀匹配查询
+
+GET */_search
+{
+  "query": {
+    "prefix": {
+      "_tier": "data_h"  # 匹配 data_hot
+    }
+  }
+}
+
+
+⚠️ 五、注意事项与最佳实践
+
+5.1 重要提醒
+
+1. 首选项原则：_tier 只记录 tier_preference 的第一个值
+2. 索引创建时决定：文档的 _tier 值在索引创建时就确定了，后续修改 tier_preference 不会改变已有文档的 _tier 值
+3. 不支持正则：不能使用 regexp 查询，如 _tier: /data_.*/
+
+5.2 最佳实践
+
+推荐的数据层策略配置
+production_index:
+  settings:
+    number_of_shards: 3
+    number_of_replicas: 1
+    # 清晰的层级偏好（热 -> 温 -> 冷）
+    index.routing.allocation.include._tier_preference: "data_hot,data_warm,data_cold"
+  
+监控查询示例：只查询热层和温层
+monitoring_query:
+  query:
+    bool:
+      filter:
+        - terms:
+            _tier: ["data_hot", "data_warm"]
+      must:
+        - range:
+            response_time:
+              gte: 1000
+
+
+5.3 常见问题排查
+
+问题：查询结果不符合预期
+排查步骤1：查看索引的实际 tier_preference
+GET my_index/_settings?filter_path=**.tier_preference
+
+排查步骤2：查看文档的 _tier 值
+GET my_index/_search
+{
+  "query": { "match_all": {} },
+  "script_fields": {
+    "tier_value": {
+      "script": {
+        "source": "doc['_tier'].value"
+      }
+    }
+  },
+  "size": 1
+}
+
+
+六、性能影响分析
+
+场景 性能影响 建议
+
+只查询热层 ⚡️ 极快 适合实时仪表盘
+
+查询热+温层 🚀 快速 适合日常业务查询
+
+包含冷层 🐢 较慢 适合历史分析、报表
+
+跨所有层 🐌 最慢 避免在生产环境使用
+
+七、与 ILM 策略集成
+
+_tier 字段与 Index Lifecycle Management (ILM) 完美配合：
+PUT _ilm/policy/hot_warm_cold_policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": { "max_size": "50gb" },
+          "set_priority": { "priority": 100 }
+        }
+      },
+      "warm": {
+        "min_age": "30d",
+        "actions": {
+          "set_priority": { "priority": 50 },
+          "allocate": { 
+            "include": { "_tier_preference": "data_warm" }
+          }
+        }
+      },
+      "cold": {
+        "min_age": "90d",
+        "actions": {
+          "set_priority": { "priority": 0 },
+          "allocate": { 
+            "include": { "_tier_preference": "data_cold" }
+          }
+        }
+      }
+    }
+  }
+}
+
+
+八、实际应用场景
+
+8.1 实时监控系统
+
+只监控热层数据，确保低延迟
+GET metrics-*/_search
+{
+  "query": {
+    "bool": {
+      "filter": [
+        { "terms": { "_tier": ["data_hot"] } },
+        { "range": { "@timestamp": { "gte": "now-1h" } } }
+      ]
+    }
+  }
+}
+
+
+8.2 成本优化查询
+
+分析查询：包含所有层，但注明数据来源
+GET sales_data/_search
+{
+  "query": { "match_all": {} },
+  "post_filter": {
+    "bool": {
+      "should": [
+        { "term": { "_tier": "data_hot" } },
+        { 
+          "term": { "_tier": "data_cold" },
+          "boost": 0.1  # 冷层数据权重降低
+        }
+      ]
+    }
+  }
+}
+
+
+九、学习要点总结
+
+1. _tier 是索引层级的元数据，不是文档属性
+2. 只存储 tier_preference 的第一个值，这是最重要的限制
+3. 查询时支持多种查询类型，但最常用的是 terms 查询
+4. 与数据分层架构深度集成，是实现成本优化和性能平衡的关键
+5. 实际应用时，通常结合时间范围和其他业务字段一起查询
+
+通过合理使用 _tier 字段，可以在大规模 Elasticsearch 集群中实现智能查询路由，既保证高频访问数据的查询性能，又降低整体存储和查询成本。
 
 
 
