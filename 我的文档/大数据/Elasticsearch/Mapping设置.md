@@ -817,7 +817,7 @@ GET my-index-000001/_search
 }
 ```
 
-**使用自定义路由进行搜索**
+### 使用自定义路由进行搜索
 
 自定义路由可以减少搜索的影响。搜索请求可以只发送到与特定路由值匹配的分片，而不必扇出到索引中的所有分片：
 
@@ -861,7 +861,7 @@ PUT my-index-000002/_doc/1
 
 由于自定义路由下ID只在同一个路由值内保证唯一，需要建立自己的ID生成策略：
 
-**路由分区**
+### 路由分区
 
 路由分区是自定义路由的扩展，用于解决数据倾斜问题。
 
@@ -891,10 +891,69 @@ PUT my_partitioned_index
 }
 ```
 
+# _source
 
+_source 字段用于存储在索引时传入的原始 JSON 文档内容。_source 字段本身不参与倒排索引构建，因此不能直接用于搜索。它以原始格式存储在磁盘上，专为后续获取操作（如 GET或 SEARCH返回结果）服务。
 
+### 禁用 _source
 
+当磁盘空间紧张时，可以配置不直接存储原始 JSON。
 
+配置示例
+```json
+PUT /my_index_no_source
+{
+  "mappings": {
+    "_source": {
+      "enabled": false
+    },
+    "properties": {
+      "title": { "type": "text" },
+      "year": { "type": "integer" }
+    }
+  }
+}
+```
+
+但其有很多缺点
+
+- GET和 SEARCH查询中访问 _source会变慢（需要实时重建）。
+- 仅支持特定字段类型（如 text, keyword, date, long等），且要求映射中启用 store: true或使用 doc_values。
+- 所有依赖 _source的功能都将失效，包括：
+  - 返回文档原文
+  - 高亮（highlighting）
+  - 重索引（reindex）
+  - 更新（update）操作
+  - 脚本字段（script fields）
+
+除非有明确的磁盘压力，否则建议保持 _source开启，以保证功能的完整性。
+
+### 动态构建 _source
+
+合成源是一种动态重建源文档的机制。在索引文档时，不直接存储原始的_source字段，而是在查询时根据其他存储的字段值重新构建出_source的内容。
+
+可以通过索引设置index.mapping.source.mode为synthetic来启用。示例：
+
+```json
+PUT idx
+{
+  "settings": {
+    "index": {
+      "mapping": {
+        "source": {
+          "mode": "synthetic"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "title": { "type": "text" },
+      "year": { "type": "integer" }
+    }
+  }
+}
+```
 
 
 
