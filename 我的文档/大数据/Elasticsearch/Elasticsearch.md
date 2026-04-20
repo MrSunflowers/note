@@ -1,4 +1,8 @@
 [TOC]
+
+[](https://www.elastic.co/docs/reference/elasticsearch/configuration-reference/auding-settings)
+
+
 # Elasticsearch
 
 OpenSearch 1.2.3 与 Elasticsearch （7.10.1版本）接口保持一致，无兼容性问题

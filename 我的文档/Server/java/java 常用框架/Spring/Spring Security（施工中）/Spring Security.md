@@ -5515,6 +5515,8 @@ basename属性指定消息文件的基本路径（不包含语言后缀和 .prop
 
 如果您想覆盖默认的某些消息，可以创建自己的消息文件（如放在 classpath:com/yourproject/messages），并在配置中将自定义文件的 basename放在 Security 默认文件之前，以确保优先使用您的版本。
 
+# 分布式认证中心
+
 
 
 
