@@ -8,3 +8,8 @@ https://help.openai.com/zh-hans-cn/articles/6654000-best-practices-for-prompt-en
 
 https://www.aneasystone.com/archives/2024/01/prompt-engineering-notes.html
 
+## 对话型 AI
+
+对于对话型 AI，一般可在提示词中提供一些优质对话示例来增强 AI 对于用户问答的确定性，包括引导用户提供必要的上下文信息，这些优质对话往往来自真实的用户交谈记录，再由产品经理或业务人员经过筛选而得到。
+
+
